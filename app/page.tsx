@@ -256,7 +256,7 @@ export default function DashboardPage() {
 
       <main className="px-4 py-4">
         <section className="space-y-3">
-          <Card className="rounded-2xl border-primary/20 bg-primary/[0.06] dark:bg-primary/15 py-0 shadow-sm">
+          <Card className="rounded-2xl border-primary/20 bg-primary/6 dark:bg-primary/15 py-0 shadow-sm">
             <CardContent className="p-5 pb-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">

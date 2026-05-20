@@ -163,8 +163,8 @@ export default function HistoryPage() {
       
       <div className="px-4 py-4 space-y-4">
         {/* Summary - Compact */}
-        <Card className="bg-primary/[0.15] dark:bg-primary/15 border-primary/25 dark:border-primary/20 overflow-hidden relative">
-          <CardContent className="p-3.5 relative">
+        <Card className="bg-primary/10 dark:bg-primary/15 border-primary/20 overflow-hidden relative">
+          <CardContent className="p-4 relative">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/70 dark:text-primary/80">
