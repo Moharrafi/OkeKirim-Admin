@@ -329,8 +329,8 @@ export default function DashboardPage() {
             <section>
               <SectionHeader title="Ringkasan" subtitle="Angka utama bulan ini" />
               <div className="grid grid-cols-2 gap-2.5">
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-h-[130px]">
-                  <CardContent className="p-4 py-5">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-primary/10">
                         <Wallet className="h-3.5 w-3.5 text-primary" />
@@ -349,8 +349,8 @@ export default function DashboardPage() {
                 </Card>
 
                 <Link href={isAdmin ? "/drivers" : "#"}>
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-h-[130px]">
-                  <CardContent className="p-4 py-5">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-blue-500/10">
                         <Users className="h-3.5 w-3.5 text-blue-500" />
@@ -367,8 +367,8 @@ export default function DashboardPage() {
                 </Card>
                 </Link>
 
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-h-[130px]">
-                  <CardContent className="p-4 py-5">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-amber-500/10">
                         <Clock className="h-3.5 w-3.5 text-amber-500" />
@@ -384,8 +384,8 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-h-[130px]">
-                  <CardContent className="p-4 py-5">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                  <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-emerald-500/10">
                         <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
