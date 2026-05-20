@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">OkeKirim Driver</string>
-    <string name="title_activity_main">OkeKirim Driver</string>
-    <string name="package_name">com.okekirim.driverdeposit</string>
-    <string name="custom_url_scheme">com.okekirim.driverdeposit</string>
+    <string name="app_name">OkeMitra</string>
+    <string name="title_activity_main">OkeMitra</string>
+    <string name="package_name">com.okemitra.driverdeposit</string>
+    <string name="custom_url_scheme">com.okemitra.driverdeposit</string>
 </resources>

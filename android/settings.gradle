@@ -3,3 +3,9 @@ include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
 apply from: 'capacitor.settings.gradle'
+
+// Redirect build directories to a local folder to avoid OneDrive sync locks and path length issues
+def buildDirBase = "C:/tmp/gradle-builds/driver-deposit-app"
+gradle.beforeProject { project ->
+    project.layout.buildDirectory.set(new File(buildDirBase, project.path.replace(':', '/')))
+}
