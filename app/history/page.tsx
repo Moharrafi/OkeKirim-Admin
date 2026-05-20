@@ -162,35 +162,31 @@ export default function HistoryPage() {
       <MobileHeader title="Riwayat" />
       
       <div className="px-4 py-4 space-y-4">
-        {/* Summary */}
+        {/* Summary - Compact */}
         <Card className="bg-primary/[0.15] dark:bg-primary/15 border-primary/25 dark:border-primary/20 overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <CardContent className="p-4 relative">
+          <CardContent className="p-3.5 relative">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/70 dark:text-primary/80">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/70 dark:text-primary/80">
                   {isDriver ? "Total Disetor" : "Total Berhasil"}
                 </p>
-                <p className="text-[1.75rem] font-extrabold text-foreground mt-1 tracking-tight">
+                <p className="text-xl font-extrabold text-foreground mt-0.5 tracking-tight">
                   Rp {totalAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
                 </p>
               </div>
-              <div className="p-3 rounded-2xl bg-primary/10 dark:bg-primary/20">
-                <Wallet className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <div className="flex gap-4 mt-3 pt-3 border-t border-primary/10">
-              <div>
-                <p className="text-[11px] text-muted-foreground">Total Trip</p>
-                <p className="text-lg font-bold text-foreground">{totalTrips}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground">Lunas</p>
-                <p className="text-lg font-bold text-success">{lunasCount}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground">Belum Setor</p>
-                <p className="text-lg font-bold text-warning">{nunggakCount}</p>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] text-muted-foreground">Trip</p>
+                  <p className="text-sm font-bold text-foreground">{totalTrips}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-muted-foreground">Lunas</p>
+                  <p className="text-sm font-bold text-success">{lunasCount}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-muted-foreground">Nunggak</p>
+                  <p className="text-sm font-bold text-warning">{nunggakCount}</p>
+                </div>
               </div>
             </div>
           </CardContent>
