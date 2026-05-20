@@ -23,6 +23,7 @@ import Link from "next/link"
 import { useUser } from "@/lib/user-context"
 import dynamic from "next/dynamic"
 import { SkeletonDashboard } from "@/components/skeleton-dashboard"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 const DashboardCharts = dynamic(() => import("@/components/dashboard-charts"), {
   ssr: false,
@@ -238,7 +239,18 @@ export default function DashboardPage() {
         { label: "Profil", href: "/profile", icon: Users, tone: "amber" as const },
       ]
 
+  const handleRefresh = async () => {
+    const params = new URLSearchParams()
+    if (!isAdmin && user.name) params.set("driver", user.name)
+    const res = await fetch(`/api/dashboard?${params.toString()}`)
+    const d = await res.json()
+    setData(d)
+    const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
+    sessionStorage.setItem(cacheKey, JSON.stringify({ data: d, timestamp: Date.now() }))
+  }
+
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen pb-28">
       <MobileHeader showGreeting />
 
@@ -456,5 +468,6 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+    </PullToRefresh>
   )
 }
