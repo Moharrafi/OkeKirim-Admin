@@ -105,8 +105,8 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col justify-center px-6 py-12">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="p-5 rounded-3xl bg-primary/10 dark:bg-primary/15 mb-5">
-            <Truck className="h-12 w-12 text-primary" strokeWidth={1.5} />
+          <div className="mb-5">
+            <img src="/logoOkemitra.png" alt="OkeMitra" className="h-20 w-20 rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">OkeMitra</h1>
           <p className="text-sm text-muted-foreground mt-1">Manajemen Setoran Driver</p>
