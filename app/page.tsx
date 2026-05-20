@@ -279,13 +279,13 @@ export default function DashboardPage() {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2">
-                  <span className="text-sm text-muted-foreground">Trip</span>
-                  <span className="text-sm font-bold text-foreground">{loading ? "..." : data?.monthlyCount || 0}</span>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-3 py-1.5">
+                  <span className="text-xs font-medium text-primary/70">Trip</span>
+                  <span className="text-xs font-bold text-primary">{loading ? "..." : data?.monthlyCount || 0}</span>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-2">
-                  <span className="text-sm text-muted-foreground">{isAdmin ? "Driver" : "Argo"}</span>
-                  <span className="text-sm font-bold text-foreground">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-3 py-1.5">
+                  <span className="text-xs font-medium text-blue-500/70">{isAdmin ? "Driver" : "Argo"}</span>
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
                     {loading
                       ? "..."
                       : isAdmin
