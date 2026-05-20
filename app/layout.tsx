@@ -11,14 +11,14 @@ import { UserProvider } from '@/lib/user-context'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'DriverPay - Manajemen Setoran Driver',
+  title: 'OkeMitra - Manajemen Setoran Driver',
   description: 'Aplikasi mobile untuk mengelola setoran driver dengan fitur deposit, lokasi kendaraan, dan riwayat pembayaran.',
   generator: 'v0.app',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'DriverPay',
+    title: 'OkeMitra',
   },
 }
 

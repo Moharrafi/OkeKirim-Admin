@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       `<b>Tanggal</b>          ${waktu}\n\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       (imageBase64 ? `✅ Bukti transfer terlampir\n\n` : ``) +
-      `<code>OkeKirim • Sistem Otomatis</code>`
+      `<code>OkeMitra • Sistem Otomatis</code>`
 
     // If there's an image, send as photo with caption
     if (imageBase64) {

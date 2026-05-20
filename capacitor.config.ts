@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from "@capacitor/cli"
 
 const config: CapacitorConfig = {
-  appId: "com.okekirim.driverdeposit",
-  appName: "OkeKirim Driver",
+  appId: "com.okemitra.driverdeposit",
+  appName: "OkeMitra",
   webDir: "out",
   server: {
     url: "https://oke-kirim.vercel.app",

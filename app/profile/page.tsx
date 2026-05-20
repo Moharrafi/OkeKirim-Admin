@@ -414,7 +414,7 @@ export default function ProfilePage() {
 
         {/* Version */}
         <p className="text-center text-xs text-muted-foreground py-2">
-          DriverPay v1.0.0
+          OkeMitra v1.0.0
         </p>
       </div>
     </div>

@@ -108,7 +108,7 @@ export default function LoginPage() {
           <div className="p-5 rounded-3xl bg-primary/10 dark:bg-primary/15 mb-5">
             <Truck className="h-12 w-12 text-primary" strokeWidth={1.5} />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">OkeKirim</h1>
+          <h1 className="text-2xl font-bold text-foreground">OkeMitra</h1>
           <p className="text-sm text-muted-foreground mt-1">Manajemen Setoran Driver</p>
         </div>
 
@@ -271,7 +271,7 @@ export default function LoginPage() {
       {/* Footer */}
       <div className="px-6 py-4">
         <p className="text-center text-xs text-muted-foreground">
-          v1.0.0 - OkeKirim
+          v1.0.0 - OkeMitra
         </p>
       </div>
     </div>
