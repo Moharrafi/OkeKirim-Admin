@@ -333,7 +333,11 @@ export async function GET(request: NextRequest) {
       driversChecked: tokenRows.length,
       driversWithDeposit: driversWithDeposit.size,
       notificationsSent: sentCount,
-      details: notifications.map(n => n.driver),
+      details: notifications.map(n => ({ driver: n.driver, destination: n.destination })),
+      debug: {
+        vehiclesFound: vehicles.length,
+        driversWithVehicles: (driverVehicles || []).length,
+      },
     })
   } catch (error) {
     console.error("Deposit reminder cron error:", error)
