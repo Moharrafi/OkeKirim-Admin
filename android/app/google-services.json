@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "865935149919",
+    "project_id": "simsditp",
+    "storage_bucket": "simsditp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:865935149919:android:cdd72f8f67d459c862c4ea",
+        "android_client_info": {
+          "package_name": "com.okekirim.driverdeposit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSbn8U-5f4Q8g9C-6OQL05yWfTs6M9Nm4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
