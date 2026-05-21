@@ -72,26 +72,31 @@ export async function POST(request: NextRequest) {
     const totalSisaNunggak = statusRows.find((r: any) => r.status === "nunggak")?.sisaTotal || 0
 
     // Build Telegram message
+    // Pad driver names to align
+    const maxNameLen = Math.max(...driverRows.map((d: any) => String(d.driver).trim().length), 6)
     let driverList = ""
     for (const d of driverRows) {
       const sisa = Number(d.sisa)
       const emoji = sisa > 0 ? "⚠️" : "✅"
-      driverList += `   ${emoji} ${d.driver}: ${sisa > 0 ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)` : "Lunas semua"}\n`
+      const name = String(d.driver).trim().padEnd(maxNameLen, " ")
+      driverList += `   ${emoji} ${name} : ${sisa > 0 ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)` : "Lunas semua"}\n`
     }
 
     const message = `📊 <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💰 <b>Pendapatan</b>\n` +
-      `   Total Argo:           Rp ${formatRupiah(totalFare)}\n` +
-      `   Masuk Perusahaan:  Rp ${formatRupiah(totalCompany)}\n` +
-      `   Biaya Service:        Rp ${formatRupiah(totalService)} (${serviceCount}x)\n` +
-      `   ─────────────────\n` +
-      `   <b>Laba Bersih:         Rp ${formatRupiah(labaBersih)}</b>\n\n` +
+      `<code>` +
+      `Total Argo      : Rp ${formatRupiah(totalFare)}\n` +
+      `Perusahaan      : Rp ${formatRupiah(totalCompany)}\n` +
+      `Biaya Service   : Rp ${formatRupiah(totalService)} (${serviceCount}x)\n` +
+      `─────────────────────────\n` +
+      `Laba Bersih     : Rp ${formatRupiah(labaBersih)}` +
+      `</code>\n\n` +
       `📋 <b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
       (Number(totalSisaNunggak) > 0 ? `⚠️ <b>Total Nunggak:</b> Rp ${formatRupiah(Number(totalSisaNunggak))}\n` : "") +
       `\n` +
       `👤 <b>Per Driver:</b>\n` +
-      driverList +
+      `<code>` + driverList + `</code>\n` +
       `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `<code>OkeMitra • Laporan Otomatis</code>`
 
