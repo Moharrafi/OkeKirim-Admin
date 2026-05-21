@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { initPushNotifications } from "./push-notifications"
 
 type UserRole = "admin" | "driver"
 
@@ -56,6 +57,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
     if (savedAuth === "true") {
       setIsAuthenticated(true)
+      if (savedRole === "driver") {
+        const driverName = localStorage.getItem("driverName")
+        if (driverName) {
+          initPushNotifications(driverName)
+        }
+      }
     }
   }, [])
 
@@ -71,6 +78,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("isAuthenticated", "true")
     if (driverName) {
       localStorage.setItem("driverName", driverName)
+    }
+    if (newRole === "driver" && driverName) {
+      initPushNotifications(driverName)
     }
   }
 
