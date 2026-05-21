@@ -122,6 +122,12 @@ export async function GET(request: NextRequest) {
     }
 
     const vehicles = await getVehicles(glonassToken)
+
+    // Get driver-vehicle mapping from database
+    const [driverVehicles] = await pool.execute(
+      "SELECT name, vehicle FROM drivers WHERE vehicle IS NOT NULL AND vehicle != ''"
+    ) as any
+
     const notifications: { driver: string; token: string }[] = []
 
     for (const row of tokenRows) {
@@ -129,9 +135,20 @@ export async function GET(request: NextRequest) {
 
       if (driversWithDeposit.has(driverName.toLowerCase())) continue
 
+      // Find vehicle plate from drivers table
+      const driverRecord = (driverVehicles || []).find(
+        (d: any) => String(d.name).trim().toLowerCase() === driverName.toLowerCase()
+      )
+
+      if (!driverRecord || !driverRecord.vehicle) continue
+
+      const plate = String(driverRecord.vehicle).trim().toLowerCase()
+
+      // Match plate with GlonassSoft vehicle
       const vehicle = vehicles.find((v: any) => {
-        const vName = (v.number || v.Name || v.name || "").toLowerCase()
-        return vName.includes(driverName.toLowerCase()) || driverName.toLowerCase().includes(vName)
+        const vName = (v.number || v.Name || v.name || "").toLowerCase().replace(/\s+/g, "")
+        const plateClean = plate.replace(/\s+/g, "")
+        return vName.includes(plateClean) || plateClean.includes(vName)
       })
 
       if (vehicle && vehicle.vehicleId) {
