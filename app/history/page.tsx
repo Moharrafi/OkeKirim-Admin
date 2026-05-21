@@ -253,7 +253,7 @@ export default function HistoryPage() {
                 "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all",
                 activeFilter === filter.key
                   ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground"
+                  : "bg-white text-muted-foreground border border-border shadow-sm"
               )}
             >
               {filter.label}
