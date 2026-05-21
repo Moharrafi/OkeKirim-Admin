@@ -70,15 +70,13 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{
     const clean = text.replace(/^"|"$/g, "")
     const ampIdx = clean.indexOf("&")
     if (ampIdx === -1) return { hadTrips: false }
-    const basePart = clean.substring(0, ampIdx).replace("Z", "").trim()
-    const baseDate = new Date(basePart + "Z")
     const dataPart = clean.substring(ampIdx + 1)
     const segments = dataPart.split(":")
 
+    // Parse all points
+    interface Point { lat: number; lng: number; speed: number }
+    const points: Point[] = []
     let movingPoints = 0
-    let firstLat = 0, firstLng = 0
-    let farthestLat = 0, farthestLng = 0
-    let maxDistance = 0
 
     for (const s of segments) {
       if (!s) continue
@@ -87,30 +85,56 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{
       const lat = parseFloat(parts[0])
       const lng = parseFloat(parts[1])
       const speed = parts.length > 3 ? parseFloat(parts[3]) : 0
-
+      if (lat === 0 && lng === 0) continue
       if (speed > 3) movingPoints++
+      points.push({ lat, lng, speed })
+    }
 
-      // Track first point and farthest point
-      if (firstLat === 0 && firstLng === 0 && lat !== 0) {
-        firstLat = lat
-        firstLng = lng
+    if (movingPoints <= 10 || points.length < 5) return { hadTrips: false }
+
+    // Find the "unloading point" = last stop before returning to start area
+    const startLat = points[0].lat
+    const startLng = points[0].lng
+    const HOME_RADIUS_KM = 5
+
+    // Walk backwards from end to find last point that is NOT near home
+    // Then that's the unloading/destination point
+    let destinationLat = 0
+    let destinationLng = 0
+
+    // Find the last segment where vehicle stopped (speed=0) far from home
+    // Strategy: scan from end, skip points near home, find first stop far from home
+    let foundHomeReturn = false
+    for (let i = points.length - 1; i >= 0; i--) {
+      const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
+      if (dist <= HOME_RADIUS_KM) {
+        foundHomeReturn = true
+        continue
       }
-      if (firstLat !== 0 && lat !== 0) {
-        const dist = haversine(firstLat, firstLng, lat, lng)
-        if (dist > maxDistance) {
-          maxDistance = dist
-          farthestLat = lat
-          farthestLng = lng
+      // Found a point far from home after we confirmed vehicle returned home
+      if (foundHomeReturn && dist > HOME_RADIUS_KM) {
+        destinationLat = points[i].lat
+        destinationLng = points[i].lng
+        break
+      }
+    }
+
+    // Fallback: if vehicle hasn't returned home yet, find last stop point far from home
+    if (destinationLat === 0 && destinationLng === 0) {
+      for (let i = points.length - 1; i >= 0; i--) {
+        const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
+        if (dist > HOME_RADIUS_KM && points[i].speed === 0) {
+          destinationLat = points[i].lat
+          destinationLng = points[i].lng
+          break
         }
       }
     }
 
-    if (movingPoints <= 10) return { hadTrips: false }
-
-    // Geocode the farthest point to get city name
+    // Geocode destination
     let destination = ""
-    if (farthestLat !== 0 && farthestLng !== 0 && maxDistance > 5) {
-      destination = await getCityName(farthestLat, farthestLng)
+    if (destinationLat !== 0 && destinationLng !== 0) {
+      destination = await getCityName(destinationLat, destinationLng)
     }
 
     return { hadTrips: true, destination }
