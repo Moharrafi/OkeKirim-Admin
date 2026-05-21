@@ -85,6 +85,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    // Remove FCM token from server on logout
+    const driverName = localStorage.getItem("driverName")
+    if (driverName) {
+      fetch("/api/fcm-token", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverName }),
+      }).catch(() => {})
+    }
     setIsAuthenticated(false)
     localStorage.removeItem("isAuthenticated")
   }

@@ -22,3 +22,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { driverName } = await request.json()
+
+    if (!driverName) {
+      return NextResponse.json({ error: "driverName required" }, { status: 400 })
+    }
+
+    await pool.execute(
+      "DELETE FROM fcm_tokens WHERE driver_name = ?",
+      [driverName]
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("FCM token delete error:", error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
+  }
+}

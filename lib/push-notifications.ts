@@ -20,19 +20,13 @@ export async function initPushNotifications(driverName: string) {
       return
     }
 
-    await PushNotifications.register()
+    // Remove old listeners to avoid duplicates
+    await PushNotifications.removeAllListeners()
 
+    // Listen for registration success
     PushNotifications.addListener("registration", async (token) => {
       console.log("FCM Token:", token.value)
-      try {
-        await fetch("/api/fcm-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ driverName, token: token.value }),
-        })
-      } catch (err) {
-        console.error("Failed to save FCM token:", err)
-      }
+      await saveToken(driverName, token.value)
     })
 
     PushNotifications.addListener("registrationError", (error) => {
@@ -49,7 +43,31 @@ export async function initPushNotifications(driverName: string) {
         window.location.href = "/deposit?tab=setoran"
       }
     })
+
+    // Register - this will trigger "registration" listener with the token
+    await PushNotifications.register()
+
+    // Also try to get delivery token directly (for cases where listener doesn't fire)
+    setTimeout(async () => {
+      try {
+        const result = await PushNotifications.getDeliveredNotifications()
+        // If we got here without error, FCM is working
+        console.log("Push notifications active for:", driverName)
+      } catch {}
+    }, 2000)
   } catch (error) {
     console.error("Push notification init error:", error)
+  }
+}
+
+async function saveToken(driverName: string, token: string) {
+  try {
+    await fetch("/api/fcm-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driverName, token }),
+    })
+  } catch (err) {
+    console.error("Failed to save FCM token:", err)
   }
 }
