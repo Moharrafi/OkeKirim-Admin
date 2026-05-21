@@ -44,7 +44,7 @@ async function getVehicles(token: string) {
   }
 }
 
-async function vehicleHadTripsToday(token: string, vehicleId: number, dateOverride?: string): Promise<{ hadTrips: boolean; destination?: string }> {
+async function vehicleHadTripsToday(token: string, vehicleId: string, dateOverride?: string): Promise<{ hadTrips: boolean; destination?: string }> {
   const todayStr = dateOverride || (() => {
     const now = new Date()
     const wibOffset = 7 * 60 * 60 * 1000
@@ -289,8 +289,10 @@ export async function GET(request: NextRequest) {
         return vName.includes(plateClean) || plateClean.includes(vName)
       })
 
-      if (vehicle && vehicle.vehicleId) {
-        const result = await vehicleHadTripsToday(glonassToken, vehicle.vehicleId, today)
+      if (vehicle && (vehicle.id || vehicle.vehicleId)) {
+        // Use UUID id for history API, numeric vehicleId as fallback
+        const vid = vehicle.id || String(vehicle.vehicleId)
+        const result = await vehicleHadTripsToday(glonassToken, vid, today)
         if (result.hadTrips) {
           notifications.push({ driver: driverName, token: row.token, destination: result.destination })
         }
