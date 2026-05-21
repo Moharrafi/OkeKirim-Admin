@@ -92,42 +92,46 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{
 
     if (movingPoints <= 10 || points.length < 5) return { hadTrips: false }
 
-    // Find the "unloading point" = last stop before returning to start area
+    // Find the "unloading point" = start of the last trip heading back home
     const startLat = points[0].lat
     const startLng = points[0].lng
-    const HOME_RADIUS_KM = 5
+    const HOME_RADIUS_KM = 8
 
-    // Walk backwards from end to find last point that is NOT near home
-    // Then that's the unloading/destination point
+    // Strategy: find the last point where vehicle was far from home,
+    // right before it starts heading back (the next points get closer to home)
+    // This is the "departure from destination" = unloading location
     let destinationLat = 0
     let destinationLng = 0
 
-    // Find the last segment where vehicle stopped (speed=0) far from home
-    // Strategy: scan from end, skip points near home, find first stop far from home
-    let foundHomeReturn = false
+    // Walk backwards: find where vehicle entered home area
+    let homeEntryIndex = -1
     for (let i = points.length - 1; i >= 0; i--) {
       const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
-      if (dist <= HOME_RADIUS_KM) {
-        foundHomeReturn = true
-        continue
-      }
-      // Found a point far from home after we confirmed vehicle returned home
-      if (foundHomeReturn && dist > HOME_RADIUS_KM) {
-        destinationLat = points[i].lat
-        destinationLng = points[i].lng
+      if (dist > HOME_RADIUS_KM) {
+        homeEntryIndex = i
         break
       }
     }
 
-    // Fallback: if vehicle hasn't returned home yet, find last stop point far from home
-    if (destinationLat === 0 && destinationLng === 0) {
-      for (let i = points.length - 1; i >= 0; i--) {
-        const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
-        if (dist > HOME_RADIUS_KM && points[i].speed === 0) {
-          destinationLat = points[i].lat
-          destinationLng = points[i].lng
-          break
+    // The point at homeEntryIndex is the last point far from home
+    // But we want the stop BEFORE the return trip started
+    // So scan backwards from homeEntryIndex to find where speed was 0 (stopped)
+    if (homeEntryIndex > 0) {
+      // Find the stop point around homeEntryIndex (where vehicle was stopped before heading home)
+      for (let i = homeEntryIndex; i >= Math.max(0, homeEntryIndex - 50); i--) {
+        if (points[i].speed === 0) {
+          const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
+          if (dist > HOME_RADIUS_KM) {
+            destinationLat = points[i].lat
+            destinationLng = points[i].lng
+            break
+          }
         }
+      }
+      // Fallback: just use the homeEntryIndex point itself
+      if (destinationLat === 0) {
+        destinationLat = points[homeEntryIndex].lat
+        destinationLng = points[homeEntryIndex].lng
       }
     }
 
