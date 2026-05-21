@@ -44,11 +44,13 @@ async function getVehicles(token: string) {
   }
 }
 
-async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{ hadTrips: boolean; destination?: string }> {
-  const now = new Date()
-  const wibOffset = 7 * 60 * 60 * 1000
-  const wibNow = new Date(now.getTime() + wibOffset)
-  const todayStr = wibNow.toISOString().split("T")[0]
+async function vehicleHadTripsToday(token: string, vehicleId: number, dateOverride?: string): Promise<{ hadTrips: boolean; destination?: string }> {
+  const todayStr = dateOverride || (() => {
+    const now = new Date()
+    const wibOffset = 7 * 60 * 60 * 1000
+    const wibNow = new Date(now.getTime() + wibOffset)
+    return wibNow.toISOString().split("T")[0]
+  })()
 
   const dateFrom = new Date(`${todayStr}T00:00:00+07:00`)
   const dateTo = new Date(`${todayStr}T23:59:59+07:00`)
@@ -227,7 +229,8 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const wibOffset = 7 * 60 * 60 * 1000
     const wibNow = new Date(now.getTime() + wibOffset)
-    const today = wibNow.toISOString().split("T")[0]
+    // Allow date override for testing: ?date=2026-05-21
+    const today = searchParams.get("date") || wibNow.toISOString().split("T")[0]
 
     const [tokenRows] = await pool.execute(
       "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
@@ -282,7 +285,7 @@ export async function GET(request: NextRequest) {
       })
 
       if (vehicle && vehicle.vehicleId) {
-        const result = await vehicleHadTripsToday(glonassToken, vehicle.vehicleId)
+        const result = await vehicleHadTripsToday(glonassToken, vehicle.vehicleId, today)
         if (result.hadTrips) {
           notifications.push({ driver: driverName, token: row.token, destination: result.destination })
         }
