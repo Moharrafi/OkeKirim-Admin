@@ -273,31 +273,38 @@ export async function GET(request: NextRequest) {
 
       if (driversWithDeposit.has(driverName.toLowerCase())) continue
 
-      // Find vehicle plate from drivers table
-      const driverRecord = (driverVehicles || []).find(
-        (d: any) => String(d.name).trim().toLowerCase() === driverName.toLowerCase()
-      )
+      // Driver belum setor → akan dapat notif
+      // Coba cari lokasi dari GPS (best effort)
+      let destination = ""
 
-      if (!driverRecord || !driverRecord.vehicle) continue
+      try {
+        const driverRecord = (driverVehicles || []).find(
+          (d: any) => String(d.name).trim().toLowerCase() === driverName.toLowerCase()
+        )
 
-      const plate = String(driverRecord.vehicle).trim().toLowerCase()
+        if (driverRecord && driverRecord.vehicle) {
+          const plate = String(driverRecord.vehicle).trim().toLowerCase()
 
-      // Match plate with GlonassSoft vehicle
-      const vehicle = vehicles.find((v: any) => {
-        const vName = (v.number || v.Name || v.name || "").toLowerCase().replace(/\s+/g, "")
-        const plateClean = plate.replace(/\s+/g, "")
-        return vName.includes(plateClean) || plateClean.includes(vName)
-      })
+          const vehicle = vehicles.find((v: any) => {
+            const vName = (v.number || v.Name || v.name || "").toLowerCase().replace(/\s+/g, "")
+            const plateClean = plate.replace(/\s+/g, "")
+            return vName.includes(plateClean) || plateClean.includes(vName)
+          })
 
-      if (vehicle && (vehicle.id || vehicle.vehicleId)) {
-        // Use UUID id for history API, numeric vehicleId as fallback
-        const vid = vehicle.id || String(vehicle.vehicleId)
-        const result = await vehicleHadTripsToday(glonassToken, vid, today)
-        if (result.hadTrips) {
-          notifications.push({ driver: driverName, token: row.token, destination: result.destination })
+          if (vehicle && (vehicle.id || vehicle.vehicleId)) {
+            const vid = vehicle.id || String(vehicle.vehicleId)
+            const result = await vehicleHadTripsToday(glonassToken, vid, today)
+            if (result.destination) {
+              destination = result.destination
+            }
+            await new Promise(r => setTimeout(r, 600))
+          }
         }
-        await new Promise(r => setTimeout(r, 600))
+      } catch {
+        // GPS check failed - still send notification without location
       }
+
+      notifications.push({ driver: driverName, token: row.token, destination })
     }
 
     let sentCount = 0
