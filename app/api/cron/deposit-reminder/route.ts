@@ -44,159 +44,58 @@ async function getVehicles(token: string) {
   }
 }
 
-async function vehicleHadTripsToday(token: string, vehicleId: string, dateOverride?: string): Promise<{ hadTrips: boolean; destination?: string }> {
-  const todayStr = dateOverride || (() => {
-    const now = new Date()
-    const wibOffset = 7 * 60 * 60 * 1000
-    const wibNow = new Date(now.getTime() + wibOffset)
-    return wibNow.toISOString().split("T")[0]
-  })()
-
+async function getDestination(vehicleId: string, date: string): Promise<string> {
   try {
-    // Call our own GPS history API (same logic as the app's Detail Perjalanan page)
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_BASE_URL || "https://oke-kirim.vercel.app"
-    
-    const resp = await fetch(
-      `${baseUrl}/api/gps/history?vehicleId=${vehicleId}&date=${todayStr}`,
-      { headers: { "Cache-Control": "no-cache" } }
-    )
-    
-    if (!resp.ok) return { hadTrips: false }
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "https://oke-kirim.vercel.app"
+
+    const resp = await fetch(`${baseUrl}/api/gps/history?vehicleId=${vehicleId}&date=${date}`)
+    if (!resp.ok) return ""
     const data = await resp.json()
 
-    if (!data.trips || data.trips.length === 0) return { hadTrips: false }
+    if (!data.trips || data.trips.length === 0) return ""
 
-    // Find destination: 
     const trips = data.trips
     const homeLat = trips[0].startLat
     const homeLng = trips[0].startLng
     const HOME_RADIUS_KM = 5
 
-    let destinationLat = 0
-    let destinationLng = 0
-
-    // Case 1: Find last trip that ends near home (return trip) → use its start
+    // Case 1: Find last trip that ends near home → use its start (unloading point)
     for (let i = trips.length - 1; i >= 0; i--) {
       const endDist = haversine(homeLat, homeLng, trips[i].endLat, trips[i].endLng)
       const startDist = haversine(homeLat, homeLng, trips[i].startLat, trips[i].startLng)
       if (endDist <= HOME_RADIUS_KM && startDist > HOME_RADIUS_KM) {
-        destinationLat = trips[i].startLat
-        destinationLng = trips[i].startLng
-        break
+        return await getCityName(trips[i].startLat, trips[i].startLng)
       }
     }
 
     // Case 2: Vehicle hasn't returned home → use end of last trip
-    if (destinationLat === 0 && destinationLng === 0) {
-      const lastTrip = trips[trips.length - 1]
-      const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
-      if (lastEndDist > HOME_RADIUS_KM) {
-        destinationLat = lastTrip.endLat
-        destinationLng = lastTrip.endLng
-      } else {
-        // All trips near home, use start of longest trip
-        const longest = [...trips].sort((a: any, b: any) => b.distance - a.distance)[0]
-        if (longest && longest.distance > 3) {
-          const startDist = haversine(homeLat, homeLng, longest.startLat, longest.startLng)
-          const endDist = haversine(homeLat, homeLng, longest.endLat, longest.endLng)
-          if (endDist > startDist) {
-            destinationLat = longest.endLat
-            destinationLng = longest.endLng
-          } else {
-            destinationLat = longest.startLat
-            destinationLng = longest.startLng
-          }
-        }
+    const lastTrip = trips[trips.length - 1]
+    const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
+    if (lastEndDist > HOME_RADIUS_KM) {
+      return await getCityName(lastTrip.endLat, lastTrip.endLng)
+    }
+
+    // Case 3: Use the farthest trip endpoint
+    let maxDist = 0
+    let farthestLat = 0
+    let farthestLng = 0
+    for (const t of trips) {
+      const d = haversine(homeLat, homeLng, t.endLat, t.endLng)
+      if (d > maxDist) {
+        maxDist = d
+        farthestLat = t.endLat
+        farthestLng = t.endLng
       }
     }
-
-    // Geocode
-    let destination = ""
-    if (destinationLat !== 0 && destinationLng !== 0) {
-      destination = await getCityName(destinationLat, destinationLng)
+    if (maxDist > 3) {
+      return await getCityName(farthestLat, farthestLng)
     }
 
-    return { hadTrips: true, destination }
+    return ""
   } catch {
-    return { hadTrips: false }
-  }
-}
-
-  const params = new URLSearchParams({
-    vehicleId: String(vehicleId),
-    start: dateFrom.toISOString(),
-    end: dateTo.toISOString(),
-  })
-
-  try {
-    const resp = await fetch(`${GLONASS_BASE}/api/history/points?${params}`, {
-      headers: { "X-Auth": token, AuthId: token, Authorization: `Bearer ${token}` },
-    })
-    if (!resp.ok) return { hadTrips: false }
-    const text = await resp.text()
-    if (!text || !text.includes("&")) return { hadTrips: false }
-
-    // Parse nav points (same logic as history page)
-    const navPoints = parseNavPoints(text)
-    if (navPoints.length < 5) return { hadTrips: false }
-
-    // Build trips (same logic as history page)
-    const trips = buildTrips(navPoints)
-    if (trips.length === 0) return { hadTrips: false }
-
-    // Find the start point (home)
-    const homeLat = navPoints[0].lat
-    const homeLng = navPoints[0].lng
-    const HOME_RADIUS_KM = 5
-
-    // Find the last trip that ENDS near home (= return trip)
-    // The START of that trip is the unloading/destination point
-    let destinationLat = 0
-    let destinationLng = 0
-
-    for (let i = trips.length - 1; i >= 0; i--) {
-      const endDist = haversine(homeLat, homeLng, trips[i].endLat, trips[i].endLng)
-      const startDist = haversine(homeLat, homeLng, trips[i].startLat, trips[i].startLng)
-      
-      // This trip ends near home AND starts far from home = return trip
-      if (endDist <= HOME_RADIUS_KM && startDist > HOME_RADIUS_KM) {
-        destinationLat = trips[i].startLat
-        destinationLng = trips[i].startLng
-        break
-      }
-    }
-
-    // Fallback: vehicle hasn't returned home yet
-    // Use the END point of the last trip (= where vehicle currently is / last destination)
-    if (destinationLat === 0 && destinationLng === 0) {
-      const lastTrip = trips[trips.length - 1]
-      if (lastTrip && lastTrip.distance > 3) {
-        const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
-        if (lastEndDist > HOME_RADIUS_KM) {
-          // Vehicle is still far from home - use end of last trip
-          destinationLat = lastTrip.endLat
-          destinationLng = lastTrip.endLng
-        } else {
-          // Last trip ended near home but no clear return trip found
-          // Use start of last long trip
-          destinationLat = lastTrip.startLat
-          destinationLng = lastTrip.startLng
-        }
-      }
-    }
-    }
-
-    // Geocode destination
-    let destination = ""
-    if (destinationLat !== 0 && destinationLng !== 0) {
-      destination = await getCityName(destinationLat, destinationLng)
-    }
-
-    return { hadTrips: true, destination }
-  } catch {
-    return { hadTrips: false }
+    return ""
   }
 }
 
@@ -234,9 +133,9 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const wibOffset = 7 * 60 * 60 * 1000
     const wibNow = new Date(now.getTime() + wibOffset)
-    // Allow date override for testing: ?date=2026-05-21
     const today = searchParams.get("date") || wibNow.toISOString().split("T")[0]
 
+    // 1. Get all drivers with FCM tokens
     const [tokenRows] = await pool.execute(
       "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
     ) as any
@@ -245,6 +144,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "No drivers with FCM tokens", sent: 0 })
     }
 
+    // 2. Get drivers who already deposited today
     const [depositRows] = await pool.execute(
       "SELECT DISTINCT driver FROM schedules WHERE date = ?",
       [today]
@@ -254,65 +154,52 @@ export async function GET(request: NextRequest) {
       (depositRows || []).map((r: any) => String(r.driver).trim().toLowerCase())
     )
 
+    // 3. Get vehicles from GlonassSoft
     const glonassToken = await glonassLogin()
-    if (!glonassToken) {
-      return NextResponse.json({ error: "GlonassSoft login failed" }, { status: 500 })
-    }
+    const vehicles = glonassToken ? await getVehicles(glonassToken) : []
 
-    const vehicles = await getVehicles(glonassToken)
-
-    // Get driver-vehicle mapping from database
+    // 4. Get driver-vehicle mapping
     const [driverVehicles] = await pool.execute(
       "SELECT name, vehicle FROM drivers WHERE vehicle IS NOT NULL AND vehicle != ''"
     ) as any
 
-    const notifications: { driver: string; token: string; destination?: string }[] = []
+    // 5. Build notifications for all drivers who haven't deposited
+    const notifications: { driver: string; token: string; destination: string }[] = []
 
     for (const row of tokenRows) {
       const driverName = String(row.driver_name).trim()
 
+      // Skip if already deposited
       if (driversWithDeposit.has(driverName.toLowerCase())) continue
 
-      // Driver belum setor → akan dapat notif
-      // Coba cari lokasi dari GPS (best effort)
+      // Try to get destination (best effort)
       let destination = ""
-
       try {
         const driverRecord = (driverVehicles || []).find(
           (d: any) => String(d.name).trim().toLowerCase() === driverName.toLowerCase()
         )
-
         if (driverRecord && driverRecord.vehicle) {
-          const plate = String(driverRecord.vehicle).trim().toLowerCase()
-
+          const plate = String(driverRecord.vehicle).trim().toLowerCase().replace(/\s+/g, "")
           const vehicle = vehicles.find((v: any) => {
             const vName = (v.number || v.Name || v.name || "").toLowerCase().replace(/\s+/g, "")
-            const plateClean = plate.replace(/\s+/g, "")
-            return vName.includes(plateClean) || plateClean.includes(vName)
+            return vName.includes(plate) || plate.includes(vName)
           })
-
-          if (vehicle && (vehicle.id || vehicle.vehicleId)) {
-            const vid = vehicle.id || String(vehicle.vehicleId)
-            const result = await vehicleHadTripsToday(glonassToken, vid, today)
-            if (result.destination) {
-              destination = result.destination
-            }
-            await new Promise(r => setTimeout(r, 600))
+          if (vehicle && vehicle.id) {
+            destination = await getDestination(vehicle.id, today)
           }
         }
-      } catch {
-        // GPS check failed - still send notification without location
-      }
+      } catch { /* GPS failed - still send notif */ }
 
       notifications.push({ driver: driverName, token: row.token, destination })
     }
 
+    // 6. Send push notifications
     let sentCount = 0
     if (admin.apps.length > 0 && notifications.length > 0) {
       for (const notif of notifications) {
         const bodyText = notif.destination
           ? `Halo ${notif.driver}, hari ini narik ke ${notif.destination} ya? Segera lakukan setoran yaah 🙏`
-          : `Halo ${notif.driver}, hari ini Anda narik? Segera lakukan setoran ya!`
+          : `Halo ${notif.driver}, sudah narik hari ini? Segera lakukan setoran ya! 🙏`
 
         try {
           await admin.messaging().send({
@@ -340,11 +227,7 @@ export async function GET(request: NextRequest) {
       driversChecked: tokenRows.length,
       driversWithDeposit: driversWithDeposit.size,
       notificationsSent: sentCount,
-      details: notifications.map(n => ({ driver: n.driver, destination: n.destination })),
-      debug: {
-        vehiclesFound: vehicles.length,
-        driversWithVehicles: (driverVehicles || []).length,
-      },
+      details: notifications.map(n => ({ driver: n.driver, destination: n.destination || "(no GPS)" })),
     })
   } catch (error) {
     console.error("Deposit reminder cron error:", error)
