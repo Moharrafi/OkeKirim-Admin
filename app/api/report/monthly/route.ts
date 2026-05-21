@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       const sisa = Number(d.sisa)
       const emoji = sisa > 0 ? "⚠️" : "✅"
       const name = String(d.driver).trim().padEnd(maxNameLen, " ")
-      driverList += `   ${emoji} ${name} : ${sisa > 0 ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)` : "Lunas semua"}\n`
+      driverList += `${emoji} ${name} : ${sisa > 0 ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)` : "Lunas semua"}\n`
     }
 
     const message = `📊 <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
