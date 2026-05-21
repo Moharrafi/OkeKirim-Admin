@@ -44,7 +44,7 @@ async function getVehicles(token: string) {
   }
 }
 
-async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<boolean> {
+async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{ hadTrips: boolean; destination?: string }> {
   const now = new Date()
   const wibOffset = 7 * 60 * 60 * 1000
   const wibNow = new Date(now.getTime() + wibOffset)
@@ -63,26 +63,82 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<b
     const resp = await fetch(`${GLONASS_BASE}/api/history/points?${params}`, {
       headers: { "X-Auth": token, AuthId: token, Authorization: `Bearer ${token}` },
     })
-    if (!resp.ok) return false
+    if (!resp.ok) return { hadTrips: false }
     const text = await resp.text()
-    if (!text || !text.includes("&")) return false
+    if (!text || !text.includes("&")) return { hadTrips: false }
 
     const clean = text.replace(/^"|"$/g, "")
     const ampIdx = clean.indexOf("&")
-    if (ampIdx === -1) return false
+    if (ampIdx === -1) return { hadTrips: false }
+    const basePart = clean.substring(0, ampIdx).replace("Z", "").trim()
+    const baseDate = new Date(basePart + "Z")
     const dataPart = clean.substring(ampIdx + 1)
     const segments = dataPart.split(":")
 
     let movingPoints = 0
+    let firstLat = 0, firstLng = 0
+    let farthestLat = 0, farthestLng = 0
+    let maxDistance = 0
+
     for (const s of segments) {
       if (!s) continue
       const parts = s.split(",")
-      if (parts.length > 3 && parseFloat(parts[3]) > 3) movingPoints++
+      if (parts.length < 3) continue
+      const lat = parseFloat(parts[0])
+      const lng = parseFloat(parts[1])
+      const speed = parts.length > 3 ? parseFloat(parts[3]) : 0
+
+      if (speed > 3) movingPoints++
+
+      // Track first point and farthest point
+      if (firstLat === 0 && firstLng === 0 && lat !== 0) {
+        firstLat = lat
+        firstLng = lng
+      }
+      if (firstLat !== 0 && lat !== 0) {
+        const dist = haversine(firstLat, firstLng, lat, lng)
+        if (dist > maxDistance) {
+          maxDistance = dist
+          farthestLat = lat
+          farthestLng = lng
+        }
+      }
     }
 
-    return movingPoints > 10
+    if (movingPoints <= 10) return { hadTrips: false }
+
+    // Geocode the farthest point to get city name
+    let destination = ""
+    if (farthestLat !== 0 && farthestLng !== 0 && maxDistance > 5) {
+      destination = await getCityName(farthestLat, farthestLng)
+    }
+
+    return { hadTrips: true, destination }
   } catch {
-    return false
+    return { hadTrips: false }
+  }
+}
+
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLon = ((lon2 - lon1) * Math.PI) / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+async function getCityName(lat: number, lng: number): Promise<string> {
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`,
+      { headers: { "User-Agent": "OkeMitraApp/1.0" } }
+    )
+    if (!resp.ok) return ""
+    const data = await resp.json()
+    const addr = data.address || {}
+    return addr.city || addr.town || addr.municipality || addr.county || addr.state || ""
+  } catch {
+    return ""
   }
 }
 
@@ -128,7 +184,7 @@ export async function GET(request: NextRequest) {
       "SELECT name, vehicle FROM drivers WHERE vehicle IS NOT NULL AND vehicle != ''"
     ) as any
 
-    const notifications: { driver: string; token: string }[] = []
+    const notifications: { driver: string; token: string; destination?: string }[] = []
 
     for (const row of tokenRows) {
       const driverName = String(row.driver_name).trim()
@@ -152,9 +208,9 @@ export async function GET(request: NextRequest) {
       })
 
       if (vehicle && vehicle.vehicleId) {
-        const hadTrips = await vehicleHadTripsToday(glonassToken, vehicle.vehicleId)
-        if (hadTrips) {
-          notifications.push({ driver: driverName, token: row.token })
+        const result = await vehicleHadTripsToday(glonassToken, vehicle.vehicleId)
+        if (result.hadTrips) {
+          notifications.push({ driver: driverName, token: row.token, destination: result.destination })
         }
         await new Promise(r => setTimeout(r, 600))
       }
@@ -163,12 +219,16 @@ export async function GET(request: NextRequest) {
     let sentCount = 0
     if (admin.apps.length > 0 && notifications.length > 0) {
       for (const notif of notifications) {
+        const bodyText = notif.destination
+          ? `Halo ${notif.driver}, hari ini narik ke ${notif.destination} ya? Segera lakukan setoran yaah 🙏`
+          : `Halo ${notif.driver}, hari ini Anda narik? Segera lakukan setoran ya!`
+
         try {
           await admin.messaging().send({
             token: notif.token,
             notification: {
               title: "🚛 Reminder Setoran",
-              body: `Halo ${notif.driver}, hari ini Anda narik? Segera lakukan setoran ya!`,
+              body: bodyText,
             },
             data: { type: "deposit_reminder", url: "/deposit?tab=setoran" },
             android: {
