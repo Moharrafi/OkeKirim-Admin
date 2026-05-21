@@ -52,8 +52,77 @@ async function vehicleHadTripsToday(token: string, vehicleId: number, dateOverri
     return wibNow.toISOString().split("T")[0]
   })()
 
-  const dateFrom = new Date(`${todayStr}T00:00:00+07:00`)
-  const dateTo = new Date(`${todayStr}T23:59:59+07:00`)
+  try {
+    // Call our own GPS history API (same logic as the app's Detail Perjalanan page)
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXT_PUBLIC_BASE_URL || "https://oke-kirim.vercel.app"
+    
+    const resp = await fetch(
+      `${baseUrl}/api/gps/history?vehicleId=${vehicleId}&date=${todayStr}`,
+      { headers: { "Cache-Control": "no-cache" } }
+    )
+    
+    if (!resp.ok) return { hadTrips: false }
+    const data = await resp.json()
+
+    if (!data.trips || data.trips.length === 0) return { hadTrips: false }
+
+    // Find destination: 
+    const trips = data.trips
+    const homeLat = trips[0].startLat
+    const homeLng = trips[0].startLng
+    const HOME_RADIUS_KM = 5
+
+    let destinationLat = 0
+    let destinationLng = 0
+
+    // Case 1: Find last trip that ends near home (return trip) → use its start
+    for (let i = trips.length - 1; i >= 0; i--) {
+      const endDist = haversine(homeLat, homeLng, trips[i].endLat, trips[i].endLng)
+      const startDist = haversine(homeLat, homeLng, trips[i].startLat, trips[i].startLng)
+      if (endDist <= HOME_RADIUS_KM && startDist > HOME_RADIUS_KM) {
+        destinationLat = trips[i].startLat
+        destinationLng = trips[i].startLng
+        break
+      }
+    }
+
+    // Case 2: Vehicle hasn't returned home → use end of last trip
+    if (destinationLat === 0 && destinationLng === 0) {
+      const lastTrip = trips[trips.length - 1]
+      const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
+      if (lastEndDist > HOME_RADIUS_KM) {
+        destinationLat = lastTrip.endLat
+        destinationLng = lastTrip.endLng
+      } else {
+        // All trips near home, use start of longest trip
+        const longest = [...trips].sort((a: any, b: any) => b.distance - a.distance)[0]
+        if (longest && longest.distance > 3) {
+          const startDist = haversine(homeLat, homeLng, longest.startLat, longest.startLng)
+          const endDist = haversine(homeLat, homeLng, longest.endLat, longest.endLng)
+          if (endDist > startDist) {
+            destinationLat = longest.endLat
+            destinationLng = longest.endLng
+          } else {
+            destinationLat = longest.startLat
+            destinationLng = longest.startLng
+          }
+        }
+      }
+    }
+
+    // Geocode
+    let destination = ""
+    if (destinationLat !== 0 && destinationLng !== 0) {
+      destination = await getCityName(destinationLat, destinationLng)
+    }
+
+    return { hadTrips: true, destination }
+  } catch {
+    return { hadTrips: false }
+  }
+}
 
   const params = new URLSearchParams({
     vehicleId: String(vehicleId),
@@ -129,79 +198,6 @@ async function vehicleHadTripsToday(token: string, vehicleId: number, dateOverri
   } catch {
     return { hadTrips: false }
   }
-}
-
-// Parse GPS text into nav points (same as history page)
-function parseNavPoints(text: string): Array<{ lat: number; lng: number; speed: number; timestamp: string }> {
-  const clean = text.replace(/^"|"$/g, "")
-  const ampIdx = clean.indexOf("&")
-  if (ampIdx === -1) return []
-  const basePart = clean.substring(0, ampIdx).replace("Z", "").trim()
-  const dataPart = clean.substring(ampIdx + 1)
-  if (!dataPart) return []
-  const baseDate = new Date(basePart + "Z")
-  const segments = dataPart.split(":")
-  const points: Array<{ lat: number; lng: number; speed: number; timestamp: string }> = []
-  for (const s of segments) {
-    if (!s) continue
-    const parts = s.split(",")
-    if (parts.length < 3) continue
-    const lat = parseFloat(parts[0])
-    const lng = parseFloat(parts[1])
-    const offsetSec = parseFloat(parts[2])
-    const speed = parts.length > 3 ? parseFloat(parts[3]) : 0
-    if (lat === 0 && lng === 0) continue
-    const actualTime = new Date(baseDate.getTime() + offsetSec * 1000)
-    points.push({ lat, lng, speed, timestamp: actualTime.toISOString() })
-  }
-  return points
-}
-
-// Build trips from nav points (same logic as history page)
-function buildTrips(points: Array<{ lat: number; lng: number; speed: number; timestamp: string }>) {
-  if (points.length < 2) return []
-  const trips: Array<{ startLat: number; startLng: number; endLat: number; endLng: number; distance: number }> = []
-  let currentPoints: typeof points = []
-  let stoppedSince: Date | null = null
-
-  for (const pt of points) {
-    const ts = new Date(pt.timestamp)
-    if (pt.speed > 3) {
-      stoppedSince = null
-      currentPoints.push(pt)
-    } else {
-      if (stoppedSince === null) {
-        stoppedSince = ts
-        currentPoints.push(pt)
-      } else {
-        const stopDur = (ts.getTime() - stoppedSince.getTime()) / 60000
-        if (stopDur >= 5 && currentPoints.length >= 2) {
-          const trip = finishTrip(currentPoints)
-          if (trip) trips.push(trip)
-          currentPoints = []
-          stoppedSince = null
-        } else {
-          currentPoints.push(pt)
-        }
-      }
-    }
-  }
-  if (currentPoints.length >= 2) {
-    const trip = finishTrip(currentPoints)
-    if (trip) trips.push(trip)
-  }
-  return trips.filter(t => t.distance >= 0.5)
-}
-
-function finishTrip(points: Array<{ lat: number; lng: number; speed: number; timestamp: string }>) {
-  if (points.length < 2) return null
-  const start = points[0]
-  const end = points[points.length - 1]
-  let distance = 0
-  for (let i = 0; i < points.length - 1; i++) {
-    distance += haversine(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng)
-  }
-  return { startLat: start.lat, startLng: start.lng, endLat: end.lat, endLng: end.lng, distance: Math.round(distance * 100) / 100 }
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
