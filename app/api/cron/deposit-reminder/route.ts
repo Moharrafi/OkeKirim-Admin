@@ -99,15 +99,24 @@ async function vehicleHadTripsToday(token: string, vehicleId: number, dateOverri
       }
     }
 
-    // Fallback: if no clear return trip, use start of last long trip
+    // Fallback: vehicle hasn't returned home yet
+    // Use the END point of the last trip (= where vehicle currently is / last destination)
     if (destinationLat === 0 && destinationLng === 0) {
-      for (let i = trips.length - 1; i >= 0; i--) {
-        if (trips[i].distance > 5) {
-          destinationLat = trips[i].startLat
-          destinationLng = trips[i].startLng
-          break
+      const lastTrip = trips[trips.length - 1]
+      if (lastTrip && lastTrip.distance > 3) {
+        const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
+        if (lastEndDist > HOME_RADIUS_KM) {
+          // Vehicle is still far from home - use end of last trip
+          destinationLat = lastTrip.endLat
+          destinationLng = lastTrip.endLng
+        } else {
+          // Last trip ended near home but no clear return trip found
+          // Use start of last long trip
+          destinationLat = lastTrip.startLat
+          destinationLng = lastTrip.startLng
         }
       }
+    }
     }
 
     // Geocode destination
