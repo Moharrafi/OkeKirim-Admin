@@ -67,71 +67,44 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{
     const text = await resp.text()
     if (!text || !text.includes("&")) return { hadTrips: false }
 
-    const clean = text.replace(/^"|"$/g, "")
-    const ampIdx = clean.indexOf("&")
-    if (ampIdx === -1) return { hadTrips: false }
-    const dataPart = clean.substring(ampIdx + 1)
-    const segments = dataPart.split(":")
+    // Parse nav points (same logic as history page)
+    const navPoints = parseNavPoints(text)
+    if (navPoints.length < 5) return { hadTrips: false }
 
-    // Parse all points
-    interface Point { lat: number; lng: number; speed: number }
-    const points: Point[] = []
-    let movingPoints = 0
+    // Build trips (same logic as history page)
+    const trips = buildTrips(navPoints)
+    if (trips.length === 0) return { hadTrips: false }
 
-    for (const s of segments) {
-      if (!s) continue
-      const parts = s.split(",")
-      if (parts.length < 3) continue
-      const lat = parseFloat(parts[0])
-      const lng = parseFloat(parts[1])
-      const speed = parts.length > 3 ? parseFloat(parts[3]) : 0
-      if (lat === 0 && lng === 0) continue
-      if (speed > 3) movingPoints++
-      points.push({ lat, lng, speed })
-    }
+    // Find the start point (home)
+    const homeLat = navPoints[0].lat
+    const homeLng = navPoints[0].lng
+    const HOME_RADIUS_KM = 5
 
-    if (movingPoints <= 10 || points.length < 5) return { hadTrips: false }
-
-    // Find the "unloading point" = start of the last trip heading back home
-    const startLat = points[0].lat
-    const startLng = points[0].lng
-    const HOME_RADIUS_KM = 8
-
-    // Strategy: find the last point where vehicle was far from home,
-    // right before it starts heading back (the next points get closer to home)
-    // This is the "departure from destination" = unloading location
+    // Find the last trip that ENDS near home (= return trip)
+    // The START of that trip is the unloading/destination point
     let destinationLat = 0
     let destinationLng = 0
 
-    // Walk backwards: find where vehicle entered home area
-    let homeEntryIndex = -1
-    for (let i = points.length - 1; i >= 0; i--) {
-      const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
-      if (dist > HOME_RADIUS_KM) {
-        homeEntryIndex = i
+    for (let i = trips.length - 1; i >= 0; i--) {
+      const endDist = haversine(homeLat, homeLng, trips[i].endLat, trips[i].endLng)
+      const startDist = haversine(homeLat, homeLng, trips[i].startLat, trips[i].startLng)
+      
+      // This trip ends near home AND starts far from home = return trip
+      if (endDist <= HOME_RADIUS_KM && startDist > HOME_RADIUS_KM) {
+        destinationLat = trips[i].startLat
+        destinationLng = trips[i].startLng
         break
       }
     }
 
-    // The point at homeEntryIndex is the last point far from home
-    // But we want the stop BEFORE the return trip started
-    // So scan backwards from homeEntryIndex to find where speed was 0 (stopped)
-    if (homeEntryIndex > 0) {
-      // Find the stop point around homeEntryIndex (where vehicle was stopped before heading home)
-      for (let i = homeEntryIndex; i >= Math.max(0, homeEntryIndex - 50); i--) {
-        if (points[i].speed === 0) {
-          const dist = haversine(startLat, startLng, points[i].lat, points[i].lng)
-          if (dist > HOME_RADIUS_KM) {
-            destinationLat = points[i].lat
-            destinationLng = points[i].lng
-            break
-          }
+    // Fallback: if no clear return trip, use start of last long trip
+    if (destinationLat === 0 && destinationLng === 0) {
+      for (let i = trips.length - 1; i >= 0; i--) {
+        if (trips[i].distance > 5) {
+          destinationLat = trips[i].startLat
+          destinationLng = trips[i].startLng
+          break
         }
-      }
-      // Fallback: just use the homeEntryIndex point itself
-      if (destinationLat === 0) {
-        destinationLat = points[homeEntryIndex].lat
-        destinationLng = points[homeEntryIndex].lng
       }
     }
 
@@ -145,6 +118,79 @@ async function vehicleHadTripsToday(token: string, vehicleId: number): Promise<{
   } catch {
     return { hadTrips: false }
   }
+}
+
+// Parse GPS text into nav points (same as history page)
+function parseNavPoints(text: string): Array<{ lat: number; lng: number; speed: number; timestamp: string }> {
+  const clean = text.replace(/^"|"$/g, "")
+  const ampIdx = clean.indexOf("&")
+  if (ampIdx === -1) return []
+  const basePart = clean.substring(0, ampIdx).replace("Z", "").trim()
+  const dataPart = clean.substring(ampIdx + 1)
+  if (!dataPart) return []
+  const baseDate = new Date(basePart + "Z")
+  const segments = dataPart.split(":")
+  const points: Array<{ lat: number; lng: number; speed: number; timestamp: string }> = []
+  for (const s of segments) {
+    if (!s) continue
+    const parts = s.split(",")
+    if (parts.length < 3) continue
+    const lat = parseFloat(parts[0])
+    const lng = parseFloat(parts[1])
+    const offsetSec = parseFloat(parts[2])
+    const speed = parts.length > 3 ? parseFloat(parts[3]) : 0
+    if (lat === 0 && lng === 0) continue
+    const actualTime = new Date(baseDate.getTime() + offsetSec * 1000)
+    points.push({ lat, lng, speed, timestamp: actualTime.toISOString() })
+  }
+  return points
+}
+
+// Build trips from nav points (same logic as history page)
+function buildTrips(points: Array<{ lat: number; lng: number; speed: number; timestamp: string }>) {
+  if (points.length < 2) return []
+  const trips: Array<{ startLat: number; startLng: number; endLat: number; endLng: number; distance: number }> = []
+  let currentPoints: typeof points = []
+  let stoppedSince: Date | null = null
+
+  for (const pt of points) {
+    const ts = new Date(pt.timestamp)
+    if (pt.speed > 3) {
+      stoppedSince = null
+      currentPoints.push(pt)
+    } else {
+      if (stoppedSince === null) {
+        stoppedSince = ts
+        currentPoints.push(pt)
+      } else {
+        const stopDur = (ts.getTime() - stoppedSince.getTime()) / 60000
+        if (stopDur >= 5 && currentPoints.length >= 2) {
+          const trip = finishTrip(currentPoints)
+          if (trip) trips.push(trip)
+          currentPoints = []
+          stoppedSince = null
+        } else {
+          currentPoints.push(pt)
+        }
+      }
+    }
+  }
+  if (currentPoints.length >= 2) {
+    const trip = finishTrip(currentPoints)
+    if (trip) trips.push(trip)
+  }
+  return trips.filter(t => t.distance >= 0.5)
+}
+
+function finishTrip(points: Array<{ lat: number; lng: number; speed: number; timestamp: string }>) {
+  if (points.length < 2) return null
+  const start = points[0]
+  const end = points[points.length - 1]
+  let distance = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    distance += haversine(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng)
+  }
+  return { startLat: start.lat, startLng: start.lng, endLat: end.lat, endLng: end.lng, distance: Math.round(distance * 100) / 100 }
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
