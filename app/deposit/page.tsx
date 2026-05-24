@@ -549,9 +549,10 @@ export default function DepositPage() {
         const type = order?.type || "online"
         const fare = order?.argo || 0
 
-        // Calculate sisa setoran after this payment
-        const currentTotalSisa = orders.reduce((sum, o) => sum + o.sisa, 0)
-        const sisaAfterPayment = currentTotalSisa - totalAmount
+        // Calculate sisa setoran after this payment (ALL pending orders for this driver)
+        const driverOrders = orders.filter(o => o.driver.toLowerCase() === driverName.toLowerCase())
+        const currentDriverSisa = driverOrders.reduce((sum, o) => sum + o.sisa, 0)
+        const sisaAfterPayment = currentDriverSisa - totalAmount
 
         // Build batch items for telegram
         const batchItems = showBatchPayment
