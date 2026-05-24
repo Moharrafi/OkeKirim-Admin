@@ -1652,7 +1652,7 @@ export default function DepositPage() {
 
             {/* Batch Selection Info */}
             {isBatchMode && selectedOrders.length > 0 && (
-              <Card className="border-primary/50 bg-primary/5">
+              <Card className="border-primary/50 bg-primary/5 mt-3">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div>
