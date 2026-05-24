@@ -737,12 +737,12 @@ export default function DepositPage() {
     const selectedOrderItems = orders.filter(o => selectedOrders.includes(o.id))
     
     return (
-      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => setShowBatchPayment(false))}>
+      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => { setShowBatchPayment(false); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })}>
       <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
         <MobileHeader 
           title="Pembayaran Batch" 
           showBack 
-          onBack={() => navigateBack("list", () => setShowBatchPayment(false))} 
+          onBack={() => navigateBack("list", () => { setShowBatchPayment(false); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })} 
         />
         
         <div className="px-4 py-4 pb-28 space-y-4">
@@ -945,12 +945,12 @@ export default function DepositPage() {
   // Single Setoran Detail View
   if (selectedOrder) {
     return (
-      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => setSelectedOrder(null))}>
+      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => { setSelectedOrder(null); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })}>
       <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
         <MobileHeader 
           title="Konfirmasi Setoran" 
           showBack 
-          onBack={() => navigateBack("list", () => setSelectedOrder(null))} 
+          onBack={() => navigateBack("list", () => { setSelectedOrder(null); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })} 
         />
         
         <div className="px-4 py-4 pb-28 space-y-4">
