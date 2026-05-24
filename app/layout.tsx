@@ -5,6 +5,7 @@ import './globals.css'
 import { MobileNav } from '@/components/mobile-nav'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { DebtReminder } from '@/components/debt-reminder'
+import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/lib/theme-context'
 import { UserProvider } from '@/lib/user-context'
 
@@ -37,6 +38,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className="bg-background" suppressHydrationWarning data-scroll-behavior="smooth">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('theme');
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <UserProvider>
@@ -44,6 +61,7 @@ export default function RootLayout({
             <DebtReminder />
             {children}
             <MobileNav />
+            <Toaster />
           </UserProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

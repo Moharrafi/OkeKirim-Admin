@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { useTheme } from "@/lib/theme-context"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { useState, useEffect } from "react"
 
 interface DriverData {
@@ -54,6 +55,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [editForm, setEditForm] = useState({
     phone: "",
     email: "",
@@ -406,11 +408,22 @@ export default function ProfilePage() {
         <Button
           variant="outline"
           className="w-full h-12 rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
         >
           <LogOut className="h-4 w-4 mr-2" />
           Keluar
         </Button>
+
+        {/* Logout Confirmation Dialog */}
+        <ConfirmDialog
+          open={showLogoutConfirm}
+          title="Keluar dari Akun?"
+          message="Kamu akan keluar dari aplikasi OkeMitra. Pastikan semua data sudah tersimpan."
+          confirmText="Ya, Keluar"
+          cancelText="Batal"
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
 
         {/* Version */}
         <p className="text-center text-xs text-muted-foreground py-2">

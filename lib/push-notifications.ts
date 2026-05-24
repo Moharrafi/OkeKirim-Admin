@@ -7,7 +7,7 @@ import { PushNotifications } from "@capacitor/push-notifications"
  * Initialize push notifications for the current driver.
  * Call this after driver login.
  */
-export async function initPushNotifications(driverName: string) {
+export async function initPushNotifications(driverName: string, role: string = "driver") {
   if (!Capacitor.isNativePlatform()) {
     console.log("Push notifications only available on native platform")
     return
@@ -26,7 +26,7 @@ export async function initPushNotifications(driverName: string) {
     // Listen for registration success
     PushNotifications.addListener("registration", async (token) => {
       console.log("FCM Token:", token.value)
-      await saveToken(driverName, token.value)
+      await saveToken(driverName, token.value, role)
     })
 
     PushNotifications.addListener("registrationError", (error) => {
@@ -60,12 +60,12 @@ export async function initPushNotifications(driverName: string) {
   }
 }
 
-async function saveToken(driverName: string, token: string) {
+async function saveToken(driverName: string, token: string, role: string = "driver") {
   try {
     await fetch("/api/fcm-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ driverName, token }),
+      body: JSON.stringify({ driverName, token, role }),
     })
   } catch (err) {
     console.error("Failed to save FCM token:", err)

@@ -135,6 +135,34 @@ function run_migrations() {
     
     // Users table is managed by auth.php (ensure_users_table)
     // No need to create it here;
+
+    // FCM tokens table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fcm_tokens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      driver_name VARCHAR(255) NOT NULL,
+      token TEXT NOT NULL,
+      role VARCHAR(32) DEFAULT 'driver',
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_driver (driver_name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    try { $pdo->exec("ALTER TABLE fcm_tokens ADD COLUMN role VARCHAR(32) DEFAULT 'driver'"); } catch (Throwable $e) {}
+
+    // Notifications log table
+    $pdo->exec("CREATE TABLE IF NOT EXISTS notifications (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      target_role VARCHAR(32) DEFAULT 'admin',
+      target_user VARCHAR(255) DEFAULT NULL,
+      title VARCHAR(255) NOT NULL,
+      body TEXT NOT NULL,
+      type VARCHAR(64) DEFAULT 'info',
+      data JSON DEFAULT NULL,
+      is_read TINYINT(1) DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_target_role (target_role),
+      INDEX idx_target_user (target_user),
+      INDEX idx_is_read (is_read)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     
     // Mark as migrated
     @file_put_contents($flagFile, date('Y-m-d H:i:s'));

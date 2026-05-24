@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Wrench, Plus, Pencil, Trash2, X, Car, Calendar, CheckCircle2, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 interface Service {
   id: number
@@ -46,18 +47,23 @@ export default function ServicePage() {
     if (!isAuthenticated) router.push("/login")
   }, [isAuthenticated, router])
 
-  useEffect(() => {
-    fetch("/api/services")
-      .then(r => r.json())
-      .then(data => setServices(data.services || []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-    // Fetch drivers for vehicle dropdown
-    fetch("/api/drivers")
-      .then(r => r.json())
-      .then(data => setDrivers(data.drivers || []))
-      .catch(() => {})
+  const refreshServices = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch("/api/services")
+      const data = await r.json()
+      setServices(data.services || [])
+      const driversRes = await fetch("/api/drivers")
+      const driversData = await driversRes.json()
+      setDrivers(driversData.drivers || [])
+    } catch {} finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    refreshServices()
+  }, [refreshServices])
 
   const handleSave = async () => {
     const driverForVehicle = drivers.find(d => d.vehicle === formVehicle)
@@ -185,6 +191,7 @@ export default function ServicePage() {
   if (!isAuthenticated) return null
 
   return (
+    <PullToRefresh onRefresh={refreshServices}>
     <div className="min-h-screen pb-24">
       <MobileHeader title="Kelola Service" showBack onBack={() => router.push("/")} />
 
@@ -440,6 +447,7 @@ export default function ServicePage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }
 

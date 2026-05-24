@@ -25,6 +25,8 @@ import {
   WifiOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PullToRefresh } from "@/components/pull-to-refresh"
+import { useDebounce } from "@/hooks/use-debounce"
 
 const VehicleMap = dynamic(() => import("@/components/vehicle-map"), {
   ssr: false,
@@ -208,10 +210,12 @@ export default function LokasiPage() {
     setSelectedVehicle(vehicleId)
   }
 
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
   const filteredVehicles = vehicles.filter((v) => {
     const matchesSearch =
-      v.driver.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.plate.toLowerCase().includes(searchQuery.toLowerCase())
+      v.driver.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      v.plate.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     const matchesFilter = activeFilter === "all" || v.status === activeFilter
     return matchesSearch && matchesFilter
   })
@@ -225,6 +229,7 @@ export default function LokasiPage() {
   }
 
   return (
+    <PullToRefresh onRefresh={() => fetchVehicles(true)}>
     <div className="min-h-screen pb-24">
       <MobileHeader title="Lokasi Kendaraan" />
 
@@ -630,5 +635,6 @@ export default function LokasiPage() {
         </>
       )}
     </div>
+    </PullToRefresh>
   )
 }

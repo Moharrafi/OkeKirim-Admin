@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import { notifyNewOrder } from "@/lib/notify-admin"
 
 // Simple in-memory cache (TTL: 15 seconds)
 const queryCache = new Map<string, { data: unknown; timestamp: number }>()
@@ -127,6 +128,9 @@ export async function POST(request: NextRequest) {
 
     // Clear cache after new data is inserted
     queryCache.clear()
+
+    // Notify admins about new order (fire and forget)
+    notifyNewOrder(driver, origin || "", destination || "", fare).catch(() => {})
 
     return NextResponse.json({ success: true, id: insertId }, { status: 201 })
   } catch (error) {

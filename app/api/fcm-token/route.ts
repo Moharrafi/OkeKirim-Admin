@@ -3,17 +3,19 @@ import pool from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
-    const { driverName, token } = await request.json()
+    const { driverName, token, role } = await request.json()
 
     if (!driverName || !token) {
       return NextResponse.json({ error: "driverName and token required" }, { status: 400 })
     }
 
+    const userRole = role || "driver"
+
     await pool.execute(
-      `INSERT INTO fcm_tokens (driver_name, token, updated_at) 
-       VALUES (?, ?, NOW()) 
-       ON DUPLICATE KEY UPDATE token = VALUES(token), updated_at = NOW()`,
-      [driverName, token]
+      `INSERT INTO fcm_tokens (driver_name, token, role, updated_at) 
+       VALUES (?, ?, ?, NOW()) 
+       ON DUPLICATE KEY UPDATE token = VALUES(token), role = VALUES(role), updated_at = NOW()`,
+      [driverName, token, userRole]
     )
 
     return NextResponse.json({ success: true })

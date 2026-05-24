@@ -60,8 +60,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (savedRole === "driver") {
         const driverName = localStorage.getItem("driverName")
         if (driverName) {
-          initPushNotifications(driverName)
+          initPushNotifications(driverName, "driver")
         }
+      } else if (savedRole === "admin") {
+        const adminName = localStorage.getItem("driverName") || "Admin"
+        initPushNotifications(adminName, "admin")
       }
     }
   }, [])
@@ -80,7 +83,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("driverName", driverName)
     }
     if (newRole === "driver" && driverName) {
-      initPushNotifications(driverName)
+      initPushNotifications(driverName, "driver")
+    } else if (newRole === "admin") {
+      initPushNotifications(driverName || "Admin", "admin")
     }
   }
 

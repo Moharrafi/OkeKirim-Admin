@@ -21,6 +21,27 @@ const driverNavItems = [
   { href: "/profile", icon: User, label: "Profil" },
 ]
 
+/**
+ * Determines which nav item is active based on the current pathname.
+ * Ensures exactly one item is active at any time by using prefix matching
+ * for sub-routes, with the home route ("/") only matching exactly.
+ */
+function getActiveHref(pathname: string, navItems: typeof adminNavItems): string {
+  // First try exact match
+  const exactMatch = navItems.find((item) => item.href === pathname)
+  if (exactMatch) return exactMatch.href
+
+  // Then try prefix match for sub-routes (e.g., /deposit/detail matches /deposit)
+  // Exclude "/" from prefix matching to avoid it matching everything
+  const prefixMatch = navItems
+    .filter((item) => item.href !== "/")
+    .find((item) => pathname.startsWith(item.href + "/") || pathname.startsWith(item.href))
+  if (prefixMatch) return prefixMatch.href
+
+  // Fallback to home if no match found
+  return "/"
+}
+
 export function MobileNav() {
   const pathname = usePathname()
   const { isAdmin, isAuthenticated } = useUser()
@@ -30,6 +51,8 @@ export function MobileNav() {
     return null
   }
 
+  const activeHref = getActiveHref(pathname, navItems)
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pt-2" aria-label="Navigasi utama" role="navigation">
       <div
@@ -37,7 +60,7 @@ export function MobileNav() {
         style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
       >
         {navItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = activeHref === item.href
           return (
             <Link
               key={item.href}
@@ -45,12 +68,25 @@ export function MobileNav() {
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center transition-all duration-200 ease-out",
-                isActive ? "bg-primary/10 text-primary scale-105" : "text-muted-foreground active:bg-secondary active:scale-95"
+                "relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center transition-all duration-200 ease-out",
+                isActive
+                  ? "bg-primary/12 text-primary shadow-[inset_0_0_0_1.5px_oklch(var(--primary)/0.15)]"
+                  : "text-muted-foreground active:bg-secondary active:scale-95"
               )}
             >
-              <item.icon className={cn("h-5 w-5 transition-transform duration-200", isActive && "stroke-[2.5] scale-110")} aria-hidden="true" />
-              <span className={cn("text-[10px] leading-none", isActive ? "font-semibold" : "font-medium")}>
+              <item.icon
+                className={cn(
+                  "h-5 w-5 transition-transform duration-200",
+                  isActive && "scale-110 stroke-[2.5]"
+                )}
+                aria-hidden="true"
+              />
+              <span
+                className={cn(
+                  "text-[10px] leading-none transition-all duration-200",
+                  isActive ? "font-bold" : "font-medium"
+                )}
+              >
                 {item.label}
               </span>
             </Link>
@@ -60,3 +96,5 @@ export function MobileNav() {
     </nav>
   )
 }
+
+export { getActiveHref }

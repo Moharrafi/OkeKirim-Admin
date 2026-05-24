@@ -91,17 +91,21 @@ export async function createOrder(order: {
   orderType: string
   fare: number
   notes?: string
-}): Promise<{ success: boolean; id?: number; error?: string }> {
+}, options?: { signal?: AbortSignal }): Promise<{ success: boolean; id?: number; error?: string }> {
   try {
     const resp = await fetch("/api/tarikan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(order),
+      signal: options?.signal,
     })
     const data = await resp.json()
     if (!resp.ok) return { success: false, error: data.error }
     return { success: true, id: data.id }
   } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { success: false, error: "AbortError" }
+    }
     return { success: false, error: String(err) }
   }
 }

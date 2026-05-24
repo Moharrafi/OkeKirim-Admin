@@ -1,27 +1,79 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { formatCurrency } from "@/lib/utils/currency"
 
 interface ConfirmDialogProps {
   open: boolean
   title: string
-  message: string
+  message?: string
+  amount?: number
+  orderCount?: number
   confirmText?: string
   cancelText?: string
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function ConfirmDialog({ open, title, message, confirmText = "Ya, Lanjutkan", cancelText = "Batal", onConfirm, onCancel }: ConfirmDialogProps) {
-  if (!open) return null
-
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  amount,
+  orderCount,
+  confirmText = "Ya, Lanjutkan",
+  cancelText = "Batal",
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative bg-card border border-border rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-        <h3 className="text-lg font-bold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground mt-2">{message}</p>
-        <div className="flex gap-3 mt-5">
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel() }}>
+      <DialogContent
+        showCloseButton={false}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="max-w-sm rounded-2xl p-6"
+      >
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold text-foreground">
+            {title}
+          </DialogTitle>
+          {message && (
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              {message}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        {/* Amount and order count display */}
+        {amount !== undefined && (
+          <div className="py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Jumlah Bayar</span>
+              <span className="text-lg font-bold text-primary">
+                Rp {formatCurrency(amount)}
+              </span>
+            </div>
+            {orderCount !== undefined && orderCount > 1 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Jumlah Orderan</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {orderCount} orderan
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter className="flex flex-row gap-3 mt-2">
           <Button
             variant="outline"
             className="flex-1 h-11 rounded-xl"
@@ -35,8 +87,8 @@ export function ConfirmDialog({ open, title, message, confirmText = "Ya, Lanjutk
           >
             {confirmText}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

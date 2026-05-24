@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,6 +29,8 @@ import {
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { fetchSchedules, fetchHistory, fetchDrivers, type Schedule, type Driver } from "@/lib/okekirim-api"
+import { PullToRefresh } from "@/components/pull-to-refresh"
+import { useDebounce } from "@/hooks/use-debounce"
 
 const getStatusConfig = (status: string, isDriver: boolean = false) => {
   switch (status) {
@@ -84,42 +86,47 @@ export default function HistoryPage() {
     fetchDrivers().then(setApiDrivers).catch(() => {})
   }, [])
 
-  useEffect(() => {
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  const fetchTransactions = useCallback(async () => {
     setLoadingApi(true)
     setCurrentPage(1)
     setApiTransactions([])
     setHasMore(true)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
-    // Fetch ALL schedules for summary counts only
-    fetchSchedules(undefined, driverName)
-      .then((allSchedules) => {
-        const lunas = allSchedules.filter(s => s.status === "lunas")
-        const nunggak = allSchedules.filter(s => s.status === "nunggak")
-        setTotalTrips(allSchedules.length)
-        setLunasCount(lunas.length)
-        setNunggakCount(nunggak.length)
+    try {
+      const allSchedules = await fetchSchedules(undefined, driverName)
+      const lunas = allSchedules.filter(s => s.status === "lunas")
+      const nunggak = allSchedules.filter(s => s.status === "nunggak")
+      setTotalTrips(allSchedules.length)
+      setLunasCount(lunas.length)
+      setNunggakCount(nunggak.length)
 
-        // Display first page of lunas
-        const mapped = lunas.map(s => ({
-          id: `TRX-${String(s.id).padStart(3, "0")}`,
-          date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-          time: s.lastPaidAt ? new Date(s.lastPaidAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
-          driver: s.driver || "Unknown",
-          vehicle: s.vehicle || s.driverVehicle || "-",
-          route: `${s.origin || "-"} - ${s.destination || "-"}`,
-          amount: s.fare || 0,
-          type: s.orderType === "offline" ? "offline" : "online",
-          method: s.payment_notes || s.paymentNotes || "Transfer",
-          status: "success" as const,
-        }))
-        setApiTransactions(mapped.slice(0, PAGE_SIZE))
-        setHasMore(mapped.length > PAGE_SIZE)
-        // Store full list for load more
-        ;(window as unknown as Record<string, unknown>).__allTransactions = mapped
-      })
-      .catch(() => setApiTransactions([]))
-      .finally(() => setLoadingApi(false))
-  }, [filterDriver, filterDateFrom, filterDateTo, isDriver, user.name])
+      const mapped = lunas.map(s => ({
+        id: `TRX-${String(s.id).padStart(3, "0")}`,
+        date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
+        time: s.lastPaidAt ? new Date(s.lastPaidAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+        driver: s.driver || "Unknown",
+        vehicle: s.vehicle || s.driverVehicle || "-",
+        route: `${s.origin || "-"} - ${s.destination || "-"}`,
+        amount: s.fare || 0,
+        type: s.orderType === "offline" ? "offline" : "online",
+        method: s.payment_notes || s.paymentNotes || "Transfer",
+        status: "success" as const,
+      }))
+      setApiTransactions(mapped.slice(0, PAGE_SIZE))
+      setHasMore(mapped.length > PAGE_SIZE)
+      ;(window as unknown as Record<string, unknown>).__allTransactions = mapped
+    } catch {
+      setApiTransactions([])
+    } finally {
+      setLoadingApi(false)
+    }
+  }, [filterDriver, isDriver, user.name])
+
+  useEffect(() => {
+    fetchTransactions()
+  }, [fetchTransactions, filterDateFrom, filterDateTo])
 
   const handleLoadMore = () => {
     setLoadingMore(true)
@@ -136,10 +143,10 @@ export default function HistoryPage() {
 
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = isDriver
-      ? tx.route.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.id.toLowerCase().includes(searchQuery.toLowerCase())
-      : tx.driver.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tx.id.toLowerCase().includes(searchQuery.toLowerCase())
+      ? tx.route.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        tx.id.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      : tx.driver.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        tx.id.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     const matchesFilter = activeFilter === "all" || tx.status === activeFilter
     return matchesSearch && matchesFilter
   })
@@ -158,6 +165,7 @@ export default function HistoryPage() {
   }, {} as Record<string, typeof transactions>)
 
   return (
+    <PullToRefresh onRefresh={fetchTransactions}>
     <div className="min-h-screen pb-24">
       <MobileHeader title="Riwayat" />
       
@@ -433,5 +441,6 @@ export default function HistoryPage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }

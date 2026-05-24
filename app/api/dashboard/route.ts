@@ -73,17 +73,14 @@ export async function GET(request: NextRequest) {
       [now.getFullYear(), ...driverParam]
     ) as any
 
-    const [driverIncome] = driverFilter
-      ? [[] as Array<{ driver: string; total: string | number }>]
-      : await pool.execute(
-          `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total 
-           FROM schedules s 
-           WHERE s.date >= ?
-           GROUP BY s.driver 
-           ORDER BY total DESC 
-           LIMIT 5`,
-          [monthStart]
-        ).then(([rows]: any) => [rows]) as any
+    const [driverIncome] = await pool.execute(
+      `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips
+       FROM schedules s 
+       WHERE s.date >= ?
+       GROUP BY s.driver 
+       ORDER BY total DESC`,
+      [monthStart]
+    ).then(([rows]: any) => [rows]) as any
 
     const [orderTypeBreakdown] = await pool.execute(
       `SELECT orderType, CAST(SUM(fare) AS UNSIGNED) as total, COUNT(*) as count
@@ -93,14 +90,25 @@ export async function GET(request: NextRequest) {
       [monthStart, ...driverParam]
     ) as any
 
+    // Count orders overdue > 3 days (status nunggak and date more than 3 days ago)
+    const threeDaysAgo = new Date(now)
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    const threeDaysAgoStr = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`
+
+    const [overdueRows] = await pool.execute(
+      `SELECT COUNT(*) as count FROM schedules WHERE status = 'nunggak' AND date < ?${driverWhere}`,
+      [threeDaysAgoStr, ...driverParam]
+    ) as any
+
     const chartData = (monthlyChart as Array<{ month: number; total: string | number }>).map(r => ({
       month: Number(r.month),
       total: Number(r.total),
     }))
 
-    const driverData = (driverIncome as Array<{ driver: string; total: string | number }>).map(r => ({
+    const driverData = (driverIncome as Array<{ driver: string; total: string | number; trips: string | number }>).map(r => ({
       driver: String(r.driver).trim(),
       total: Number(r.total),
+      trips: Number(r.trips || 0),
     }))
 
     const monthlyCompany = Number((monthlyRows as any[])[0]?.totalCompany || 0)
@@ -121,6 +129,7 @@ export async function GET(request: NextRequest) {
       todayTotal: Number((todayRows as any[])[0]?.total || 0),
       todayCount: Number((todayRows as any[])[0]?.count || 0),
       activeDrivers: Number((driverRows as any[])[0]?.count || 0),
+      overdueCount: Number((overdueRows as any[])[0]?.count || 0),
       recentTransactions: recentRows,
       monthlyChart: chartData,
       driverIncome: driverData,

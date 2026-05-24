@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 import { isRateLimited, rateLimitedResponse, getClientIp } from "@/lib/api-auth"
+import { notifyDepositPayment } from "@/lib/notify-admin"
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
@@ -94,6 +95,30 @@ export async function POST(request: NextRequest) {
         )
       }
     }
+
+    // Notify admins about the deposit payment
+    try {
+      // Get driver name from the first schedule
+      const [driverRows] = await pool.execute(
+        "SELECT driver FROM schedules WHERE id = ?",
+        [scheduleIds[0]]
+      ) as any
+      const driverName = driverRows?.[0]?.driver || "Driver"
+      const totalAmount = amount ? Number(amount) : 0
+
+      // Calculate total paid if no explicit amount
+      let notifAmount = totalAmount
+      if (!notifAmount) {
+        const [sumRows] = await pool.execute(
+          `SELECT COALESCE(SUM(companyShare), 0) as total FROM schedules WHERE id IN (${scheduleIds.map(() => "?").join(",")})`,
+          scheduleIds
+        ) as any
+        notifAmount = sumRows?.[0]?.total || 0
+      }
+
+      // Fire and forget - don't block the response
+      notifyDepositPayment(driverName, notifAmount, scheduleIds.length).catch(() => {})
+    } catch {}
 
     return NextResponse.json({
       success: true,

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/deposit-reminder?key=cron",
-      "schedule": "0 13 * * *"
+      "schedule": "0 12 * * *"
     }
   ]
 }

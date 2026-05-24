@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Users, Plus, Pencil, Trash2, X, Car } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { fetchDrivers, type Driver } from "@/lib/okekirim-api"
+import { PullToRefresh } from "@/components/pull-to-refresh"
 
 export default function DriversPage() {
   const router = useRouter()
@@ -29,9 +30,19 @@ export default function DriversPage() {
     if (!isAdmin) router.push("/")
   }, [isAuthenticated, isAdmin, router])
 
-  useEffect(() => {
-    fetchDrivers().then((d) => { setDrivers(d); setLoading(false) }).catch(() => setLoading(false))
+  const refreshDrivers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const d = await fetchDrivers()
+      setDrivers(d)
+    } catch {} finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    refreshDrivers()
+  }, [refreshDrivers])
 
   const handleSave = async () => {
     const body = { name: formName, vehicle: formVehicle, vehicleType: formVehicleType, status: formStatus }
@@ -87,6 +98,7 @@ export default function DriversPage() {
   if (!isAuthenticated || !isAdmin) return null
 
   return (
+    <PullToRefresh onRefresh={refreshDrivers}>
     <div className="min-h-screen pb-24">
       <MobileHeader title="Kelola Driver" showBack onBack={() => router.push("/")} />
 
@@ -253,5 +265,6 @@ export default function DriversPage() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }

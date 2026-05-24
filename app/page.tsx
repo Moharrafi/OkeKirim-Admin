@@ -47,6 +47,7 @@ interface DashboardData {
   todayTotal: number
   todayCount: number
   activeDrivers: number
+  overdueCount: number
   recentTransactions: Array<{
     id: number
     driver: string
@@ -252,7 +253,7 @@ export default function DashboardPage() {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen pb-28">
-      <MobileHeader showGreeting />
+      <MobileHeader showGreeting overdueCount={data?.overdueCount || 0} />
 
       <main className="px-4 py-4">
         <section className="space-y-3">
@@ -410,6 +411,7 @@ export default function DashboardPage() {
                 orderTypeBreakdown={data.orderTypeBreakdown}
                 isAdmin={isAdmin}
                 formatRupiah={formatRupiah}
+                currentDriver={user.name}
               />
             )}
 
