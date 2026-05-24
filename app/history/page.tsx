@@ -104,14 +104,22 @@ export default function HistoryPage() {
 
       const mapped = lunas.map(s => ({
         id: `TRX-${String(s.id).padStart(3, "0")}`,
-        date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-        time: s.lastPaidAt ? new Date(s.lastPaidAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "",
+        date: s.paidOffAt 
+          ? new Date(s.paidOffAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+          : s.lastPaidAt
+            ? new Date(s.lastPaidAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+            : s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
+        time: s.paidOffAt 
+          ? new Date(s.paidOffAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+          : s.lastPaidAt 
+            ? new Date(s.lastPaidAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
+            : "",
         driver: s.driver || "Unknown",
         vehicle: s.vehicle || s.driverVehicle || "-",
-        route: `${s.origin || "-"} - ${s.destination || "-"}`,
-        amount: s.fare || 0,
+        route: `${s.origin || "-"} → ${s.destination || "-"}`,
+        amount: s.companyShare || Math.round((s.fare || 0) * 0.4),
         type: s.orderType === "offline" ? "offline" : "online",
-        method: s.payment_notes || s.paymentNotes || "Transfer",
+        method: s.payment_notes || s.paymentNotes || "Lunas",
         status: "success" as const,
       }))
       setApiTransactions(mapped.slice(0, PAGE_SIZE))
@@ -307,10 +315,13 @@ export default function HistoryPage() {
                           </div>
                           <div>
                             <p className="font-medium text-foreground text-sm">
-                              {isDriver ? tx.route : tx.driver}
+                              {tx.driver}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {isDriver ? `${tx.type === "online" ? "Online" : "Offline"} • ${tx.time}` : `${tx.method} • ${tx.time}`}
+                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                              {tx.route}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {tx.method} • {tx.time}
                             </p>
                           </div>
                         </div>
