@@ -2,11 +2,32 @@ import { NextRequest, NextResponse } from "next/server"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
+const FIGURE_SPACE = "\u2007"
+const SEPARATOR = "\u2501".repeat(24)
 
 interface BatchItem {
   route: string
   fare: number
   type: string
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+function formatRupiah(value: unknown) {
+  return `Rp ${Number(value || 0).toLocaleString("id-ID")}`
+}
+
+function formatInfoRows(rows: Array<[string, string]>) {
+  const labelWidth = Math.max(...rows.map(([label]) => label.length))
+
+  return rows
+    .map(([label, value]) => `${label}${FIGURE_SPACE.repeat(labelWidth - label.length)} : ${escapeHtml(value)}`)
+    .join("\n")
 }
 
 export async function POST(request: NextRequest) {
@@ -30,47 +51,51 @@ export async function POST(request: NextRequest) {
     let message = ""
 
     if (batchItems && Array.isArray(batchItems) && batchItems.length > 1) {
-      // Batch payment format
       const items = batchItems as BatchItem[]
       const totalArgo = items.reduce((sum, item) => sum + (item.fare || 0), 0)
       const harusSetor = Math.round(totalArgo * 0.4)
-      const types = [...new Set(items.map(i => i.type === "offline" ? "Offline" : "Online"))]
+      const types = [...new Set(items.map((item) => item.type === "offline" ? "Offline" : "Online"))]
       const typeStr = types.join(" & ")
+      const infoRows: Array<[string, string]> = [
+        ["Setoran", formatRupiah(amount)],
+        ["Jumlah", `${items.length} orderan`],
+        ["Harus Disetor", formatRupiah(harusSetor)],
+        ["Tipe", typeStr],
+        ["Tanggal", waktu],
+      ]
 
-      let routeList = items.map((item, i) => 
-        `  ${i + 1}. ${item.route} (Rp ${Number(item.fare).toLocaleString("id-ID")})`
-      ).join("\n")
+      if (sisaSetoran !== undefined && sisaSetoran > 0) {
+        infoRows.push(["Sisa Setoran", formatRupiah(sisaSetoran)])
+      }
+
+      const routeList = items
+        .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
+        .join("\n")
 
       message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `👤 <b>${driver}</b>\n\n` +
-        `Setoran\u2003\u2003\u2003\u2003:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Jumlah\u2003\u2003\u2003\u2003\u2003:  ${items.length} orderan\n` +
-        `Wajib Setor\u2003\u2003:  Rp ${harusSetor.toLocaleString("id-ID")}\n` +
-        `Tipe\u2003\u2003\u2003\u2003\u2003\u2003:  ${typeStr}\n` +
-        `Tanggal\u2003\u2003\u2003\u2003:  ${waktu}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\u2003\u2003\u2003\u2003\u2003\u2003:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
-        `\n📋 <b>Rincian Rute:</b>\n${routeList}\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : ``) +
+        `${SEPARATOR}\n\n` +
+        `👤 <b>${escapeHtml(driver)}</b>\n\n` +
+        `<pre>${formatInfoRows(infoRows)}</pre>\n\n` +
+        `📋 <b>Rincian Rute:</b>\n` +
+        `<pre>${routeList}</pre>\n\n` +
+        `${SEPARATOR}\n` +
+        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra • Sistem Otomatis</i>`
     } else {
-      // Single payment format
       message = `📥 <b>SETORAN MASUK</b>\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `👤 <b>${driver}</b>\n\n` +
-        `Setoran\t\t\t:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Rute\t\t\t\t:  ${route || "-"}\n` +
-        `Argo\t\t\t\t:  Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
+        `${SEPARATOR}\n\n` +
+        `👤 <b>${escapeHtml(driver)}</b>\n\n` +
+        `Setoran\t\t\t:  ${formatRupiah(amount)}\n` +
+        `Rute\t\t\t\t:  ${escapeHtml(route || "-")}\n` +
+        `Argo\t\t\t\t:  ${formatRupiah(fare)}\n` +
         `Tipe\t\t\t\t:  ${orderType === "offline" ? "Offline" : "Online"}\n` +
-        `Tanggal\t\t\t:  ${waktu}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\t\t\t\t:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
-        `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : ``) +
+        `Tanggal\t\t\t:  ${escapeHtml(waktu)}\n` +
+        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\t\t\t\t:  ${formatRupiah(sisaSetoran)}\n` : "") +
+        `\n${SEPARATOR}\n` +
+        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra • Sistem Otomatis</i>`
     }
 
-    // If there's an image, send as photo with caption
     if (imageBase64) {
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "")
       const buffer = Buffer.from(base64Data, "base64")
