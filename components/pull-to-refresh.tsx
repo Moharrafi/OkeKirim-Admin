@@ -10,31 +10,38 @@ interface PullToRefreshProps {
 }
 
 export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
-  const [pulling, setPulling] = useState(false)
   const [pullDistance, setPullDistance] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const startY = useRef(0)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const isPulling = useRef(false)
 
   const THRESHOLD = 80
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (containerRef.current && containerRef.current.scrollTop === 0) {
+    // Only activate pull-to-refresh when page is scrolled to top
+    if (window.scrollY <= 0) {
       startY.current = e.touches[0].clientY
-      setPulling(true)
+      isPulling.current = true
     }
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!pulling || refreshing) return
+    if (!isPulling.current || refreshing) return
     const currentY = e.touches[0].clientY
     const diff = currentY - startY.current
-    if (diff > 0) {
-      setPullDistance(Math.min(diff * 0.5, 120))
+    if (diff > 0 && window.scrollY <= 0) {
+      setPullDistance(Math.min(diff * 0.4, 120))
+    } else {
+      // User is scrolling up normally
+      isPulling.current = false
+      setPullDistance(0)
     }
-  }, [pulling, refreshing])
+  }, [refreshing])
 
   const handleTouchEnd = useCallback(async () => {
+    if (!isPulling.current) return
+    isPulling.current = false
+    
     if (pullDistance >= THRESHOLD && !refreshing) {
       setRefreshing(true)
       setPullDistance(THRESHOLD)
@@ -42,45 +49,40 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
         await onRefresh()
       } finally {
         setRefreshing(false)
+        setPullDistance(0)
       }
+    } else {
+      setPullDistance(0)
     }
-    setPullDistance(0)
-    setPulling(false)
   }, [pullDistance, refreshing, onRefresh])
 
   return (
     <div
-      ref={containerRef}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="relative overflow-auto"
+      className="relative"
     >
       {/* Pull indicator */}
-      <div
-        className={cn(
-          "absolute left-0 right-0 flex items-center justify-center transition-all duration-200 z-10",
-          pullDistance > 0 || refreshing ? "opacity-100" : "opacity-0"
-        )}
-        style={{ top: -40 + (pullDistance > 0 ? pullDistance : refreshing ? THRESHOLD : 0), height: 40 }}
-      >
-        <RefreshCw
-          className={cn(
-            "h-5 w-5 text-primary transition-transform",
-            refreshing && "animate-spin",
-            pullDistance >= THRESHOLD && !refreshing && "text-success"
-          )}
-          style={{ transform: refreshing ? undefined : `rotate(${pullDistance * 2}deg)` }}
-        />
-      </div>
+      {(pullDistance > 0 || refreshing) && (
+        <div
+          className="fixed left-0 right-0 flex items-center justify-center z-50 pointer-events-none"
+          style={{ top: Math.max(0, pullDistance - 40) }}
+        >
+          <div className="bg-card rounded-full p-2 shadow-md border border-border">
+            <RefreshCw
+              className={cn(
+                "h-5 w-5 text-primary",
+                refreshing && "animate-spin",
+                pullDistance >= THRESHOLD && !refreshing && "text-success"
+              )}
+              style={{ transform: refreshing ? undefined : `rotate(${pullDistance * 3}deg)` }}
+            />
+          </div>
+        </div>
+      )}
 
-      {/* Content with pull offset */}
-      <div
-        className="transition-transform duration-200"
-        style={{ transform: `translateY(${pullDistance > 0 ? pullDistance : refreshing ? THRESHOLD : 0}px)` }}
-      >
-        {children}
-      </div>
+      {children}
     </div>
   )
 }

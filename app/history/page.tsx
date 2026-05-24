@@ -355,9 +355,13 @@ export default function HistoryPage() {
 
       {/* Transaction Detail Sheet */}
       {selectedTx && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" onClick={() => setSelectedTx(null)}>
+        <div 
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] animate-fade-in"
+          onClick={() => setSelectedTx(null)}
+        >
           <div 
             className="fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            style={{ animation: "slideUpSheet 300ms cubic-bezier(0.32, 0.72, 0, 1) forwards" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-1.5 rounded-full bg-muted mx-auto mt-3 sticky top-0" />

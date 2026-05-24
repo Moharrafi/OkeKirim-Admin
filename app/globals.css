@@ -241,6 +241,12 @@ input[type="number"]::-webkit-outer-spin-button {
   to { transform: translateY(0); }
 }
 
+/* Slide up for bottom sheets */
+@keyframes slideUpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 /* Scale animations for touch feedback */
 @keyframes scaleDown {
   from { transform: scale(1); }
@@ -254,7 +260,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Apply smooth animation to page content */
 .min-h-screen {
-  animation: fadeInUp 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation: fadeInUp 0.15s ease-out;
 }
 
 /* Smooth view transitions */
@@ -263,11 +269,11 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 ::view-transition-old(root) {
-  animation: fadeOut 0.15s ease-in;
+  animation: fadeOut 0.1s ease-in;
 }
 
 ::view-transition-new(root) {
-  animation: fadeInUp 0.2s ease-out;
+  animation: fadeInUp 0.15s ease-out;
 }
 
 @keyframes fadeOut {
