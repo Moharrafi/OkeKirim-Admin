@@ -3,10 +3,16 @@ import { NextRequest, NextResponse } from "next/server"
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
+interface BatchItem {
+  route: string
+  fare: number
+  type: string
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { driver, amount, route, orderType, fare, imageBase64 } = body
+    const { driver, amount, route, orderType, fare, imageBase64, batchItems, sisaSetoran } = body
 
     if (!driver || !amount) {
       return NextResponse.json({ error: "Driver dan amount wajib" }, { status: 400 })
@@ -21,29 +27,63 @@ export async function POST(request: NextRequest) {
       minute: "2-digit",
     })
 
-    const message = `📥 <b>SETORAN MASUK</b>\n` +
-      `━━━━━━━━━━━━━━━━━━\n\n` +
-      `👤 <b>${driver}</b>\n\n` +
-      `<b>Setoran</b>         Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-      `<b>Argo</b>               Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
-      `<b>Rute</b>               ${route || "-"}\n` +
-      `<b>Tipe</b>               ${orderType === "offline" ? "Offline" : "Online"}\n` +
-      `<b>Tanggal</b>          ${waktu}\n\n` +
-      `━━━━━━━━━━━━━━━━━━\n` +
-      (imageBase64 ? `✅ Bukti transfer terlampir\n\n` : ``) +
-      `<code>OkeMitra • Sistem Otomatis</code>`
+    let message = ""
+
+    if (batchItems && Array.isArray(batchItems) && batchItems.length > 1) {
+      // Batch payment format
+      const items = batchItems as BatchItem[]
+      const totalArgo = items.reduce((sum, item) => sum + (item.fare || 0), 0)
+      const types = [...new Set(items.map(i => i.type === "offline" ? "Offline" : "Online"))]
+      const typeStr = types.join(" & ")
+
+      let routeList = items.map((item, i) => 
+        `   ${i + 1}. ${item.route} (Rp ${Number(item.fare).toLocaleString("id-ID")})`
+      ).join("\n")
+
+      message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `👤 <b>${driver}</b>\n\n` +
+        `<b>Setoran</b>       : Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `<b>Jumlah</b>       : ${items.length} orderan\n` +
+        `<b>Argo Total</b>  : Rp ${totalArgo.toLocaleString("id-ID")}\n` +
+        `<b>Tipe</b>             : ${typeStr}\n` +
+        `<b>Tanggal</b>       : ${waktu}\n`
+
+      if (sisaSetoran !== undefined && sisaSetoran > 0) {
+        message += `<b>Sisa Setoran</b> : Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
+      }
+
+      message += `\n<b>Rincian Rute:</b>\n${routeList}\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        (imageBase64 ? `✅ Bukti transfer terlampir\n\n` : ``) +
+        `<code>OkeMitra • Sistem Otomatis</code>`
+    } else {
+      // Single payment format
+      message = `📥 <b>SETORAN MASUK</b>\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `👤 <b>${driver}</b>\n\n` +
+        `<b>Setoran</b>       : Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `<b>Rute</b>             : ${route || "-"}\n` +
+        `<b>Argo</b>             : Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
+        `<b>Tipe</b>             : ${orderType === "offline" ? "Offline" : "Online"}\n` +
+        `<b>Tanggal</b>       : ${waktu}\n`
+
+      if (sisaSetoran !== undefined && sisaSetoran > 0) {
+        message += `<b>Sisa Setoran</b> : Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
+      }
+
+      message += `\n━━━━━━━━━━━━━━━━━━\n` +
+        (imageBase64 ? `✅ Bukti transfer terlampir\n\n` : ``) +
+        `<code>OkeMitra • Sistem Otomatis</code>`
+    }
 
     // If there's an image, send as photo with caption
     if (imageBase64) {
-      // Convert base64 to buffer
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "")
       const buffer = Buffer.from(base64Data, "base64")
-
-      // Determine file extension
       const mimeMatch = imageBase64.match(/^data:image\/(\w+);base64,/)
       const ext = mimeMatch ? mimeMatch[1] : "jpg"
 
-      // Send photo with caption using multipart form
       const formData = new FormData()
       formData.append("chat_id", CHAT_ID)
       formData.append("caption", message)
@@ -58,12 +98,10 @@ export async function POST(request: NextRequest) {
       const photoResult = await photoRes.json()
 
       if (!photoResult.ok) {
-        // Fallback: send text only if photo fails
         console.error("Telegram photo error:", photoResult)
         await sendTextMessage(message)
       }
     } else {
-      // No image, send text only
       await sendTextMessage(message)
     }
 

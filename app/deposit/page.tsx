@@ -549,16 +549,30 @@ export default function DepositPage() {
         const type = order?.type || "online"
         const fare = order?.argo || 0
 
+        // Calculate sisa setoran after this payment
+        const currentTotalSisa = orders.reduce((sum, o) => sum + o.sisa, 0)
+        const sisaAfterPayment = currentTotalSisa - totalAmount
+
+        // Build batch items for telegram
+        const batchItems = showBatchPayment
+          ? selectedOrders.map(id => {
+              const o = orders.find(ord => ord.id === id)
+              return o ? { route: `${o.lokasiMuat} → ${o.lokasiBongkar}`, fare: o.argo, type: o.type } : null
+            }).filter(Boolean)
+          : undefined
+
         await fetch("/api/telegram", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             driver: driverName,
             amount: totalAmount,
-            route: showBatchPayment ? `${selectedOrders.length} orderan (batch)` : route,
+            route: route,
             orderType: type,
-            fare: showBatchPayment ? batchTotal : fare,
+            fare: fare,
             imageBase64: uploadedImage || undefined,
+            batchItems: batchItems,
+            sisaSetoran: sisaAfterPayment > 0 ? sisaAfterPayment : undefined,
           }),
         })
       } catch {
