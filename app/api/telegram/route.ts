@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       // Batch payment format
       const items = batchItems as BatchItem[]
       const totalArgo = items.reduce((sum, item) => sum + (item.fare || 0), 0)
+      const harusSetor = Math.round(totalArgo * 0.4)
       const types = [...new Set(items.map(i => i.type === "offline" ? "Offline" : "Online"))]
       const typeStr = types.join(" & ")
 
@@ -43,14 +44,15 @@ export async function POST(request: NextRequest) {
       message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `👤 <b>${driver}</b>\n\n` +
-        `Setoran        :  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Jumlah         :  ${items.length} orderan\n` +
-        `Argo Total    :  Rp ${totalArgo.toLocaleString("id-ID")}\n` +
-        `Tipe               :  ${typeStr}\n` +
-        `Tanggal         :  ${waktu}\n`
+        `Setoran            :  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `Jumlah             :  ${items.length} orderan\n` +
+        `Harus Disetor  :  Rp ${harusSetor.toLocaleString("id-ID")}\n` +
+        `Argo Total        :  Rp ${totalArgo.toLocaleString("id-ID")}\n` +
+        `Tipe                   :  ${typeStr}\n` +
+        `Tanggal             :  ${waktu}\n`
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
-        message += `Sisa Setoran :  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
+        message += `Sisa Setoran    :  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
       }
 
       message += `\n📋 <b>Rincian Rute:</b>\n${routeList}\n\n` +
@@ -62,14 +64,14 @@ export async function POST(request: NextRequest) {
       message = `📥 <b>SETORAN MASUK</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `👤 <b>${driver}</b>\n\n` +
-        `Setoran        :  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Rute              :  ${route || "-"}\n` +
-        `Argo              :  Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
-        `Tipe               :  ${orderType === "offline" ? "Offline" : "Online"}\n` +
-        `Tanggal         :  ${waktu}\n`
+        `Setoran            :  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `Rute                  :  ${route || "-"}\n` +
+        `Argo                  :  Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
+        `Tipe                   :  ${orderType === "offline" ? "Offline" : "Online"}\n` +
+        `Tanggal             :  ${waktu}\n`
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
-        message += `Sisa Setoran :  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
+        message += `Sisa Setoran    :  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n`
       }
 
       message += `\n━━━━━━━━━━━━━━━━━━━━━\n\n` +
