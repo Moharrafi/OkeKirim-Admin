@@ -922,6 +922,22 @@ export default function DepositPage() {
           </Button>
         </div>
       </div>
+
+      {/* Confirm Dialog for batch payment */}
+      <ConfirmDialog
+        open={showConfirm}
+        title="Konfirmasi Setoran"
+        message="Yakin mau melanjutkan pembayaran setoran ini?"
+        amount={batchTotal}
+        orderCount={selectedOrders.length}
+        confirmText="Ya, Lanjutkan"
+        cancelText="Batal"
+        onConfirm={() => {
+          setShowConfirm(false)
+          handleSubmitDeposit()
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
       </SwipeBackDetector>
     )
   }
@@ -1190,6 +1206,21 @@ export default function DepositPage() {
           </Button>
         </div>
       </div>
+
+      {/* Confirm Dialog for single payment */}
+      <ConfirmDialog
+        open={showConfirm}
+        title="Konfirmasi Setoran"
+        message="Yakin mau melanjutkan pembayaran setoran ini?"
+        amount={payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0)}
+        confirmText="Ya, Lanjutkan"
+        cancelText="Batal"
+        onConfirm={() => {
+          setShowConfirm(false)
+          handleSubmitDeposit()
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
       </SwipeBackDetector>
     )
   }
