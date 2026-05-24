@@ -44,35 +44,30 @@ export async function POST(request: NextRequest) {
       message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `👤 <b>${driver}</b>\n\n` +
-        `<code>` +
-        `Setoran       : Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Jumlah        : ${items.length} orderan\n` +
-        `Harus Disetor : Rp ${harusSetor.toLocaleString("id-ID")}\n` +
-        `Tipe          : ${typeStr}\n` +
-        `Tanggal       : ${waktu}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa Setoran  : Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
-        `</code>\n` +
-        `📋 <b>Rincian Rute:</b>\n` +
-        `<code>${routeList}</code>\n\n` +
+        `Setoran\t\t\t:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `Jumlah\t\t\t:  ${items.length} orderan\n` +
+        `Harus Disetor\t:  Rp ${harusSetor.toLocaleString("id-ID")}\n` +
+        `Tipe\t\t\t\t:  ${typeStr}\n` +
+        `Tanggal\t\t\t:  ${waktu}\n` +
+        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa Setoran\t:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
+        `\n📋 <b>Rincian Rute:</b>\n${routeList}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : ``) +
-        `\n<code>OkeMitra • Sistem Otomatis</code>`
+        `\n<i>OkeMitra • Sistem Otomatis</i>`
     } else {
       // Single payment format
       message = `📥 <b>SETORAN MASUK</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `👤 <b>${driver}</b>\n\n` +
-        `<code>` +
-        `Setoran       : Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Rute          : ${route || "-"}\n` +
-        `Argo          : Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
-        `Tipe          : ${orderType === "offline" ? "Offline" : "Online"}\n` +
-        `Tanggal       : ${waktu}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa Setoran  : Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
-        `</code>\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `Setoran\t\t\t:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `Rute\t\t\t\t:  ${route || "-"}\n` +
+        `Argo\t\t\t\t:  Rp ${Number(fare || 0).toLocaleString("id-ID")}\n` +
+        `Tipe\t\t\t\t:  ${orderType === "offline" ? "Offline" : "Online"}\n` +
+        `Tanggal\t\t\t:  ${waktu}\n` +
+        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa Setoran\t:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
+        `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : ``) +
-        `\n<code>OkeMitra • Sistem Otomatis</code>`
+        `\n<i>OkeMitra • Sistem Otomatis</i>`
     }
 
     // If there's an image, send as photo with caption
