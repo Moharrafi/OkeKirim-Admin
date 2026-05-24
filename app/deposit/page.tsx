@@ -206,6 +206,7 @@ export default function DepositPage() {
   const [editArgo, setEditArgo] = useState("")
   const [editOrigin, setEditOrigin] = useState("")
   const [editDestination, setEditDestination] = useState("")
+  const [editDate, setEditDate] = useState("")
   const [payAmount, setPayAmount] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
 
@@ -1825,6 +1826,7 @@ export default function DepositPage() {
                                 setEditArgo(String(order.argo))
                                 setEditOrigin(order.lokasiMuat)
                                 setEditDestination(order.lokasiBongkar)
+                                setEditDate(order.rawDate || "")
                               }}
                               className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                               aria-label="Edit orderan"
@@ -1905,6 +1907,15 @@ export default function DepositPage() {
                   className="bg-secondary border-0 h-10 rounded-xl mt-1"
                 />
               </div>
+              <div>
+                <Label className="text-xs font-medium text-muted-foreground">Tanggal</Label>
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
+                />
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <Button
@@ -1926,6 +1937,7 @@ export default function DepositPage() {
                       destination: editDestination,
                       fare: parseInt(editArgo || "0"),
                       orderType: editingOrder.type,
+                      date: editDate || undefined,
                     }),
                   })
                   // Update local state
@@ -1937,6 +1949,8 @@ export default function DepositPage() {
                     argo: parseInt(editArgo || "0"),
                     companyShare: newCompanyShare,
                     sisa: newCompanyShare - o.paidAmount,
+                    rawDate: editDate || o.rawDate,
+                    date: editDate ? new Date(editDate).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : o.date,
                   } : o))
                   setEditingOrder(null)
                 }}
