@@ -511,10 +511,26 @@ export default function DepositPage() {
       // Update payment status in database
       if (orderIds.length > 0) {
         const partialAmount = (payAmount && payAmount !== "" && payAmount !== "0" && parseInt(payAmount) > 0) ? parseInt(payAmount) : undefined
+        
+        // Determine payment notes
+        let paymentNotes = "Lunas"
+        if (partialAmount) {
+          const totalSisa = showBatchPayment 
+            ? batchTotal 
+            : (selectedOrder?.sisa || 0)
+          if (partialAmount < totalSisa) {
+            paymentNotes = `Cicil Rp ${partialAmount.toLocaleString("id-ID")}`
+          }
+        }
+
         const payResp = await fetch("/api/tarikan/pay", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: orderIds, paymentNotes: partialAmount && partialAmount < (selectedOrder?.sisa || 0) ? `Cicil Rp ${partialAmount.toLocaleString("id-ID")}` : "Lunas", amount: partialAmount }),
+          body: JSON.stringify({ 
+            ids: orderIds, 
+            paymentNotes, 
+            amount: partialAmount 
+          }),
           signal: controller.signal,
         })
         if (!payResp.ok) {
@@ -525,7 +541,9 @@ export default function DepositPage() {
       // Send Telegram notification (non-blocking, don't use abort signal)
       try {
         const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
-        const totalAmount = showBatchPayment ? batchTotal : (payAmount ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
+        const totalAmount = showBatchPayment 
+          ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal) 
+          : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
         const driverName = order?.driver || user.name
         const route = order ? `${order.lokasiMuat} → ${order.lokasiBongkar}` : "-"
         const type = order?.type || "online"
