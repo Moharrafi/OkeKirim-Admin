@@ -44,12 +44,12 @@ export async function POST(request: NextRequest) {
       message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `👤 <b>${driver}</b>\n\n` +
-        `Setoran\t\t\t:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
-        `Jumlah\t\t\t:  ${items.length} orderan\n` +
-        `Wajib Setor\t\t:  Rp ${harusSetor.toLocaleString("id-ID")}\n` +
-        `Tipe\t\t\t\t:  ${typeStr}\n` +
-        `Tanggal\t\t\t:  ${waktu}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\t\t\t\t:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
+        `Setoran\u2003\u2003\u2003\u2003:  Rp ${Number(amount).toLocaleString("id-ID")}\n` +
+        `Jumlah\u2003\u2003\u2003\u2003\u2003:  ${items.length} orderan\n` +
+        `Wajib Setor\u2003\u2003:  Rp ${harusSetor.toLocaleString("id-ID")}\n` +
+        `Tipe\u2003\u2003\u2003\u2003\u2003\u2003:  ${typeStr}\n` +
+        `Tanggal\u2003\u2003\u2003\u2003:  ${waktu}\n` +
+        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\u2003\u2003\u2003\u2003\u2003\u2003:  Rp ${Number(sisaSetoran).toLocaleString("id-ID")}\n` : ``) +
         `\n📋 <b>Rincian Rute:</b>\n${routeList}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : ``) +
