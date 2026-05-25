@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
 // Increase Vercel serverless function timeout to 30 seconds
 export const maxDuration = 30
@@ -87,6 +87,57 @@ async function getLastPosition(
     return parsePositionFromText(text)
   } catch {
     return null
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>
+) {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex++
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex)
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  )
+
+  return results
+}
+
+function normalizeVehicle(v: GlonassVehicle, pos: { lat: number; lng: number; speed: number; timestamp: string } | null) {
+  const numId = v.vehicleId
+  const name = v.number || v.Name || v.name || "Unknown"
+  const plate = v.number || v.StateNumber || v.GarageNumber || ""
+  const vid = v.id || v.Id || String(numId)
+
+  if (!numId || !pos || pos.lat === 0 || pos.lng === 0) {
+    return {
+      id: vid, name, plate,
+      lat: 0, lng: 0, speed: 0, course: 0,
+      lastUpdate: "", status: "offline",
+      address: "Tidak ada sinyal GPS",
+    }
+  }
+
+  let status = "active"
+  if (pos.speed === 0) status = "idle"
+  const diffMs = Date.now() - new Date(pos.timestamp).getTime()
+  if (diffMs > 5 * 60 * 1000) status = "offline"
+
+  return {
+    id: vid, name, plate,
+    lat: pos.lat, lng: pos.lng,
+    speed: Math.round(pos.speed), course: 0,
+    lastUpdate: pos.timestamp, status,
+    address: "",
   }
 }
 
@@ -198,102 +249,90 @@ async function getAddress(lat: number, lng: number): Promise<string> {
   }
 }
 
-// Simple in-memory cache (60 seconds)
+// Simple in-memory cache.
 let gpsCache: { data: unknown; timestamp: number } | null = null
-const GPS_CACHE_TTL = 60000 // 60 seconds
+let gpsRefreshPromise: Promise<unknown> | null = null
+const GPS_CACHE_TTL = 30000
+const GPS_STALE_TTL = 5 * 60000
 
-export async function GET() {
-  // Return cached data if fresh
-  if (gpsCache && Date.now() - gpsCache.timestamp < GPS_CACHE_TTL) {
-    return NextResponse.json(gpsCache.data)
-  }
-
+async function buildGpsResponse() {
   const token = await login()
   if (!token) {
-    return NextResponse.json(
-      { error: "Login ke GlonassSoft gagal" },
-      { status: 401 }
-    )
+    throw new Error("Login ke GlonassSoft gagal")
   }
 
   try {
     const vehicles = await getVehicles(token)
     if (vehicles.length === 0) {
-      return NextResponse.json({
+      return {
         vehicles: [],
         message: "Tidak ada kendaraan ditemukan",
-      })
+      }
     }
 
-    // Fetch positions sequentially with delay (GlonassSoft strict rate limit)
-    const results = []
-    for (const v of vehicles) {
+    const results = await mapWithConcurrency(vehicles, 4, async (v) => {
       const numId = v.vehicleId
-      const name = v.number || v.Name || v.name || "Unknown"
-      const plate = v.number || v.StateNumber || v.GarageNumber || ""
-      const vid = v.id || v.Id || String(numId)
+      if (!numId) return normalizeVehicle(v, null)
 
-      if (!numId) {
-        results.push({
-          id: vid, name, plate,
-          lat: 0, lng: 0, speed: 0, course: 0,
-          lastUpdate: "", status: "offline",
-          address: "Tidak ada sinyal GPS",
-        })
-        continue
-      }
-
-      // Try 48 hours first
       let pos = await getLastPosition(token, numId)
 
-      // Fallback: 7 days for parked vehicles
       if (!pos || (pos.lat === 0 && pos.lng === 0)) {
-        await new Promise((r) => setTimeout(r, 600))
         pos = await getLastPositionExtended(token, numId)
       }
 
-      if (pos && pos.lat !== 0 && pos.lng !== 0) {
-        let status = "active"
-        if (pos.speed === 0) status = "idle"
-        const diffMs = Date.now() - new Date(pos.timestamp).getTime()
-        if (diffMs > 5 * 60 * 1000) status = "offline"
+      return normalizeVehicle(v, pos)
+    })
 
-        results.push({
-          id: vid, name, plate,
-          lat: pos.lat, lng: pos.lng,
-          speed: Math.round(pos.speed), course: 0,
-          lastUpdate: pos.timestamp, status,
-          address: "",
-        })
-      } else {
-        results.push({
-          id: vid, name, plate,
-          lat: 0, lng: 0, speed: 0, course: 0,
-          lastUpdate: "", status: "offline",
-          address: "Tidak ada sinyal GPS",
-        })
-      }
-
-      // Rate limit delay
-      await new Promise((r) => setTimeout(r, 600))
-    }
-
-    const responseData = {
+    return {
       vehicles: results,
       count: results.length,
       timestamp: new Date().toISOString(),
     }
+  } finally {
+    await logout(token)
+  }
+}
 
-    // Cache the result
-    gpsCache = { data: responseData, timestamp: Date.now() }
+function refreshGpsCache() {
+  if (!gpsRefreshPromise) {
+    gpsRefreshPromise = buildGpsResponse()
+      .then((data) => {
+        gpsCache = { data, timestamp: Date.now() }
+        return data
+      })
+      .finally(() => {
+        gpsRefreshPromise = null
+      })
+  }
 
-    return NextResponse.json(responseData)
+  return gpsRefreshPromise
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const forceRefresh = searchParams.get("refresh") === "1"
+  const now = Date.now()
+
+  if (!forceRefresh && gpsCache && now - gpsCache.timestamp < GPS_CACHE_TTL) {
+    return NextResponse.json(gpsCache.data)
+  }
+
+  if (!forceRefresh && gpsCache && now - gpsCache.timestamp < GPS_STALE_TTL) {
+    refreshGpsCache().catch(() => {})
+    return NextResponse.json({ ...(gpsCache.data as Record<string, unknown>), stale: true })
+  }
+
+  try {
+    const data = await refreshGpsCache()
+    return NextResponse.json(data)
   } catch (error) {
+    if (gpsCache) {
+      return NextResponse.json({ ...(gpsCache.data as Record<string, unknown>), stale: true })
+    }
+
     return NextResponse.json(
       { error: `Error: ${error}` },
       { status: 500 }
     )
-  } finally {
-    await logout(token)
   }
 }

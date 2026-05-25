@@ -116,8 +116,7 @@ export async function POST(request: NextRequest) {
         notifAmount = sumRows?.[0]?.total || 0
       }
 
-      // Fire and forget - don't block the response
-      notifyDepositPayment(driverName, notifAmount, scheduleIds.length).catch(() => {})
+      await notifyDepositPayment(driverName, notifAmount, scheduleIds.length)
     } catch {}
 
     return NextResponse.json({

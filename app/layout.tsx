@@ -6,6 +6,7 @@ import { MobileNav } from '@/components/mobile-nav'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { DebtReminder } from '@/components/debt-reminder'
 import { Toaster } from '@/components/ui/sonner'
+import { AndroidBackHandler } from '@/components/android-back-handler'
 import { ThemeProvider } from '@/lib/theme-context'
 import { UserProvider } from '@/lib/user-context'
 
@@ -58,6 +59,7 @@ export default function RootLayout({
         <ThemeProvider>
           <UserProvider>
             <OfflineIndicator />
+            <AndroidBackHandler />
             <DebtReminder />
             {children}
             <MobileNav />

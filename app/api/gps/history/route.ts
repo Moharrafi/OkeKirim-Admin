@@ -36,28 +36,6 @@ async function getVehicles(token: string) {
   }
 }
 
-async function getAddress(lat: number, lng: number): Promise<string> {
-  try {
-    const resp = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "DriverDepositApp/1.0" } }
-    )
-    if (!resp.ok) return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-    const data = await resp.json()
-    const addr = data.address || {}
-    const road = addr.road || addr.suburb || addr.city_district || addr.village || ""
-    const area = addr.city || addr.town || addr.municipality || addr.county || ""
-    if (road && area) return `${road}, ${area}`
-    if (road) return road
-    if (area) return area
-    const display = data.display_name || ""
-    if (display) return display.split(",").slice(0, 3).join(",").trim()
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-  } catch {
-    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-  }
-}
-
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
   const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -68,6 +46,42 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+const VEHICLE_CACHE_TTL = 5 * 60000
+const HISTORY_CACHE_TTL = 5 * 60000
+let vehicleCache: { vehicles: any[]; timestamp: number } | null = null
+const historyCache = new Map<string, { data: unknown; timestamp: number }>()
+
+async function getCachedVehicles(token: string) {
+  if (vehicleCache && Date.now() - vehicleCache.timestamp < VEHICLE_CACHE_TTL) {
+    return vehicleCache.vehicles
+  }
+
+  const vehicles = await getVehicles(token)
+  vehicleCache = { vehicles, timestamp: Date.now() }
+  return vehicles
+}
+
+function getHistoryCache(key: string) {
+  const cached = historyCache.get(key)
+  if (cached && Date.now() - cached.timestamp < HISTORY_CACHE_TTL) {
+    return cached.data
+  }
+  return null
+}
+
+function setHistoryCache(key: string, data: unknown) {
+  historyCache.set(key, { data, timestamp: Date.now() })
+
+  if (historyCache.size > 100) {
+    const now = Date.now()
+    for (const [cacheKey, value] of historyCache) {
+      if (now - value.timestamp > HISTORY_CACHE_TTL) {
+        historyCache.delete(cacheKey)
+      }
+    }
+  }
 }
 
 interface NavPoint {
@@ -213,6 +227,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "vehicleId diperlukan" }, { status: 400 })
   }
 
+  const cacheKey = `${vehicleId}_${date || "today"}`
+  const cached = getHistoryCache(cacheKey)
+  if (cached) {
+    return NextResponse.json(cached)
+  }
+
   const token = await login()
   if (!token) {
     return NextResponse.json({ error: "Login gagal" }, { status: 401 })
@@ -220,7 +240,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // Find the numeric vehicleId
-    const vehicles = await getVehicles(token)
+    const vehicles = await getCachedVehicles(token)
     const vehicle = vehicles.find(
       (v: { id?: string; vehicleId?: number }) =>
         v.id === vehicleId || String(v.vehicleId) === vehicleId
@@ -252,9 +272,6 @@ export async function GET(request: NextRequest) {
       dateTo = now
     }
 
-    // Rate limit delay
-    await new Promise((r) => setTimeout(r, 500))
-
     // Get history points
     const headers: Record<string, string> = {
       "X-Auth": token,
@@ -271,22 +288,26 @@ export async function GET(request: NextRequest) {
     const resp = await fetch(`${BASE_URL}/api/history/points?${params.toString()}`, { headers })
 
     if (!resp.ok) {
-      return NextResponse.json({
+      const emptyData = {
         vehicle: name,
         date: date || new Date().toISOString().split("T")[0],
         trips: [],
         message: "Tidak ada data perjalanan",
-      })
+      }
+      setHistoryCache(cacheKey, emptyData)
+      return NextResponse.json(emptyData)
     }
 
     const text = await resp.text()
     if (!text || !text.includes("&")) {
-      return NextResponse.json({
+      const emptyData = {
         vehicle: name,
         date: date || new Date().toISOString().split("T")[0],
         trips: [],
         message: "Tidak ada data perjalanan untuk tanggal ini",
-      })
+      }
+      setHistoryCache(cacheKey, emptyData)
+      return NextResponse.json(emptyData)
     }
 
     const navPoints = parseNavPoints(text)
@@ -296,12 +317,11 @@ export async function GET(request: NextRequest) {
     let parkedLocation: { address: string; lat: number; lng: number; since: string; until: string } | null = null
 
     if (trips.length === 0 && navPoints.length > 0) {
-      // Vehicle stayed in one place - get that location (only 1 geocode call)
+      // Vehicle stayed in one place. Client geocodes the address in the background.
       const firstPoint = navPoints[0]
       const lastPoint = navPoints[navPoints.length - 1]
-      const address = await getAddress(firstPoint.lat, firstPoint.lng)
       parkedLocation = {
-        address,
+        address: "",
         lat: firstPoint.lat,
         lng: firstPoint.lng,
         since: firstPoint.timestamp,
@@ -316,7 +336,7 @@ export async function GET(request: NextRequest) {
     const totalDistance = trips.reduce((sum, t) => sum + t.distance, 0)
     const totalDuration = trips.reduce((sum, t) => sum + t.duration, 0)
 
-    return NextResponse.json({
+    const responseData = {
       vehicle: name,
       date: date || new Date().toISOString().split("T")[0],
       trips,
@@ -324,7 +344,10 @@ export async function GET(request: NextRequest) {
       totalDistance: Math.round(totalDistance * 100) / 100,
       totalDuration,
       totalPoints: navPoints.length,
-    })
+    }
+
+    setHistoryCache(cacheKey, responseData)
+    return NextResponse.json(responseData)
   } catch (error) {
     return NextResponse.json({ error: `Error: ${error}` }, { status: 500 })
   }

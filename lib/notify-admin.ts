@@ -1,4 +1,6 @@
 import pool from "@/lib/db"
+import { ensureFcmTokenTable } from "@/lib/fcm-token-schema"
+import { ensureNotificationsTable } from "@/lib/notifications-schema"
 import * as admin from "firebase-admin"
 
 // Initialize Firebase Admin if not already done
@@ -25,6 +27,9 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
   const { title, body, type = "info", data = {} } = options
 
   try {
+    await ensureNotificationsTable()
+    await ensureFcmTokenTable()
+
     // 1. Log notification to database
     await pool.execute(
       `INSERT INTO notifications (target_role, title, body, type, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())`,
@@ -77,8 +82,8 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
  */
 export async function notifyDepositPayment(driverName: string, amount: number, orderCount: number = 1) {
   const formattedAmount = `Rp ${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
-  
-  const title = "💰 Setoran Masuk"
+
+  const title = "Setoran Masuk"
   const body = orderCount > 1
     ? `${driverName} melakukan setoran ${formattedAmount} untuk ${orderCount} orderan`
     : `${driverName} melakukan setoran sebesar ${formattedAmount}`
@@ -96,9 +101,9 @@ export async function notifyDepositPayment(driverName: string, amount: number, o
  */
 export async function notifyNewOrder(driverName: string, origin: string, destination: string, fare: number) {
   const formattedFare = `Rp ${fare.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
-  
-  const title = "🚛 Orderan Baru"
-  const body = `${driverName} input orderan ${origin} → ${destination} (${formattedFare})`
+
+  const title = "Orderan Baru"
+  const body = `${driverName} input orderan ${origin} -> ${destination} (${formattedFare})`
 
   return notifyAdmins({
     title,

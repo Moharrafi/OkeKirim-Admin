@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 import * as admin from "firebase-admin"
+import { syncAdminGpsDepositNotifications } from "@/lib/admin-gps-deposit-notifications"
+import { ensureFcmTokenTable } from "@/lib/fcm-token-schema"
 
 export const maxDuration = 60
 
@@ -61,7 +63,7 @@ async function getDestination(vehicleId: string, date: string): Promise<string> 
     const homeLng = trips[0].startLng
     const HOME_RADIUS_KM = 5
 
-    // Case 1: Find last trip that ends near home → use its start (unloading point)
+    // Case 1: Find last trip that ends near home, use its start (unloading point)
     for (let i = trips.length - 1; i >= 0; i--) {
       const endDist = haversine(homeLat, homeLng, trips[i].endLat, trips[i].endLng)
       const startDist = haversine(homeLat, homeLng, trips[i].startLat, trips[i].startLng)
@@ -70,7 +72,7 @@ async function getDestination(vehicleId: string, date: string): Promise<string> 
       }
     }
 
-    // Case 2: Vehicle hasn't returned home → use end of last trip
+    // Case 2: Vehicle hasn't returned home, use end of last trip
     const lastTrip = trips[trips.length - 1]
     const lastEndDist = haversine(homeLat, homeLng, lastTrip.endLat, lastTrip.endLng)
     if (lastEndDist > HOME_RADIUS_KM) {
@@ -130,6 +132,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await ensureFcmTokenTable()
+
     const now = new Date()
     const wibOffset = 7 * 60 * 60 * 1000
     const wibNow = new Date(now.getTime() + wibOffset)
@@ -193,7 +197,10 @@ export async function GET(request: NextRequest) {
       notifications.push({ driver: driverName, token: row.token, destination })
     }
 
-    // 6. Send push notifications
+    // 6. Log admin notifications for drivers who moved in GPS but have not input today's setoran.
+    const adminSync = await syncAdminGpsDepositNotifications({ date: today, force: true })
+
+    // 7. Send push notifications
     let sentCount = 0
     if (admin.apps.length > 0 && notifications.length > 0) {
       for (const notif of notifications) {
@@ -205,7 +212,7 @@ export async function GET(request: NextRequest) {
           await admin.messaging().send({
             token: notif.token,
             notification: {
-              title: "🚛 Reminder Setoran",
+              title: "Reminder Setoran",
               body: bodyText,
             },
             data: { type: "deposit_reminder", url: "/deposit?tab=setoran" },
@@ -227,6 +234,7 @@ export async function GET(request: NextRequest) {
       driversChecked: tokenRows.length,
       driversWithDeposit: driversWithDeposit.size,
       notificationsSent: sentCount,
+      adminNotificationsCreated: adminSync.notificationsCreated,
       details: notifications.map(n => ({ driver: n.driver, destination: n.destination || "(no GPS)" })),
     })
   } catch (error) {

@@ -136,13 +136,13 @@ export default function LokasiPage() {
     }
   }, [router])
 
-  const fetchVehicles = useCallback(async (isRefresh = false) => {
+  const fetchVehicles = useCallback(async (isRefresh = false, forceRefresh = false) => {
     if (isRefresh) setRefreshing(true)
     else if (vehicles.length === 0) setLoading(true)
     setError(null)
 
     try {
-      const resp = await fetch("/api/gps")
+      const resp = await fetch(forceRefresh ? "/api/gps?refresh=1" : "/api/gps")
       const data = await resp.json()
 
       if (!resp.ok) {
@@ -167,7 +167,7 @@ export default function LokasiPage() {
         }))
 
       setVehicles(mapped)
-      setLastFetch(new Date())
+      setLastFetch(data.timestamp ? new Date(data.timestamp) : new Date())
       // Cache for back navigation
       sessionStorage.setItem("gps_vehicles", JSON.stringify({ vehicles: mapped, timestamp: Date.now() }))
 
@@ -195,7 +195,7 @@ export default function LokasiPage() {
 
   useEffect(() => {
     fetchVehicles()
-    // Auto-refresh setiap 30 detik
+    // Auto-refresh setiap 30 detik, memakai cache cepat sambil server menyegarkan data di background.
     const interval = setInterval(() => fetchVehicles(true), 30000)
     return () => clearInterval(interval)
   }, [fetchVehicles])
@@ -229,7 +229,7 @@ export default function LokasiPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={() => fetchVehicles(true)}>
+    <PullToRefresh onRefresh={() => fetchVehicles(true, true)}>
     <div className="min-h-screen pb-24">
       <MobileHeader title="Lokasi Kendaraan" />
 
@@ -268,7 +268,7 @@ export default function LokasiPage() {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs"
-            onClick={() => fetchVehicles(true)}
+            onClick={() => fetchVehicles(true, true)}
             disabled={refreshing}
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />

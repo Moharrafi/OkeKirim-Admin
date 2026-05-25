@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import { ensureFcmTokenTable } from "@/lib/fcm-token-schema"
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureFcmTokenTable()
+
     const { driverName, token, role } = await request.json()
 
     if (!driverName || !token) {
@@ -27,6 +30,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await ensureFcmTokenTable()
+
     const { driverName } = await request.json()
 
     if (!driverName) {

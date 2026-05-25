@@ -1,12 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import { ensureNotificationsTable } from "@/lib/notifications-schema"
+import { syncAdminGpsDepositNotifications } from "@/lib/admin-gps-deposit-notifications"
+
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureNotificationsTable()
+
     const { searchParams } = new URL(request.url)
     const role = searchParams.get("role") || "admin"
-    const limit = Math.min(Number(searchParams.get("limit") || 50), 100)
+    const requestedLimit = Number(searchParams.get("limit") || 50)
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+      : 50
+    const requestedOffset = Number(searchParams.get("offset") || 0)
+    const offset = Number.isFinite(requestedOffset)
+      ? Math.max(Math.trunc(requestedOffset), 0)
+      : 0
     const unreadOnly = searchParams.get("unread") === "true"
+    const syncGpsToday = role === "admin" && searchParams.get("sync") === "gps-today"
+
+    if (syncGpsToday) {
+      await syncAdminGpsDepositNotifications()
+    }
 
     let query = `SELECT * FROM notifications WHERE target_role = ?`
     const params: any[] = [role]
@@ -15,8 +33,7 @@ export async function GET(request: NextRequest) {
       query += ` AND is_read = 0`
     }
 
-    query += ` ORDER BY created_at DESC LIMIT ?`
-    params.push(limit)
+    query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
 
     const [rows] = await pool.execute(query, params) as any
 
@@ -29,6 +46,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       notifications: rows || [],
       unreadCount: countRows?.[0]?.count || 0,
+      hasMore: (rows || []).length === limit,
+      nextOffset: offset + (rows || []).length,
     })
   } catch (error) {
     console.error("Notifications GET error:", error)
@@ -38,6 +57,8 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    await ensureNotificationsTable()
+
     const body = await request.json()
     const { ids, markAll, role } = body
 

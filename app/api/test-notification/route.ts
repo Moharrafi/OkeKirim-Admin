@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import { ensureFcmTokenTable } from "@/lib/fcm-token-schema"
+import { ensureNotificationsTable } from "@/lib/notifications-schema"
 import * as admin from "firebase-admin"
 
 if (!admin.apps.length) {
@@ -12,70 +14,96 @@ if (!admin.apps.length) {
 }
 
 /**
- * Test endpoint: send a push notification to a specific driver.
+ * Test endpoint: send a push notification to a specific driver/admin.
  * Usage: POST /api/test-notification
  * Body: { "driverName": "Nama Driver" } or {} to send to all
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({})) as { driverName?: string }
+    await ensureFcmTokenTable()
+    await ensureNotificationsTable()
 
-    // Get FCM tokens
+    const body = await request.json().catch(() => ({})) as { driverName?: string }
+    const title = "Test Notifikasi OkeMitra"
+    const type = "test"
+    const url = "/notifications"
+
     let tokenRows: any[]
     if (body.driverName) {
       const [rows] = await pool.execute(
-        "SELECT driver_name, token FROM fcm_tokens WHERE driver_name = ?",
+        "SELECT driver_name, role, token FROM fcm_tokens WHERE driver_name = ?",
         [body.driverName]
       ) as any
       tokenRows = rows
     } else {
       const [rows] = await pool.execute(
-        "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
+        "SELECT driver_name, role, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
       ) as any
       tokenRows = rows
     }
 
     if (!tokenRows || tokenRows.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "No FCM tokens found. Driver needs to login from APK first.",
-        hint: "Install APK → login as driver → token will be registered automatically"
+        hint: "Install APK -> login as driver/admin -> token will be registered automatically",
       }, { status: 404 })
     }
 
     if (!admin.apps.length) {
-      return NextResponse.json({ 
-        error: "Firebase not configured. Set FIREBASE_SERVICE_ACCOUNT env variable." 
+      return NextResponse.json({
+        error: "Firebase not configured. Set FIREBASE_SERVICE_ACCOUNT env variable.",
       }, { status: 500 })
     }
 
-    // Send test notification
     let sentCount = 0
+    let sentAdminCount = 0
     const results: any[] = []
 
     for (const row of tokenRows) {
+      const messageBody = `Halo ${row.driver_name}! Ini test push notification. Kalau muncul berarti berhasil!`
+
       try {
         const response = await admin.messaging().send({
           token: row.token,
           notification: {
-            title: "🔔 Test Notifikasi OkeMitra",
-            body: `Halo ${row.driver_name}! Ini test push notification. Kalau muncul berarti berhasil!`,
+            title,
+            body: messageBody,
           },
-          data: { type: "test", url: "/deposit" },
+          data: { type, url },
           android: {
             priority: "high",
             notification: { sound: "default", channelId: "deposit_reminder" },
           },
         })
+
         sentCount++
-        results.push({ driver: row.driver_name, status: "sent", messageId: response })
+        if (row.role === "admin") {
+          sentAdminCount++
+        }
+        results.push({ driver: row.driver_name, role: row.role, status: "sent", messageId: response })
       } catch (err: any) {
-        results.push({ driver: row.driver_name, status: "failed", error: err.message })
+        results.push({ driver: row.driver_name, role: row.role, status: "failed", error: err.message })
       }
+    }
+
+    if (sentAdminCount > 0) {
+      await pool.execute(
+        `INSERT INTO notifications (target_role, title, body, type, data, created_at)
+         VALUES (?, ?, ?, ?, ?, NOW())`,
+        [
+          "admin",
+          title,
+          `Test push berhasil dikirim ke ${sentAdminCount} perangkat admin.`,
+          type,
+          JSON.stringify({ url, sentAdminCount: String(sentAdminCount) }),
+        ]
+      )
     }
 
     return NextResponse.json({
       success: true,
       sent: sentCount,
+      loggedAdminNotification: sentAdminCount > 0,
       total: tokenRows.length,
       results,
     })

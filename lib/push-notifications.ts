@@ -3,6 +3,11 @@
 import { Capacitor } from "@capacitor/core"
 import { PushNotifications } from "@capacitor/push-notifications"
 
+function getNotificationUrl(data?: Record<string, unknown>) {
+  const url = typeof data?.url === "string" ? data.url : ""
+  return url || "/deposit"
+}
+
 /**
  * Initialize push notifications for the current driver.
  * Call this after driver login.
@@ -40,7 +45,7 @@ export async function initPushNotifications(driverName: string, role: string = "
     PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
       console.log("Push action:", action)
       if (typeof window !== "undefined") {
-        window.location.href = "/deposit?tab=setoran"
+        window.location.href = getNotificationUrl(action.notification.data as Record<string, unknown> | undefined)
       }
     })
 

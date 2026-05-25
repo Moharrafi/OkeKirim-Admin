@@ -48,6 +48,7 @@ import { loadLocationHistory, saveLocationToHistory } from "@/lib/utils/location
 import { showSuccessToast, showErrorToast, showTimeoutToast } from "@/lib/toast"
 import { SearchInput } from "@/components/ui/search-input"
 import { SwipeBackDetector } from "@/components/ui/swipe-back-detector"
+import { ANDROID_BACK_EVENT } from "@/components/android-back-handler"
 import { StepIndicator } from "@/components/ui/step-indicator"
 import { SuccessPage } from "@/components/deposit/success-page"
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport"
@@ -286,11 +287,111 @@ export default function DepositPage() {
     }
   }, [isAnimating, cancelAnimation])
 
+  const closeBatchPaymentView = useCallback(() => {
+    navigateBack("list", () => {
+      setShowBatchPayment(false)
+      setUploadedFile(null)
+      setUploadedImage(null)
+      setPayAmount("")
+      setFileUploadError(null)
+    })
+  }, [navigateBack])
+
+  const closeSinglePaymentView = useCallback(() => {
+    navigateBack("list", () => {
+      setSelectedOrder(null)
+      setUploadedFile(null)
+      setUploadedImage(null)
+      setPayAmount("")
+      setFileUploadError(null)
+    })
+  }, [navigateBack])
+
   // Fetch real data from OkeKirim API
   const [apiOrders, setApiOrders] = useState<Order[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [apiDrivers, setApiDrivers] = useState<Driver[]>([])
   const [filterDriver, setFilterDriver] = useState<string>("")
+
+  const handleSuccessBack = useCallback(() => {
+    setShowDepositSuccess(false)
+    setDepositSuccessData(null)
+    setSelectedOrder(null)
+    setSelectedOrders([])
+    setIsBatchMode(false)
+    setShowBatchPayment(false)
+    setUploadedFile(null)
+    setUploadedImage(null)
+    setFileUploadError(null)
+    setPayAmount("")
+    setViewState("list")
+    setAnimationClass("")
+    // Refresh data from server
+    setLoadingOrders(true)
+    const driverName = isDriver ? user.name : (filterDriver || undefined)
+    fetchPendingSchedules(driverName)
+      .then((schedules) => {
+        const mapped: Order[] = schedules.map(s => ({
+          id: `SCH${String(s.id).padStart(3, "0")}`,
+          driver: s.driver || "Unknown",
+          driverId: String(s.id),
+          vehicle: s.vehicle || s.driverVehicle || "-",
+          lokasiMuat: s.origin || "-",
+          lokasiBongkar: s.destination || "-",
+          argo: s.fare || 0,
+          companyShare: s.companyShare || Math.round((s.fare || 0) * 0.4),
+          paidAmount: s.paidCompanyAmount || 0,
+          sisa: (s.companyShare || Math.round((s.fare || 0) * 0.4)) - (s.paidCompanyAmount || 0),
+          type: (s.orderType === "offline" ? "offline" : "online") as OrderType,
+          date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
+          rawDate: s.date ? new Date(s.date).toISOString().split("T")[0] : "",
+          time: "",
+          status: "pending",
+          isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
+        }))
+        setApiOrders(mapped)
+      })
+      .catch(() => setApiOrders([]))
+      .finally(() => setLoadingOrders(false))
+  }, [filterDriver, isDriver, user.name])
+
+  useEffect(() => {
+    const handleAndroidBack = (event: Event) => {
+      if (showConfirm) {
+        event.preventDefault()
+        setShowConfirm(false)
+        return
+      }
+
+      if (showDepositSuccess) {
+        event.preventDefault()
+        handleSuccessBack()
+        return
+      }
+
+      if (showBatchPayment) {
+        event.preventDefault()
+        closeBatchPaymentView()
+        return
+      }
+
+      if (selectedOrder) {
+        event.preventDefault()
+        closeSinglePaymentView()
+      }
+    }
+
+    window.addEventListener(ANDROID_BACK_EVENT, handleAndroidBack)
+    return () => window.removeEventListener(ANDROID_BACK_EVENT, handleAndroidBack)
+  }, [
+    closeBatchPaymentView,
+    closeSinglePaymentView,
+    handleSuccessBack,
+    selectedOrder,
+    showBatchPayment,
+    showConfirm,
+    showDepositSuccess,
+  ])
 
   // Fetch drivers on mount
   useEffect(() => {
@@ -711,48 +812,6 @@ export default function DepositPage() {
   }
 
   if (showDepositSuccess) {
-    const handleSuccessBack = () => {
-      setShowDepositSuccess(false)
-      setDepositSuccessData(null)
-      setSelectedOrder(null)
-      setSelectedOrders([])
-      setIsBatchMode(false)
-      setShowBatchPayment(false)
-      setUploadedFile(null)
-      setUploadedImage(null)
-      setFileUploadError(null)
-      setPayAmount("")
-      setViewState("list")
-      setAnimationClass("")
-      // Refresh data from server
-      setLoadingOrders(true)
-      const driverName = isDriver ? user.name : (filterDriver || undefined)
-      fetchPendingSchedules(driverName)
-        .then((schedules) => {
-          const mapped: Order[] = schedules.map(s => ({
-            id: `SCH${String(s.id).padStart(3, "0")}`,
-            driver: s.driver || "Unknown",
-            driverId: String(s.id),
-            vehicle: s.vehicle || s.driverVehicle || "-",
-            lokasiMuat: s.origin || "-",
-            lokasiBongkar: s.destination || "-",
-            argo: s.fare || 0,
-            companyShare: s.companyShare || Math.round((s.fare || 0) * 0.4),
-            paidAmount: s.paidCompanyAmount || 0,
-            sisa: (s.companyShare || Math.round((s.fare || 0) * 0.4)) - (s.paidCompanyAmount || 0),
-            type: (s.orderType === "offline" ? "offline" : "online") as OrderType,
-            date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-            rawDate: s.date ? new Date(s.date).toISOString().split("T")[0] : "",
-            time: "",
-            status: "pending",
-            isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
-          }))
-          setApiOrders(mapped)
-        })
-        .catch(() => setApiOrders([]))
-        .finally(() => setLoadingOrders(false))
-    }
-
     return (
       <div className="min-h-screen">
         <SuccessPage
@@ -771,12 +830,12 @@ export default function DepositPage() {
     const selectedOrderItems = orders.filter(o => selectedOrders.includes(o.id))
     
     return (
-      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => { setShowBatchPayment(false); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })}>
+      <SwipeBackDetector enabled={true} onSwipeBack={closeBatchPaymentView}>
       <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
         <MobileHeader 
           title="Pembayaran Batch" 
           showBack 
-          onBack={() => navigateBack("list", () => { setShowBatchPayment(false); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })} 
+          onBack={closeBatchPaymentView} 
         />
         
         <div className="px-4 py-4 pb-28 space-y-4">
@@ -979,12 +1038,12 @@ export default function DepositPage() {
   // Single Setoran Detail View
   if (selectedOrder) {
     return (
-      <SwipeBackDetector enabled={true} onSwipeBack={() => navigateBack("list", () => { setSelectedOrder(null); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })}>
+      <SwipeBackDetector enabled={true} onSwipeBack={closeSinglePaymentView}>
       <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
         <MobileHeader 
           title="Konfirmasi Setoran" 
           showBack 
-          onBack={() => navigateBack("list", () => { setSelectedOrder(null); setUploadedFile(null); setUploadedImage(null); setPayAmount(""); setFileUploadError(null) })} 
+          onBack={closeSinglePaymentView} 
         />
         
         <div className="px-4 py-4 pb-28 space-y-4">
