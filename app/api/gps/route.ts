@@ -58,36 +58,56 @@ async function getLastPosition(
   token: string,
   vehicleId: number
 ): Promise<{ lat: number; lng: number; speed: number; timestamp: string } | null> {
+  return getHistoryPosition(token, vehicleId, 2)
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function getHistoryPosition(
+  token: string,
+  vehicleId: number,
+  daysBack: number
+): Promise<{ lat: number; lng: number; speed: number; timestamp: string } | null> {
   const headers: Record<string, string> = {
     "X-Auth": token,
     AuthId: token,
     Authorization: `Bearer ${token}`,
   }
 
-  try {
-    // Get points from last 48 hours to find latest position
-    const now = new Date()
-    const from = new Date(now.getTime() - 48 * 60 * 60 * 1000) // 48 hours ago
+  const now = new Date()
+  const from = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000)
+  const params = new URLSearchParams({
+    vehicleId: String(vehicleId),
+    start: from.toISOString(),
+    end: now.toISOString(),
+  })
 
-    const params = new URLSearchParams({
-      vehicleId: String(vehicleId),
-      start: from.toISOString(),
-      end: now.toISOString(),
-    })
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const resp = await fetch(
+        `${BASE_URL}/api/history/points?${params.toString()}`,
+        { headers }
+      )
 
-    const resp = await fetch(
-      `${BASE_URL}/api/history/points?${params.toString()}`,
-      { headers }
-    )
+      if (resp.ok) {
+        const text = await resp.text()
+        if (text && text.includes("&")) {
+          const position = parsePositionFromText(text)
+          if (position && position.lat !== 0 && position.lng !== 0) {
+            return position
+          }
+        }
+      }
+    } catch {
+      // Retry below. GlonassSoft history calls can fail intermittently under load.
+    }
 
-    if (!resp.ok) return null
-    const text = await resp.text()
-    if (!text || !text.includes("&")) return null
-
-    return parsePositionFromText(text)
-  } catch {
-    return null
+    await sleep(250 * (attempt + 1))
   }
+
+  return null
 }
 
 async function mapWithConcurrency<T, R>(
@@ -145,36 +165,7 @@ async function getLastPositionExtended(
   token: string,
   vehicleId: number
 ): Promise<{ lat: number; lng: number; speed: number; timestamp: string } | null> {
-  const headers: Record<string, string> = {
-    "X-Auth": token,
-    AuthId: token,
-    Authorization: `Bearer ${token}`,
-  }
-
-  try {
-    // Fallback: 7 days for parked vehicles
-    const now = new Date()
-    const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-
-    const params = new URLSearchParams({
-      vehicleId: String(vehicleId),
-      start: from.toISOString(),
-      end: now.toISOString(),
-    })
-
-    const resp = await fetch(
-      `${BASE_URL}/api/history/points?${params.toString()}`,
-      { headers }
-    )
-
-    if (!resp.ok) return null
-    const text = await resp.text()
-    if (!text || !text.includes("&")) return null
-
-    return parsePositionFromText(text)
-  } catch {
-    return null
-  }
+  return getHistoryPosition(token, vehicleId, 7)
 }
 
 function parsePositionFromText(text: string): { lat: number; lng: number; speed: number; timestamp: string } | null {
@@ -270,7 +261,7 @@ async function buildGpsResponse() {
       }
     }
 
-    const results = await mapWithConcurrency(vehicles, 4, async (v) => {
+    const results = await mapWithConcurrency(vehicles, 1, async (v) => {
       const numId = v.vehicleId
       if (!numId) return normalizeVehicle(v, null)
 
