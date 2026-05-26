@@ -139,9 +139,9 @@ export async function GET(request: NextRequest) {
     const wibNow = new Date(now.getTime() + wibOffset)
     const today = searchParams.get("date") || wibNow.toISOString().split("T")[0]
 
-    // 1. Get all drivers with FCM tokens
+    // 1. Get all drivers with FCM tokens (exclude admin)
     const [tokenRows] = await pool.execute(
-      "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
+      "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != '' AND (role = 'driver' OR role IS NULL)"
     ) as any
 
     if (!tokenRows || tokenRows.length === 0) {
