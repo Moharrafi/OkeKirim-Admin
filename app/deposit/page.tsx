@@ -244,6 +244,8 @@ export default function DepositPage() {
     if (isAnimating) {
       cancelAnimation()
     }
+    // Push state so OS back button returns to list instead of leaving page
+    window.history.pushState({ view: target }, "", window.location.href)
     setViewState(target)
     setAnimationClass("animate-slide-in-right")
     setIsAnimating(true)
@@ -251,6 +253,37 @@ export default function DepositPage() {
       animationRef.current = null
     })
   }, [isAnimating, cancelAnimation])
+
+  // Handle OS back button (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      // If we're in a sub-view, go back to list
+      if (selectedOrder) {
+        setSelectedOrder(null)
+        setUploadedFile(null)
+        setUploadedImage(null)
+        setPayAmount("")
+        setFileUploadError(null)
+        setViewState("list")
+        setAnimationClass("")
+      } else if (showBatchPayment) {
+        setShowBatchPayment(false)
+        setUploadedFile(null)
+        setUploadedImage(null)
+        setPayAmount("")
+        setFileUploadError(null)
+        setViewState("list")
+        setAnimationClass("")
+      } else if (showDepositSuccess) {
+        setShowDepositSuccess(false)
+        setDepositSuccessData(null)
+        setViewState("list")
+        setAnimationClass("")
+      }
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [selectedOrder, showBatchPayment, showDepositSuccess])
 
   // Navigate back with slide-out animation
   const navigateBack = useCallback((target: ViewState, onComplete: () => void) => {
