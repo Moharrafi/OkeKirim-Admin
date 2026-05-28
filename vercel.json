@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/deposit-reminder?key=cron",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/cron/gps-admin-notifications?key=cron",
-      "schedule": "*/30 0-15 * * *"
     }
   ]
 }
