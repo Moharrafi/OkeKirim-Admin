@@ -140,8 +140,16 @@ export async function GET(request: NextRequest) {
     const today = searchParams.get("date") || wibNow.toISOString().split("T")[0]
 
     // 1. Get all drivers with FCM tokens (exclude admin)
+    // First, fix any tokens without role (set to 'driver' unless name contains 'admin')
+    await pool.execute(
+      "UPDATE fcm_tokens SET role = 'driver' WHERE role IS NULL AND LOWER(driver_name) NOT LIKE '%admin%'"
+    )
+    await pool.execute(
+      "UPDATE fcm_tokens SET role = 'admin' WHERE role IS NULL AND LOWER(driver_name) LIKE '%admin%'"
+    )
+    
     const [tokenRows] = await pool.execute(
-      "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != '' AND (role = 'driver' OR role IS NULL)"
+      "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != '' AND role = 'driver'"
     ) as any
 
     if (!tokenRows || tokenRows.length === 0) {
