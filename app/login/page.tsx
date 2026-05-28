@@ -150,7 +150,7 @@ function LoginContent() {
         </div>
 
         {/* Login Type Tabs */}
-        <div className="flex gap-2 p-1 rounded-2xl bg-secondary mb-6">
+        <div className="flex gap-2 p-1 rounded-2xl bg-secondary border border-border mb-6">
           <button
             onClick={() => setLoginType("admin")}
             className={cn(
