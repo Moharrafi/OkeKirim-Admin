@@ -4,6 +4,13 @@ import bcrypt from "bcryptjs"
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure password_hash column exists
+    try {
+      await pool.execute("ALTER TABLE drivers ADD COLUMN password_hash VARCHAR(255) DEFAULT NULL")
+    } catch {
+      // Column already exists, ignore
+    }
+
     const body = await request.json()
     const { driverId, password } = body
 

@@ -3,11 +3,22 @@ import pool from "@/lib/db"
 
 export async function GET() {
   try {
-    const [rows] = await pool.execute(
-      "SELECT id, name, phone, email, address, vehicle, vehicleType, vehicleYear, status, joinDate, created_at, CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password FROM drivers ORDER BY name ASC"
-    )
+    let rows: any[]
+    try {
+      // Try with password_hash column
+      const [result] = await pool.execute(
+        "SELECT id, name, phone, email, address, vehicle, vehicleType, vehicleYear, status, joinDate, created_at, CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password FROM drivers ORDER BY name ASC"
+      )
+      rows = result as any[]
+    } catch {
+      // Fallback if password_hash column doesn't exist yet
+      const [result] = await pool.execute(
+        "SELECT id, name, phone, email, address, vehicle, vehicleType, vehicleYear, status, joinDate, created_at FROM drivers ORDER BY name ASC"
+      )
+      rows = (result as any[]).map((r: any) => ({ ...r, has_password: 0 }))
+    }
     // Map has_password to password_hash boolean for frontend compatibility
-    const drivers = (rows as any[]).map((r: any) => ({
+    const drivers = rows.map((r: any) => ({
       ...r,
       password_hash: r.has_password ? true : null,
       has_password: undefined,
