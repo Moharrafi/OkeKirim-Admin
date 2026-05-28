@@ -54,10 +54,12 @@ function run_migrations() {
       vehicleYear VARCHAR(16) DEFAULT NULL,
       status VARCHAR(32) DEFAULT 'aktif',
       joinDate DATE DEFAULT NULL,
+      password_hash VARCHAR(255) DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
     
     try { $pdo->exec("ALTER TABLE drivers MODIFY COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE drivers ADD COLUMN password_hash VARCHAR(255) DEFAULT NULL"); } catch (Throwable $e) {}
     
     // Documents table
     $pdo->exec("CREATE TABLE IF NOT EXISTS documents (

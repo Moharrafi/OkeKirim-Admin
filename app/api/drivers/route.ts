@@ -3,8 +3,16 @@ import pool from "@/lib/db"
 
 export async function GET() {
   try {
-    const [rows] = await pool.execute("SELECT * FROM drivers ORDER BY name ASC")
-    return NextResponse.json({ drivers: rows })
+    const [rows] = await pool.execute(
+      "SELECT id, name, phone, email, address, vehicle, vehicleType, vehicleYear, status, joinDate, created_at, CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password FROM drivers ORDER BY name ASC"
+    )
+    // Map has_password to password_hash boolean for frontend compatibility
+    const drivers = (rows as any[]).map((r: any) => ({
+      ...r,
+      password_hash: r.has_password ? true : null,
+      has_password: undefined,
+    }))
+    return NextResponse.json({ drivers })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

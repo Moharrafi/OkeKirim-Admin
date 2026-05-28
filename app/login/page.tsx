@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,9 +22,11 @@ import {
   ArrowRight,
   Shield,
   Car,
+  UserPlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
+import Link from "next/link"
 
 interface DriverOption {
   id: number
@@ -38,13 +40,23 @@ interface DriverOption {
 const isActiveDriver = (driver: DriverOption) => (driver.status || "").trim().toLowerCase() === "aktif"
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login } = useUser()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [info, setInfo] = useState("")
   const [loginType, setLoginType] = useState<"admin" | "driver">("admin")
 
   // Driver login states
@@ -52,6 +64,14 @@ export default function LoginPage() {
   const [selectedDriver, setSelectedDriver] = useState("")
   const [driverPassword, setDriverPassword] = useState("")
   const [showDriverPassword, setShowDriverPassword] = useState(false)
+
+  // Show success message after registration
+  useEffect(() => {
+    if (searchParams.get("registered") === "1") {
+      setInfo("Registrasi berhasil! Silakan login dengan password baru Anda.")
+      setLoginType("driver")
+    }
+  }, [searchParams])
 
   // Fetch drivers for dropdown
   useEffect(() => {
@@ -65,11 +85,11 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     setError("")
+    setInfo("")
     setIsLoading(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
     if (loginType === "admin") {
+      await new Promise((resolve) => setTimeout(resolve, 800))
       if (email === "admin@okekirim.com" && password === "admin123") {
         login("admin")
         router.push("/")
@@ -77,7 +97,7 @@ export default function LoginPage() {
         setError("Email atau password salah")
       }
     } else {
-      // Driver login: password = nopol tanpa spasi
+      // Driver login via API with bcrypt password
       const driver = drivers.find((d) => String(d.id) === selectedDriver)
       if (!driver) {
         setError("Pilih kendaraan terlebih dahulu")
@@ -85,18 +105,32 @@ export default function LoginPage() {
         return
       }
 
-      const expectedPassword = (driver.vehicle || "").replace(/\s+/g, "").toUpperCase()
-      const inputPassword = driverPassword.replace(/\s+/g, "").toUpperCase()
+      try {
+        const res = await fetch("/api/auth/login-driver", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            driverId: parseInt(selectedDriver),
+            password: driverPassword,
+          }),
+        })
 
-      if (inputPassword === expectedPassword) {
-        // Save driver details to localStorage
-        localStorage.setItem("driverVehicle", driver.vehicle || "")
-        localStorage.setItem("driverPhone", driver.phone || "")
-        localStorage.setItem("driverEmail", driver.email || "")
-        login("driver", driver.name)
-        router.push("/")
-      } else {
-        setError("Password salah")
+        const data = await res.json()
+
+        if (data.success) {
+          // Save driver details to localStorage
+          localStorage.setItem("driverVehicle", data.driver.vehicle || "")
+          localStorage.setItem("driverPhone", data.driver.phone || "")
+          localStorage.setItem("driverEmail", data.driver.email || "")
+          login("driver", data.driver.name)
+          router.push("/")
+        } else if (data.needsRegistration) {
+          setError("Silakan daftar terlebih dahulu")
+        } else {
+          setError(data.message || "Password salah")
+        }
+      } catch {
+        setError("Terjadi kesalahan. Coba lagi.")
       }
     }
 
@@ -210,14 +244,14 @@ export default function LoginPage() {
                   </Select>
                 </div>
 
-                {/* Driver: Password (= nopol tanpa spasi) */}
+                {/* Driver: Password */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type={showDriverPassword ? "text" : "password"}
-                      placeholder="Masukkan nopol tanpa spasi"
+                      placeholder="Masukkan password"
                       value={driverPassword}
                       onChange={(e) => setDriverPassword(e.target.value)}
                       className="pl-10 pr-10 h-12 rounded-xl bg-secondary border-0"
@@ -230,11 +264,15 @@ export default function LoginPage() {
                       {showDriverPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Masukkan nopol tanpa spasi
-                  </p>
                 </div>
               </>
+            )}
+
+            {/* Info Message */}
+            {info && (
+              <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <p className="text-sm text-green-600 text-center">{info}</p>
+              </div>
             )}
 
             {/* Error Message */}
@@ -266,6 +304,17 @@ export default function LoginPage() {
                 </span>
               )}
             </Button>
+
+            {/* Register Link for Drivers */}
+            {loginType === "driver" && (
+              <Link
+                href="/register"
+                className="w-full flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 font-medium transition-colors pt-2"
+              >
+                <UserPlus className="h-4 w-4" />
+                Belum punya password? Daftar
+              </Link>
+            )}
           </CardContent>
         </Card>
 
