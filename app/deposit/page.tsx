@@ -246,8 +246,8 @@ export default function DepositPage() {
     }
     // Push state so OS back button returns to list instead of leaving page
     window.history.pushState({ view: target }, "", window.location.href)
-    // Scroll to top when entering a new view
-    window.scrollTo(0, 0)
+    // Scroll to top instantly when entering a new view (bypass smooth scroll)
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
     setViewState(target)
     setAnimationClass("animate-slide-in-right")
     setIsAnimating(true)
