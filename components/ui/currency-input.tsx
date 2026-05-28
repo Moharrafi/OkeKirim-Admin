@@ -93,7 +93,7 @@ function CurrencyInput({
     <div className="flex flex-col gap-1">
       <div
         className={cn(
-          'border-input dark:bg-input/30 relative flex w-full items-center rounded-md border shadow-xs transition-[color,box-shadow] outline-none',
+          'border-input dark:bg-input/30 relative flex w-full items-center rounded-xl border shadow-xs transition-[color,box-shadow] outline-none',
           'h-9',
           'focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]',
           error && 'ring-destructive/20 dark:ring-destructive/40 border-destructive',
@@ -115,8 +115,9 @@ function CurrencyInput({
           placeholder={placeholder}
           aria-invalid={!!error}
           className={cn(
-            'placeholder:text-muted-foreground flex-1 bg-transparent px-2 py-1 text-base outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+            'placeholder:text-muted-foreground flex-1 bg-transparent px-2 py-1 text-base outline-none border-0 dark:border-0 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
           )}
+          style={{ border: 'none' }}
         />
       </div>
       {error && (
