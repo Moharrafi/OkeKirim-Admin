@@ -195,9 +195,6 @@ export default function LokasiPage() {
 
   useEffect(() => {
     fetchVehicles()
-    // Auto-refresh setiap 30 detik, memakai cache cepat sambil server menyegarkan data di background.
-    const interval = setInterval(() => fetchVehicles(true), 30000)
-    return () => clearInterval(interval)
   }, [fetchVehicles])
 
   const handleMarkerClick = (vehicleId: string) => {
