@@ -196,14 +196,14 @@ export default function DashboardPage() {
     const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
     const cached = sessionStorage.getItem(cacheKey)
 
+    // Always use cache if available (instant load)
+    // Only fetch fresh data if no cache exists (first login)
     if (cached) {
       try {
-        const { data: cachedData, timestamp } = JSON.parse(cached)
-        if (Date.now() - timestamp < 300000) {
-          setData(cachedData)
-          setLoading(false)
-          return
-        }
+        const { data: cachedData } = JSON.parse(cached)
+        setData(cachedData)
+        setLoading(false)
+        return
       } catch {}
     }
 
