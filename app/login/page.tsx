@@ -150,11 +150,11 @@ function LoginContent() {
         </div>
 
         {/* Login Type Tabs */}
-        <div className="flex gap-2 p-1 rounded-2xl bg-secondary border border-border mb-6">
+        <div className="flex gap-2 p-1.5 rounded-full bg-secondary border border-border mb-6">
           <button
             onClick={() => setLoginType("admin")}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm transition-all",
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-medium text-sm transition-all",
               loginType === "admin"
                 ? "bg-primary text-primary-foreground shadow-lg"
                 : "text-muted-foreground"
@@ -166,7 +166,7 @@ function LoginContent() {
           <button
             onClick={() => setLoginType("driver")}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm transition-all",
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-medium text-sm transition-all",
               loginType === "driver"
                 ? "bg-primary text-primary-foreground shadow-lg"
                 : "text-muted-foreground"
