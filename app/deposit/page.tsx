@@ -1058,7 +1058,7 @@ export default function DepositPage() {
         open={showConfirm}
         title="Konfirmasi Setoran"
         message="Yakin mau melanjutkan pembayaran setoran ini?"
-        amount={batchTotal}
+        amount={payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal}
         orderCount={selectedOrders.length}
         confirmText="Ya, Lanjutkan"
         cancelText="Batal"
@@ -2063,7 +2063,10 @@ export default function DepositPage() {
         open={showConfirm}
         title="Konfirmasi Setoran"
         message="Yakin mau melanjutkan pembayaran setoran ini?"
-        amount={showBatchPayment ? batchTotal : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : ((selectedOrder as Order | null)?.sisa || 0))}
+        amount={showBatchPayment
+          ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal)
+          : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : ((selectedOrder as Order | null)?.sisa || 0))
+        }
         orderCount={showBatchPayment ? selectedOrders.length : undefined}
         confirmText="Ya, Lanjutkan"
         cancelText="Batal"
