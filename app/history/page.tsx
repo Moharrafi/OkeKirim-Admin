@@ -148,6 +148,7 @@ export default function HistoryPage() {
   }
 
   const transactions = apiTransactions
+  const activeDrivers = apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
 
   const filteredTransactions = transactions.filter((tx) => {
     const matchesSearch = isDriver
@@ -230,7 +231,7 @@ export default function HistoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Supir</SelectItem>
-                {apiDrivers.map((d) => (
+                {activeDrivers.map((d) => (
                   <SelectItem key={d.id} value={d.name}>
                     {d.name}
                   </SelectItem>
