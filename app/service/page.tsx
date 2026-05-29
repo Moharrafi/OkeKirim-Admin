@@ -21,6 +21,7 @@ interface Service {
   cost: number
   status: string
   receipt: string | null
+  hasReceipt?: number | boolean
   created_at: string | null
 }
 
@@ -41,42 +42,81 @@ export default function ServicePage() {
   const [formNotes, setFormNotes] = useState("")
   const [filter, setFilter] = useState<"active" | "done">("active")
   const [viewNota, setViewNota] = useState<string | null>(null)
+  const [loadingReceiptId, setLoadingReceiptId] = useState<number | null>(null)
   const [drivers, setDrivers] = useState<Array<{ id: number; name: string; vehicle: string | null; status: string }>>([])
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
   }, [isAuthenticated, router])
 
-  const refreshServices = useCallback(async () => {
-    setLoading(true)
+  const refreshServices = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
-      const r = await fetch("/api/services")
-      const data = await r.json()
+      const [servicesRes, driversRes] = await Promise.all([
+        fetch("/api/services"),
+        fetch("/api/drivers"),
+      ])
+      const [data, driversData] = await Promise.all([
+        servicesRes.json(),
+        driversRes.json(),
+      ])
       setServices(data.services || [])
-      const driversRes = await fetch("/api/drivers")
-      const driversData = await driversRes.json()
       setDrivers(driversData.drivers || [])
+      sessionStorage.setItem(
+        "service_page_cache",
+        JSON.stringify({
+          services: data.services || [],
+          drivers: driversData.drivers || [],
+          timestamp: Date.now(),
+        })
+      )
     } catch {} finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    const cached = sessionStorage.getItem("service_page_cache")
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached)
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          setServices(parsed.services || [])
+          setDrivers(parsed.drivers || [])
+          setLoading(false)
+          refreshServices(false)
+          return
+        }
+      } catch {}
+    }
+
     refreshServices()
   }, [refreshServices])
+
+  const fetchServiceDetail = async (service: Service) => {
+    if (service.receipt || !service.hasReceipt) return service
+
+    const res = await fetch(`/api/services?id=${service.id}`)
+    if (!res.ok) return service
+
+    const data = await res.json()
+    const fullService = data.service || service
+    setServices(prev => prev.map(s => s.id === service.id ? { ...s, ...fullService, hasReceipt: fullService.receipt ? 1 : 0 } : s))
+    return { ...service, ...fullService }
+  }
 
   const handleSave = async () => {
     const driverForVehicle = drivers.find(d => d.vehicle === formVehicle)
     const serviceType = formType === "Lainnya" && formNotes ? formNotes : formType
-    const body = {
+    const body: Record<string, unknown> = {
       vehicle: formVehicle,
       driver: driverForVehicle?.name || null,
       type: serviceType,
       date: formDate,
       cost: parseInt(formCost || "0"),
       status: formStatus,
-      receipt: formNota || undefined,
     }
+    if (formNota) body.receipt = formNota
 
     if (editingService) {
       await fetch("/api/services", {
@@ -92,9 +132,7 @@ export default function ServicePage() {
       })
     }
 
-    const res = await fetch("/api/services")
-    const data = await res.json()
-    setServices(data.services || [])
+    await refreshServices(false)
     // If status changed to selesai, switch to selesai tab
     if (editingService && formStatus === "selesai" && editingService.status !== "selesai") {
       setFilter("done")
@@ -125,21 +163,22 @@ export default function ServicePage() {
     setFormNotes("")
   }
 
-  const startEdit = (service: Service) => {
-    setEditingService(service)
-    setFormVehicle(service.vehicle || "")
+  const startEdit = async (service: Service) => {
+    const serviceDetail = await fetchServiceDetail(service)
+    setEditingService(serviceDetail)
+    setFormVehicle(serviceDetail.vehicle || "")
     // Check if type is a custom one (not in predefined list)
     const predefined = ["Ganti Oli", "Ganti Ban", "Tune Up", "Rem", "AC", "Kelistrikan", "Body Repair"]
-    if (service.type && !predefined.includes(service.type)) {
+    if (serviceDetail.type && !predefined.includes(serviceDetail.type)) {
       setFormType("Lainnya")
-      setFormNotes(service.type)
+      setFormNotes(serviceDetail.type)
     } else {
-      setFormType(service.type || "")
+      setFormType(serviceDetail.type || "")
       setFormNotes("")
     }
     // Parse date to YYYY-MM-DD format for input[type=date]
-    if (service.date) {
-      const d = new Date(service.date)
+    if (serviceDetail.date) {
+      const d = new Date(serviceDetail.date)
       const yyyy = d.getFullYear()
       const mm = String(d.getMonth() + 1).padStart(2, "0")
       const dd = String(d.getDate()).padStart(2, "0")
@@ -147,11 +186,28 @@ export default function ServicePage() {
     } else {
       setFormDate("")
     }
-    setFormCost(String(service.cost || ""))
-    setFormStatus(service.status || "terjadwal")
-    setFormNota(service.receipt || null)
-    setFormNotaName(service.receipt ? "Nota tersimpan" : "")
+    setFormCost(String(serviceDetail.cost || ""))
+    setFormStatus(serviceDetail.status || "terjadwal")
+    setFormNota(serviceDetail.receipt || null)
+    setFormNotaName(serviceDetail.receipt ? "Nota tersimpan" : "")
     setShowForm(true)
+  }
+
+  const openNota = async (service: Service) => {
+    if (service.receipt) {
+      setViewNota(service.receipt)
+      return
+    }
+
+    if (!service.hasReceipt) return
+
+    setLoadingReceiptId(service.id)
+    try {
+      const serviceDetail = await fetchServiceDetail(service)
+      if (serviceDetail.receipt) setViewNota(serviceDetail.receipt)
+    } finally {
+      setLoadingReceiptId(null)
+    }
   }
 
   const handleNotaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,12 +339,12 @@ export default function ServicePage() {
                               Rp {service.cost.toLocaleString("id-ID")}
                             </span>
                           )}
-                          {service.receipt && (
+                          {(service.receipt || service.hasReceipt) && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setViewNota(service.receipt) }}
+                              onClick={(e) => { e.stopPropagation(); openNota(service) }}
                               className="text-[11px] font-medium text-primary hover:underline"
                             >
-                              Lihat Nota
+                              {loadingReceiptId === service.id ? "Memuat..." : "Lihat Nota"}
                             </button>
                           )}
                         </div>

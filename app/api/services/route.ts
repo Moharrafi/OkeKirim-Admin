@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const [rows] = await pool.execute("SELECT * FROM services ORDER BY id DESC")
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    if (id) {
+      const [rows] = await pool.execute(
+        "SELECT * FROM services WHERE id = ? LIMIT 1",
+        [id]
+      ) as any
+      return NextResponse.json({ service: rows?.[0] || null })
+    }
+
+    const [rows] = await pool.execute(`
+      SELECT
+        id,
+        vehicle,
+        driver,
+        type,
+        date,
+        cost,
+        status,
+        created_at,
+        CASE WHEN receipt IS NOT NULL AND receipt != '' THEN 1 ELSE 0 END AS hasReceipt
+      FROM services
+      ORDER BY id DESC
+    `)
     return NextResponse.json({ services: rows })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
@@ -32,10 +56,17 @@ export async function PUT(request: NextRequest) {
     const { id, vehicle, driver, type, date, cost, status, receipt } = body
     if (!id) return NextResponse.json({ error: "ID wajib" }, { status: 400 })
 
-    await pool.execute(
-      "UPDATE services SET vehicle=?, driver=?, type=?, date=?, cost=?, status=?, receipt=? WHERE id=?",
-      [vehicle || null, driver || null, type || null, date || null, cost || 0, status || "terjadwal", receipt || null, id]
-    )
+    if (Object.prototype.hasOwnProperty.call(body, "receipt")) {
+      await pool.execute(
+        "UPDATE services SET vehicle=?, driver=?, type=?, date=?, cost=?, status=?, receipt=? WHERE id=?",
+        [vehicle || null, driver || null, type || null, date || null, cost || 0, status || "terjadwal", receipt || null, id]
+      )
+    } else {
+      await pool.execute(
+        "UPDATE services SET vehicle=?, driver=?, type=?, date=?, cost=?, status=? WHERE id=?",
+        [vehicle || null, driver || null, type || null, date || null, cost || 0, status || "terjadwal", id]
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
