@@ -3,8 +3,8 @@ import { ensureNotificationsTable } from "@/lib/notifications-schema"
 import { notifyAdmins } from "@/lib/notify-admin"
 
 const BASE_URL = "https://hosting.glonasssoft.ru"
-const USERNAME = "grahatakanusantara"
-const PASSWORD = "gtn1234567"
+const USERNAME = process.env.GLONASS_USERNAME || ""
+const PASSWORD = process.env.GLONASS_PASSWORD || ""
 const SYNC_TTL_MS = 10 * 60 * 1000
 
 interface GlonassVehicle {
@@ -87,6 +87,8 @@ function getVehicleDisplayName(vehicle: GlonassVehicle | null, fallback: string)
 }
 
 async function glonassLogin(): Promise<string | null> {
+  if (!USERNAME || !PASSWORD) return null
+
   try {
     const resp = await fetch(`${BASE_URL}/api/v3/auth/login`, {
       method: "POST",

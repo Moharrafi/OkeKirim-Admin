@@ -4,8 +4,8 @@ import { NextResponse } from "next/server"
 export const maxDuration = 30
 
 const BASE_URL = "https://hosting.glonasssoft.ru"
-const USERNAME = "grahatakanusantara"
-const PASSWORD = "gtn1234567"
+const USERNAME = "GLONASS_USERNAME_REMOVED"
+const PASSWORD = "GLONASS_PASSWORD_REMOVED"
 
 interface GlonassVehicle {
   id?: string

@@ -2,8 +2,8 @@ import requests
 from datetime import datetime, timedelta
 
 def test():
-    user = "grahatakanusantara"
-    pwd = "gtn1234567"
+    user = "GLONASS_USERNAME_REMOVED"
+    pwd = "GLONASS_PASSWORD_REMOVED"
     sess = requests.Session()
     resp = sess.post("https://hosting.glonasssoft.ru/api/v3/auth/login", json={"login": user, "password": pwd})
     token = resp.json().get("AuthId")

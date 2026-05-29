@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 export const maxDuration = 30
 
 const BASE_URL = "https://hosting.glonasssoft.ru"
-const USERNAME = "grahatakanusantara"
-const PASSWORD = "gtn1234567"
+const USERNAME = process.env.GLONASS_USERNAME || ""
+const PASSWORD = process.env.GLONASS_PASSWORD || ""
 
 async function login(): Promise<string | null> {
+  if (!USERNAME || !PASSWORD) return null
+
   try {
     const resp = await fetch(`${BASE_URL}/api/v3/auth/login`, {
       method: "POST",
@@ -18,6 +20,21 @@ async function login(): Promise<string | null> {
     return data.AuthId || data.SessionId || data.token || null
   } catch {
     return null
+  }
+}
+
+async function logout(token: string) {
+  try {
+    await fetch(`${BASE_URL}/api/v3/auth/logout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Auth": token,
+        AuthId: token,
+      },
+    })
+  } catch {
+    // ignore logout failures
   }
 }
 
@@ -350,5 +367,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(responseData)
   } catch (error) {
     return NextResponse.json({ error: `Error: ${error}` }, { status: 500 })
+  } finally {
+    await logout(token)
   }
 }

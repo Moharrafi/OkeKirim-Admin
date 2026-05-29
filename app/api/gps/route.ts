@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server"
 export const maxDuration = 30
 
 const BASE_URL = "https://hosting.glonasssoft.ru"
-const USERNAME = "grahatakanusantara"
-const PASSWORD = "gtn1234567"
+const USERNAME = process.env.GLONASS_USERNAME || ""
+const PASSWORD = process.env.GLONASS_PASSWORD || ""
 
 interface GlonassVehicle {
   id?: string
@@ -19,6 +19,8 @@ interface GlonassVehicle {
 }
 
 async function login(): Promise<string | null> {
+  if (!USERNAME || !PASSWORD) return null
+
   try {
     const resp = await fetch(`${BASE_URL}/api/v3/auth/login`, {
       method: "POST",

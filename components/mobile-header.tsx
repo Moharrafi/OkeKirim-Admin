@@ -156,7 +156,7 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
     }
   }, [showNotifications])
 
-  const loadNotifications = useCallback(async (reset = false, syncGps = false) => {
+  const loadNotifications = useCallback(async (reset = false) => {
     if (!reset && loadingMoreNotifs) return
     if (!reset && !hasMoreNotifications) return
 
@@ -173,8 +173,6 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
         limit: String(NOTIFICATION_PAGE_SIZE),
         offset: String(nextNotificationOffset),
       })
-      if (isAdmin && syncGps) notifParams.set("sync", "gps-today")
-
       const notifRes = reset || hasMoreNotifications
         ? await fetch(`/api/notifications?${notifParams.toString()}`)
         : null
@@ -212,9 +210,6 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
     setNotificationOffset(0)
     setHasMoreNotifications(true)
     await loadNotifications(true)
-    if (isAdmin) {
-      loadNotifications(true, true)
-    }
   }
 
   const groupedNotifications = useMemo(() => {

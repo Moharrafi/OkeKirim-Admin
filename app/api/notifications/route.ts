@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 import { ensureNotificationsTable } from "@/lib/notifications-schema"
-import { syncAdminGpsDepositNotifications } from "@/lib/admin-gps-deposit-notifications"
 
 export const maxDuration = 60
 
@@ -20,12 +19,6 @@ export async function GET(request: NextRequest) {
       ? Math.max(Math.trunc(requestedOffset), 0)
       : 0
     const unreadOnly = searchParams.get("unread") === "true"
-    const syncGpsToday = role === "admin" && searchParams.get("sync") === "gps-today"
-
-    if (syncGpsToday) {
-      await syncAdminGpsDepositNotifications()
-    }
-
     let query = `SELECT * FROM notifications WHERE target_role = ?`
     const params: any[] = [role]
 

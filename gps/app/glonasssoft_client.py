@@ -50,8 +50,8 @@ def get_address(lat, lng):
 # ─── Konfigurasi ──────────────────────────────────────────────────────────────
 
 BASE_URL = "https://hosting.glonasssoft.ru"  # Ganti sesuai server kamu
-USERNAME = "grahatakanusantara"                   # Username GlonassSoft
-PASSWORD = "gtn1234567"                   # Password GlonassSoft
+USERNAME = "GLONASS_USERNAME_REMOVED"                   # Username GlonassSoft
+PASSWORD = "GLONASS_PASSWORD_REMOVED"                   # Password GlonassSoft
 LOG_DIR  = Path("./trip_logs")               # Folder penyimpanan log perjalanan
 
 logging.basicConfig(
