@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli"
 
 const config: CapacitorConfig = {
-  appId: "com.okemitra.driverdeposit",
+  appId: "com.okekirim.driverdeposit",
   appName: "OkeMitra",
   webDir: "out",
   server: {
