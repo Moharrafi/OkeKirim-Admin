@@ -48,7 +48,11 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
     // 3. Send push notifications
     let sentCount = 0
     if (admin.apps.length > 0) {
-      for (const row of tokenRows) {
+      const uniqueTokenRows = Array.from(
+        new Map(tokenRows.map((row: any) => [row.token, row])).values()
+      ) as any[]
+
+      for (const row of uniqueTokenRows) {
         try {
           await admin.messaging().send({
             token: row.token,

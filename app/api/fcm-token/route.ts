@@ -15,6 +15,11 @@ export async function POST(request: NextRequest) {
     const userRole = role || "driver"
 
     await pool.execute(
+      "DELETE FROM fcm_tokens WHERE token = ? AND driver_name <> ?",
+      [token, driverName]
+    )
+
+    await pool.execute(
       `INSERT INTO fcm_tokens (driver_name, token, role, updated_at) 
        VALUES (?, ?, ?, NOW()) 
        ON DUPLICATE KEY UPDATE token = VALUES(token), role = VALUES(role), updated_at = NOW()`,

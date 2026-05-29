@@ -19,6 +19,15 @@ export function ensureFcmTokenTable() {
       if (!roleColumns || roleColumns.length === 0) {
         await pool.execute("ALTER TABLE fcm_tokens ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'driver' AFTER token")
       }
+
+      await pool.execute(`
+        DELETE t1 FROM fcm_tokens t1
+        JOIN fcm_tokens t2
+          ON t1.token = t2.token
+         AND t1.id < t2.id
+        WHERE t1.token IS NOT NULL
+          AND t1.token != ''
+      `)
     })().catch((error) => {
       ensureFcmTokenTablePromise = null
       throw error
