@@ -723,7 +723,9 @@ export default function DepositPage() {
 
       // Store success data for SuccessPage component
       const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
-      const totalAmount = showBatchPayment ? batchTotal : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
+      const totalAmount = showBatchPayment
+        ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal)
+        : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
       const successDriverName = order?.driver || user.name
       const successRoute = showBatchPayment
         ? `${selectedOrders.length} orderan (batch)`
