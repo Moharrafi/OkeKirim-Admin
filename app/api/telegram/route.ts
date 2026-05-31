@@ -5,12 +5,12 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 const SEPARATOR = "-".repeat(32)
 const ICON_INBOX = "\u{1F4E5}"
 const ICON_DRIVER = "\u{1F464}"
-const ICON_LIST = "\u{1F4CB}"
 const ICON_CHECK = "\u2705"
 
 interface BatchItem {
   route: string
   fare: number
+  companyShare?: number
   type: string
 }
 
@@ -43,7 +43,7 @@ function formatInfoRows(rows: Array<[string, string]>) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { driver, amount, route, orderType, fare, imageBase64, batchItems, sisaSetoran } = body
+    const { driver, amount, route, orderType, fare, companyShare, imageBase64, batchItems, sisaSetoran } = body
 
     if (!driver || !amount) {
       return NextResponse.json({ error: "Driver dan amount wajib" }, { status: 400 })
@@ -62,14 +62,15 @@ export async function POST(request: NextRequest) {
 
     if (batchItems && Array.isArray(batchItems) && batchItems.length > 1) {
       const items = batchItems as BatchItem[]
-      const totalArgo = items.reduce((sum, item) => sum + (item.fare || 0), 0)
-      const harusSetor = Math.round(totalArgo * 0.4)
+      const harusSetor = items.reduce((sum, item) => {
+        return sum + Number(item.companyShare ?? Math.round((item.fare || 0) * 0.4))
+      }, 0)
       const types = [...new Set(items.map((item) => item.type === "offline" ? "Offline" : "Online"))]
       const typeStr = types.join(" & ")
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
-        ["Jumlah", `${items.length} orderan`],
-        ["Harus Disetor", formatRupiah(harusSetor)],
+        ["Argo", formatRupiah(harusSetor)],
+        ["Rute", `${items.length} orderan (batch)`],
         ["Tipe", typeStr],
         ["Tanggal", waktu],
       ]
@@ -78,24 +79,19 @@ export async function POST(request: NextRequest) {
         infoRows.push(["Sisa Setoran", formatRupiah(sisaSetoran)])
       }
 
-      const routeList = items
-        .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
-        .join("\n")
-
-      message = `${ICON_INBOX} <b>SETORAN MASUK (BATCH)</b>\n` +
+      message = `${ICON_INBOX} <b>SETORAN MASUK</b>\n` +
         `${SEPARATOR}\n\n` +
         `${ICON_DRIVER} <b>${escapeHtml(driver)}</b>\n\n` +
         `<pre>${formatInfoRows(infoRows)}</pre>\n\n` +
-        `${ICON_LIST} <b>Rincian Rute:</b>\n` +
-        `<pre>${routeList}</pre>\n\n` +
         `${SEPARATOR}\n` +
         (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra - Sistem Otomatis</i>`
     } else {
+      const displayCompanyShare = Number(companyShare ?? Math.round(Number(fare || 0) * 0.4))
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
+        ["Argo", formatRupiah(displayCompanyShare)],
         ["Rute", escapeHtml(route || "-")],
-        ["Argo", formatRupiah(fare)],
         ["Tipe", orderType === "offline" ? "Offline" : "Online"],
         ["Tanggal", waktu],
       ]

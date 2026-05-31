@@ -681,6 +681,7 @@ export default function DepositPage() {
         const route = order ? `${order.lokasiMuat} → ${order.lokasiBongkar}` : "-"
         const type = order?.type || "online"
         const fare = order?.argo || 0
+        const companyShare = order?.companyShare || Math.round(fare * 0.4)
 
         // Calculate sisa setoran after this payment (ALL pending orders for this driver)
         const driverOrders = orders.filter(o => o.driver.toLowerCase() === driverName.toLowerCase())
@@ -691,7 +692,7 @@ export default function DepositPage() {
         const batchItems = showBatchPayment
           ? selectedOrders.map(id => {
               const o = orders.find(ord => ord.id === id)
-              return o ? { route: `${o.lokasiMuat} → ${o.lokasiBongkar}`, fare: o.argo, type: o.type } : null
+              return o ? { route: `${o.lokasiMuat} → ${o.lokasiBongkar}`, fare: o.argo, companyShare: o.companyShare, type: o.type } : null
             }).filter(Boolean)
           : undefined
 
@@ -704,6 +705,7 @@ export default function DepositPage() {
             route: route,
             orderType: type,
             fare: fare,
+            companyShare,
             imageBase64: uploadedImage || undefined,
             batchItems: batchItems,
             sisaSetoran: sisaAfterPayment > 0 ? sisaAfterPayment : undefined,
