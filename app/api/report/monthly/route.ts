@@ -4,6 +4,12 @@ import pool from "@/lib/db"
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 const SEPARATOR = "-".repeat(32)
+const ICON_REPORT = "\u{1F4CA}"
+const ICON_MONEY = "\u{1F4B0}"
+const ICON_TRIP = "\u{1F4CB}"
+const ICON_DRIVER = "\u{1F464}"
+const ICON_WARNING = "\u26A0\uFE0F"
+const ICON_OK = "\u2705"
 
 type TotalRow = {
   totalFare: string | number
@@ -67,7 +73,7 @@ function buildDriverList(driverRows: DriverRow[]): string {
 
   return driverRows.map((d) => {
     const sisa = Number(d.sisa)
-    const statusIcon = sisa > 0 ? "[!]" : "[OK]"
+    const statusIcon = sisa > 0 ? ICON_WARNING : ICON_OK
     const name = escapeHtml(String(d.driver).trim().padEnd(maxNameLen, " "))
     const statusText = sisa > 0
       ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)`
@@ -146,9 +152,9 @@ export async function POST(request: NextRequest) {
     const totalSisaNunggak = Number(statusRows.find((r) => r.status === "nunggak")?.sisaTotal || 0)
     const driverList = buildDriverList(driverRows)
 
-    const message = `<b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
+    const message = `${ICON_REPORT} <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
       `${SEPARATOR}\n\n` +
-      `<b>Pendapatan</b>\n` +
+      `${ICON_MONEY} <b>Pendapatan</b>\n` +
       `<code>` +
       `Total Argo      : Rp ${formatRupiah(totalFare)}\n` +
       `Perusahaan      : Rp ${formatRupiah(totalCompany)}\n` +
@@ -156,10 +162,10 @@ export async function POST(request: NextRequest) {
       `${SEPARATOR}\n` +
       `Laba Bersih     : Rp ${formatRupiah(labaBersih)}` +
       `</code>\n\n` +
-      `<b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
-      (totalSisaNunggak > 0 ? `<b>Total Nunggak:</b> Rp ${formatRupiah(totalSisaNunggak)}\n` : "") +
+      `${ICON_TRIP} <b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
+      (totalSisaNunggak > 0 ? `${ICON_WARNING} <b>Total Nunggak:</b> Rp ${formatRupiah(totalSisaNunggak)}\n` : "") +
       `\n` +
-      `<b>Per Driver:</b>\n` +
+      `${ICON_DRIVER} <b>Per Driver:</b>\n` +
       `<code>${driverList || "Belum ada data"}</code>\n` +
       `\n${SEPARATOR}\n` +
       `<code>OkeMitra - Laporan Otomatis</code>`

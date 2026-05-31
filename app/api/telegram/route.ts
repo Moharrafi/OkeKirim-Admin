@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server"
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 const SEPARATOR = "-".repeat(32)
+const ICON_INBOX = "\u{1F4E5}"
+const ICON_DRIVER = "\u{1F464}"
+const ICON_LIST = "\u{1F4CB}"
+const ICON_CHECK = "\u2705"
 
 interface BatchItem {
   route: string
@@ -78,14 +82,14 @@ export async function POST(request: NextRequest) {
         .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
         .join("\n")
 
-      message = `<b>SETORAN MASUK (BATCH)</b>\n` +
+      message = `${ICON_INBOX} <b>SETORAN MASUK (BATCH)</b>\n` +
         `${SEPARATOR}\n\n` +
-        `<b>${escapeHtml(driver)}</b>\n\n` +
+        `${ICON_DRIVER} <b>${escapeHtml(driver)}</b>\n\n` +
         `<pre>${formatInfoRows(infoRows)}</pre>\n\n` +
-        `<b>Rincian Rute:</b>\n` +
+        `${ICON_LIST} <b>Rincian Rute:</b>\n` +
         `<pre>${routeList}</pre>\n\n` +
         `${SEPARATOR}\n` +
-        (imageBase64 ? `\nBukti transfer terlampir\n` : "") +
+        (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra - Sistem Otomatis</i>`
     } else {
       const infoRows: Array<[string, string]> = [
@@ -100,12 +104,12 @@ export async function POST(request: NextRequest) {
         infoRows.push(["Sisa", formatRupiah(sisaSetoran)])
       }
 
-      message = `<b>SETORAN MASUK</b>\n` +
+      message = `${ICON_INBOX} <b>SETORAN MASUK</b>\n` +
         `${SEPARATOR}\n\n` +
-        `<b>${escapeHtml(driver)}</b>\n\n` +
+        `${ICON_DRIVER} <b>${escapeHtml(driver)}</b>\n\n` +
         `<pre>${formatInfoRows(infoRows)}</pre>\n` +
         `\n${SEPARATOR}\n` +
-        (imageBase64 ? `\nBukti transfer terlampir\n` : "") +
+        (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra - Sistem Otomatis</i>`
     }
 
