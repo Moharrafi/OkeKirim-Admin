@@ -33,6 +33,7 @@ const DashboardCharts = dynamic(() => import("@/components/dashboard-charts"), {
     </div>
   ),
 })
+const DASHBOARD_CACHE_TTL = 5 * 60 * 1000
 
 interface DashboardData {
   monthlyCompanyShare: number
@@ -48,6 +49,7 @@ interface DashboardData {
   todayCount: number
   activeDrivers: number
   overdueCount: number
+  driverChartMonth?: string
   recentTransactions: Array<{
     id: number
     driver: string
@@ -196,14 +198,16 @@ export default function DashboardPage() {
     const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
     const cached = sessionStorage.getItem(cacheKey)
 
-    // Always use cache if available (instant load)
-    // Only fetch fresh data if no cache exists (first login)
     if (cached) {
       try {
-        const { data: cachedData } = JSON.parse(cached)
-        setData(cachedData)
-        setLoading(false)
-        return
+        const { data: cachedData, timestamp } = JSON.parse(cached)
+        const isFresh = typeof timestamp === "number" && Date.now() - timestamp < DASHBOARD_CACHE_TTL
+        const hasExpectedShape = cachedData && Array.isArray(cachedData.monthlyChart) && Array.isArray(cachedData.driverIncome)
+        if (isFresh && hasExpectedShape) {
+          setData(cachedData)
+          setLoading(false)
+          return
+        }
       } catch {}
     }
 
@@ -412,6 +416,7 @@ export default function DashboardPage() {
                 isAdmin={isAdmin}
                 formatRupiah={formatRupiah}
                 currentDriver={user.name}
+                driverChartMonth={data.driverChartMonth}
               />
             )}
 

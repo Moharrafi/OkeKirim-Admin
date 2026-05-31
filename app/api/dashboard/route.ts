@@ -5,6 +5,13 @@ import pool from "@/lib/db"
 let cache: { data: unknown; timestamp: number; key: string } | null = null
 const CACHE_TTL = 30_000 // 30 seconds
 
+function addOneMonth(dateString: string) {
+  const [year, month] = dateString.split("-").map(Number)
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const driverFilter = searchParams.get("driver")
@@ -35,6 +42,7 @@ export async function GET(request: NextRequest) {
       `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare, COUNT(*) as count FROM schedules WHERE date >= ?${driverWhere}`,
       [monthStart, ...driverParam]
     ) as any
+    const currentMonthCount = Number((monthlyRows as any[])[0]?.count || 0)
 
     const [lastMonthRows] = await pool.execute(
       `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare FROM schedules WHERE date >= ? AND date <= ?${driverWhere}`,
@@ -73,21 +81,34 @@ export async function GET(request: NextRequest) {
       [now.getFullYear(), ...driverParam]
     ) as any
 
+    let driverChartMonthStart = monthStart
+    if (currentMonthCount === 0) {
+      const [latestMonthRows] = await pool.execute(
+        `SELECT DATE_FORMAT(MAX(date), '%Y-%m-01') as monthStart FROM schedules WHERE date IS NOT NULL${driverWhere}`,
+        [...driverParam]
+      ) as any
+      const latestMonthStart = latestMonthRows?.[0]?.monthStart
+      if (typeof latestMonthStart === "string" && latestMonthStart) {
+        driverChartMonthStart = latestMonthStart
+      }
+    }
+    const driverChartMonthEnd = addOneMonth(driverChartMonthStart)
+
     const [driverIncome] = await pool.execute(
       `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips
        FROM schedules s 
-       WHERE s.date >= ?
+       WHERE s.date >= ? AND s.date < ?
        GROUP BY s.driver 
        ORDER BY total DESC`,
-      [monthStart]
+      [driverChartMonthStart, driverChartMonthEnd]
     ).then(([rows]: any) => [rows]) as any
 
     const [orderTypeBreakdown] = await pool.execute(
       `SELECT orderType, CAST(SUM(fare) AS UNSIGNED) as total, COUNT(*) as count
        FROM schedules 
-       WHERE date >= ?${driverWhere}
+       WHERE date >= ? AND date < ?${driverWhere}
        GROUP BY orderType`,
-      [monthStart, ...driverParam]
+      [driverChartMonthStart, driverChartMonthEnd, ...driverParam]
     ) as any
 
     // Count orders overdue > 3 days (status nunggak and date more than 3 days ago)
@@ -130,6 +151,7 @@ export async function GET(request: NextRequest) {
       todayCount: Number((todayRows as any[])[0]?.count || 0),
       activeDrivers: Number((driverRows as any[])[0]?.count || 0),
       overdueCount: Number((overdueRows as any[])[0]?.count || 0),
+      driverChartMonth: driverChartMonthStart,
       recentTransactions: recentRows,
       monthlyChart: chartData,
       driverIncome: driverData,

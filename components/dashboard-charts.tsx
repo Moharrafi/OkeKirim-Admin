@@ -22,6 +22,7 @@ interface DashboardChartsProps {
   isAdmin: boolean
   formatRupiah: (amount: number) => string
   currentDriver?: string
+  driverChartMonth?: string
 }
 
 function DriverRankingCard({
@@ -187,7 +188,12 @@ export default function DashboardCharts({
   isAdmin,
   formatRupiah,
   currentDriver,
+  driverChartMonth,
 }: DashboardChartsProps) {
+  const driverChartMonthLabel = driverChartMonth
+    ? new Date(`${driverChartMonth}T00:00:00`).toLocaleDateString("id-ID", { month: "long", year: "numeric" })
+    : ""
+
   return (
     <>
       {/* Monthly Chart */}
@@ -228,7 +234,9 @@ export default function DashboardCharts({
       ) : isAdmin && ((driverIncome && driverIncome.length > 0) || (orderTypeBreakdown && orderTypeBreakdown.length > 0)) ? (
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <h3 className="font-semibold text-foreground mb-4">Setoran per Driver</h3>
+            <h3 className="font-semibold text-foreground mb-4">
+              Setoran per Driver{driverChartMonthLabel ? ` (${driverChartMonthLabel})` : ""}
+            </h3>
             {(() => {
               const pieData = driverIncome.slice(0, 5).map((d, i) => ({
                 name: d.driver,
