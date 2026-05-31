@@ -45,6 +45,42 @@ const getStatusConfig = (status: string, isDriver: boolean = false) => {
   }
 }
 
+type HistoryTransaction = {
+  id: string
+  date: string
+  time: string
+  driver: string
+  vehicle: string
+  route: string
+  amount: number
+  type: string
+  method: string
+  status: string
+}
+
+function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): HistoryTransaction {
+  const paidDate = s.paidOffAt || s.lastPaidAt || s.date
+  const fullAmount = s.companyShare || Math.round((s.fare || 0) * 0.4)
+  const remainingAmount = Math.max(fullAmount - (s.paidCompanyAmount || 0), 0)
+
+  return {
+    id: `TRX-${String(s.id).padStart(3, "0")}`,
+    date: paidDate
+      ? new Date(paidDate).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+      : "-",
+    time: paidDate
+      ? new Date(paidDate).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      : "",
+    driver: s.driver || "Unknown",
+    vehicle: s.vehicle || s.driverVehicle || "-",
+    route: `${s.origin || "-"} → ${s.destination || "-"}`,
+    amount: status === "success" ? fullAmount : remainingAmount,
+    type: s.orderType === "offline" ? "offline" : "online",
+    method: status === "success" ? (s.payment_notes || s.paymentNotes || "Lunas") : (s.payment_notes || s.paymentNotes || "Belum Setor"),
+    status,
+  }
+}
+
 export default function HistoryPage() {
   const router = useRouter()
   const { isAdmin, isDriver, user, isAuthenticated } = useUser()
@@ -57,14 +93,8 @@ export default function HistoryPage() {
     }
   }, [isAuthenticated, router])
 
-  const [selectedTx, setSelectedTx] = useState<{
-    id: string; date: string; time: string; driver: string; vehicle: string;
-    route: string; amount: number; type: string; method: string; status: string;
-  } | null>(null)
-  const [apiTransactions, setApiTransactions] = useState<Array<{
-    id: string; date: string; time: string; driver: string; vehicle: string;
-    route: string; amount: number; type: string; method: string; status: string;
-  }>>([])
+  const [selectedTx, setSelectedTx] = useState<HistoryTransaction | null>(null)
+  const [apiTransactions, setApiTransactions] = useState<HistoryTransaction[]>([])
   const [loadingApi, setLoadingApi] = useState(false)
   const [apiDrivers, setApiDrivers] = useState<Driver[]>([])
   const [filterDriver, setFilterDriver] = useState("")
@@ -74,11 +104,6 @@ export default function HistoryPage() {
   const [lunasCount, setLunasCount] = useState(0)
   const [nunggakCount, setNunggakCount] = useState(0)
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const PAGE_SIZE = 20
-
   useEffect(() => {
     fetchDrivers().then(setApiDrivers).catch(() => {})
   }, [])
@@ -87,14 +112,12 @@ export default function HistoryPage() {
 
   const fetchTransactions = useCallback(async () => {
     setLoadingApi(true)
-    setCurrentPage(1)
     setApiTransactions([])
-    setHasMore(true)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
     try {
       const [lunas, allSchedules] = await Promise.all([
         fetchHistory(driverName, filterDateFrom || undefined, filterDateTo || undefined),
-        fetchSchedules(undefined, driverName, { limit: 1000 }),
+        fetchSchedules(undefined, driverName, { limit: 5000 }),
       ])
       const nunggak = allSchedules.filter(s => s.status === "nunggak")
       setTotalTrips(allSchedules.length)
@@ -121,9 +144,10 @@ export default function HistoryPage() {
         method: s.payment_notes || s.paymentNotes || "Lunas",
         status: "success" as const,
       }))
-      setApiTransactions(mapped.slice(0, PAGE_SIZE))
-      setHasMore(mapped.length > PAGE_SIZE)
-      ;(window as unknown as Record<string, unknown>).__allTransactions = mapped
+      setApiTransactions([
+        ...mapped,
+        ...nunggak.map((s) => mapScheduleToTransaction(s, "pending")),
+      ])
     } catch {
       setApiTransactions([])
     } finally {
@@ -134,17 +158,6 @@ export default function HistoryPage() {
   useEffect(() => {
     fetchTransactions()
   }, [fetchTransactions, filterDateFrom, filterDateTo])
-
-  const handleLoadMore = () => {
-    setLoadingMore(true)
-    const allTx = (window as unknown as Record<string, unknown>).__allTransactions as typeof apiTransactions || []
-    const nextPage = currentPage + 1
-    const nextItems = allTx.slice(0, nextPage * PAGE_SIZE)
-    setApiTransactions(nextItems)
-    setCurrentPage(nextPage)
-    setHasMore(nextItems.length < allTx.length)
-    setLoadingMore(false)
-  }
 
   const transactions = apiTransactions
   const activeDrivers = apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
@@ -351,19 +364,6 @@ export default function HistoryPage() {
             </div>
           ))}
 
-          {/* Load More Button */}
-          {hasMore && !loadingApi && (
-            <div className="flex justify-center pt-4 pb-2">
-              <Button
-                variant="outline"
-                className="rounded-xl px-6"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-              >
-                {loadingMore ? "Memuat..." : `Muat Lagi (${apiTransactions.length} dari ${lunasCount})`}
-              </Button>
-            </div>
-          )}
         </div>
         )}
       </div>
