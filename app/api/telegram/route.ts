@@ -5,7 +5,9 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 const SEPARATOR = "-".repeat(32)
 const ICON_INBOX = "\u{1F4E5}"
 const ICON_DRIVER = "\u{1F464}"
+const ICON_LIST = "\u{1F4CB}"
 const ICON_CHECK = "\u2705"
+const FOOTER_DOT = "\u2022"
 
 interface BatchItem {
   route: string
@@ -16,8 +18,6 @@ interface BatchItem {
 
 function normalizeTelegramText(value: unknown) {
   return String(value ?? "")
-    .replace(/[\u2192\u279c]/g, "->")
-    .replace(/\u2190/g, "<-")
     .replace(/[\u2022\u00b7]/g, "-")
 }
 
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       const typeStr = types.join(" & ")
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
-        ["Argo", formatRupiah(harusSetor)],
-        ["Rute", `${items.length} orderan (batch)`],
+        ["Jumlah", `${items.length} orderan`],
+        ["Harus Disetor", formatRupiah(harusSetor)],
         ["Tipe", typeStr],
         ["Tanggal", waktu],
       ]
@@ -79,13 +79,19 @@ export async function POST(request: NextRequest) {
         infoRows.push(["Sisa Setoran", formatRupiah(sisaSetoran)])
       }
 
-      message = `${ICON_INBOX} <b>SETORAN MASUK</b>\n` +
+      const routeList = items
+        .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
+        .join("\n")
+
+      message = `${ICON_INBOX} <b>SETORAN MASUK (BATCH)</b>\n` +
         `${SEPARATOR}\n\n` +
         `${ICON_DRIVER} <b>${escapeHtml(driver)}</b>\n\n` +
         `<pre>${formatInfoRows(infoRows)}</pre>\n\n` +
+        `${ICON_LIST} <b>Rincian Rute:</b>\n` +
+        `<pre>${routeList}</pre>\n\n` +
         `${SEPARATOR}\n` +
         (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
-        `\n<i>OkeMitra - Sistem Otomatis</i>`
+        `\n<i>OkeMitra ${FOOTER_DOT} Sistem Otomatis</i>`
     } else {
       const displayCompanyShare = Number(companyShare ?? Math.round(Number(fare || 0) * 0.4))
       const infoRows: Array<[string, string]> = [
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
         `<pre>${formatInfoRows(infoRows)}</pre>\n` +
         `\n${SEPARATOR}\n` +
         (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
-        `\n<i>OkeMitra - Sistem Otomatis</i>`
+        `\n<i>OkeMitra ${FOOTER_DOT} Sistem Otomatis</i>`
     }
 
     if (imageBase64) {
