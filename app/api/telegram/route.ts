@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
-const FIGURE_SPACE = "\u2007"
-const SEPARATOR = "\u2501".repeat(24)
+const SEPARATOR = "-".repeat(32)
 
 interface BatchItem {
   route: string
@@ -11,8 +10,15 @@ interface BatchItem {
   type: string
 }
 
-function escapeHtml(value: unknown) {
+function normalizeTelegramText(value: unknown) {
   return String(value ?? "")
+    .replace(/[\u2192\u279c]/g, "->")
+    .replace(/\u2190/g, "<-")
+    .replace(/[\u2022\u00b7]/g, "-")
+}
+
+function escapeHtml(value: unknown) {
+  return normalizeTelegramText(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -26,7 +32,7 @@ function formatInfoRows(rows: Array<[string, string]>) {
   const labelWidth = Math.max(...rows.map(([label]) => label.length))
 
   return rows
-    .map(([label, value]) => `${label}${FIGURE_SPACE.repeat(labelWidth - label.length)} : ${escapeHtml(value)}`)
+    .map(([label, value]) => `${label.padEnd(labelWidth, " ")} : ${escapeHtml(value)}`)
     .join("\n")
 }
 
@@ -72,28 +78,35 @@ export async function POST(request: NextRequest) {
         .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
         .join("\n")
 
-      message = `📥 <b>SETORAN MASUK (BATCH)</b>\n` +
+      message = `<b>SETORAN MASUK (BATCH)</b>\n` +
         `${SEPARATOR}\n\n` +
-        `👤 <b>${escapeHtml(driver)}</b>\n\n` +
+        `<b>${escapeHtml(driver)}</b>\n\n` +
         `<pre>${formatInfoRows(infoRows)}</pre>\n\n` +
-        `📋 <b>Rincian Rute:</b>\n` +
+        `<b>Rincian Rute:</b>\n` +
         `<pre>${routeList}</pre>\n\n` +
         `${SEPARATOR}\n` +
-        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : "") +
-        `\n<i>OkeMitra • Sistem Otomatis</i>`
+        (imageBase64 ? `\nBukti transfer terlampir\n` : "") +
+        `\n<i>OkeMitra - Sistem Otomatis</i>`
     } else {
-      message = `📥 <b>SETORAN MASUK</b>\n` +
+      const infoRows: Array<[string, string]> = [
+        ["Setoran", formatRupiah(amount)],
+        ["Rute", escapeHtml(route || "-")],
+        ["Argo", formatRupiah(fare)],
+        ["Tipe", orderType === "offline" ? "Offline" : "Online"],
+        ["Tanggal", waktu],
+      ]
+
+      if (sisaSetoran !== undefined && sisaSetoran > 0) {
+        infoRows.push(["Sisa", formatRupiah(sisaSetoran)])
+      }
+
+      message = `<b>SETORAN MASUK</b>\n` +
         `${SEPARATOR}\n\n` +
-        `👤 <b>${escapeHtml(driver)}</b>\n\n` +
-        `Setoran\t\t\t:  ${formatRupiah(amount)}\n` +
-        `Rute\t\t\t\t:  ${escapeHtml(route || "-")}\n` +
-        `Argo\t\t\t\t:  ${formatRupiah(fare)}\n` +
-        `Tipe\t\t\t\t:  ${orderType === "offline" ? "Offline" : "Online"}\n` +
-        `Tanggal\t\t\t:  ${escapeHtml(waktu)}\n` +
-        (sisaSetoran !== undefined && sisaSetoran > 0 ? `Sisa\t\t\t\t:  ${formatRupiah(sisaSetoran)}\n` : "") +
+        `<b>${escapeHtml(driver)}</b>\n\n` +
+        `<pre>${formatInfoRows(infoRows)}</pre>\n` +
         `\n${SEPARATOR}\n` +
-        (imageBase64 ? `\n✅ Bukti transfer terlampir\n` : "") +
-        `\n<i>OkeMitra • Sistem Otomatis</i>`
+        (imageBase64 ? `\nBukti transfer terlampir\n` : "") +
+        `\n<i>OkeMitra - Sistem Otomatis</i>`
     }
 
     if (imageBase64) {

@@ -3,6 +3,7 @@ import pool from "@/lib/db"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
+const SEPARATOR = "-".repeat(32)
 
 type TotalRow = {
   totalFare: string | number
@@ -66,7 +67,7 @@ function buildDriverList(driverRows: DriverRow[]): string {
 
   return driverRows.map((d) => {
     const sisa = Number(d.sisa)
-    const statusIcon = sisa > 0 ? "⚠️" : "✅"
+    const statusIcon = sisa > 0 ? "[!]" : "[OK]"
     const name = escapeHtml(String(d.driver).trim().padEnd(maxNameLen, " "))
     const statusText = sisa > 0
       ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)`
@@ -145,23 +146,23 @@ export async function POST(request: NextRequest) {
     const totalSisaNunggak = Number(statusRows.find((r) => r.status === "nunggak")?.sisaTotal || 0)
     const driverList = buildDriverList(driverRows)
 
-    const message = `📊 <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `💰 <b>Pendapatan</b>\n` +
+    const message = `<b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
+      `${SEPARATOR}\n\n` +
+      `<b>Pendapatan</b>\n` +
       `<code>` +
       `Total Argo      : Rp ${formatRupiah(totalFare)}\n` +
       `Perusahaan      : Rp ${formatRupiah(totalCompany)}\n` +
       `Biaya Service   : Rp ${formatRupiah(totalService)} (${serviceCount}x)\n` +
-      `─────────────────────────\n` +
+      `${SEPARATOR}\n` +
       `Laba Bersih     : Rp ${formatRupiah(labaBersih)}` +
       `</code>\n\n` +
-      `📋 <b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
-      (totalSisaNunggak > 0 ? `⚠️ <b>Total Nunggak:</b> Rp ${formatRupiah(totalSisaNunggak)}\n` : "") +
+      `<b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
+      (totalSisaNunggak > 0 ? `<b>Total Nunggak:</b> Rp ${formatRupiah(totalSisaNunggak)}\n` : "") +
       `\n` +
-      `👤 <b>Per Driver:</b>\n` +
+      `<b>Per Driver:</b>\n` +
       `<code>${driverList || "Belum ada data"}</code>\n` +
-      `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `<code>OkeMitra • Laporan Otomatis</code>`
+      `\n${SEPARATOR}\n` +
+      `<code>OkeMitra - Laporan Otomatis</code>`
 
     const telegramRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
