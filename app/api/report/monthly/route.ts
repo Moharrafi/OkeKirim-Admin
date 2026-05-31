@@ -4,12 +4,79 @@ import pool from "@/lib/db"
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 
+type TotalRow = {
+  totalFare: string | number
+  totalCompany: string | number
+  tripCount: string | number
+}
+
+type StatusRow = {
+  status: string
+  count: string | number
+  sisaTotal: string | number
+}
+
+type ServiceRow = {
+  totalService: string | number
+  serviceCount: string | number
+}
+
+type DriverRow = {
+  driver: string
+  trips: string | number
+  totalCompany: string | number
+  sisa: string | number
+  nunggakCount: string | number
+}
+
 function formatRupiah(n: number): string {
   return n.toLocaleString("id-ID")
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+function getNextMonthStart(year: number, month: number): string {
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+}
+
+function resolveReportMonth(body: { month?: number; year?: number }) {
+  const now = new Date()
+  const requestedMonth = Number(body.month)
+  const requestedYear = Number(body.year)
+
+  const month = Number.isInteger(requestedMonth) && requestedMonth >= 1 && requestedMonth <= 12
+    ? requestedMonth
+    : now.getMonth() + 1
+  const year = Number.isInteger(requestedYear) && requestedYear >= 2000
+    ? requestedYear
+    : now.getFullYear()
+
+  return { month, year }
+}
+
+function buildDriverList(driverRows: DriverRow[]): string {
+  const maxNameLen = Math.max(...driverRows.map((d) => String(d.driver).trim().length), 6)
+
+  return driverRows.map((d) => {
+    const sisa = Number(d.sisa)
+    const statusIcon = sisa > 0 ? "⚠️" : "✅"
+    const name = escapeHtml(String(d.driver).trim().padEnd(maxNameLen, " "))
+    const statusText = sisa > 0
+      ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)`
+      : "Lunas semua"
+
+    return `${statusIcon} ${name} : ${statusText}`
+  }).join("\n")
+}
+
 export async function POST(request: NextRequest) {
-  // Optional: verify secret key for cron
   const { searchParams } = new URL(request.url)
   const key = searchParams.get("key")
   if (key && key !== process.env.CRON_SECRET && key !== "manual") {
@@ -17,48 +84,54 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Get current or previous month
     const body = await request.json().catch(() => ({})) as { month?: number; year?: number }
-    const now = new Date()
-    const month = body.month || now.getMonth() + 1
-    const year = body.year || now.getFullYear()
+    const { month, year } = resolveReportMonth(body)
     const monthStart = `${year}-${String(month).padStart(2, "0")}-01`
-    const monthEnd = `${year}-${String(month).padStart(2, "0")}-31`
+    const nextMonthStart = getNextMonthStart(year, month)
 
-    const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    const monthNames = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ]
     const monthName = monthNames[month - 1]
 
-    // Total argo & company share
     const [totalRows] = await pool.execute(
-      "SELECT COALESCE(SUM(fare), 0) as totalFare, COALESCE(SUM(companyShare), 0) as totalCompany, COUNT(*) as tripCount FROM schedules WHERE date >= ? AND date <= ?",
-      [monthStart, monthEnd]
-    ) as any
+      "SELECT COALESCE(SUM(fare), 0) as totalFare, COALESCE(SUM(companyShare), 0) as totalCompany, COUNT(*) as tripCount FROM schedules WHERE date >= ? AND date < ?",
+      [monthStart, nextMonthStart]
+    ) as [TotalRow[], unknown]
 
-    // Lunas vs nunggak
     const [statusRows] = await pool.execute(
-      "SELECT status, COUNT(*) as count, COALESCE(SUM(companyShare - paidCompanyAmount), 0) as sisaTotal FROM schedules WHERE date >= ? AND date <= ? GROUP BY status",
-      [monthStart, monthEnd]
-    ) as any
+      "SELECT status, COUNT(*) as count, COALESCE(SUM(companyShare - paidCompanyAmount), 0) as sisaTotal FROM schedules WHERE date >= ? AND date < ? GROUP BY status",
+      [monthStart, nextMonthStart]
+    ) as [StatusRow[], unknown]
 
-    // Service costs this month
     const [serviceRows] = await pool.execute(
-      "SELECT COALESCE(SUM(cost), 0) as totalService, COUNT(*) as serviceCount FROM services WHERE date >= ? AND date <= ?",
-      [monthStart, monthEnd]
-    ) as any
+      "SELECT COALESCE(SUM(cost), 0) as totalService, COUNT(*) as serviceCount FROM services WHERE date >= ? AND date < ?",
+      [monthStart, nextMonthStart]
+    ) as [ServiceRow[], unknown]
 
-    // Per driver breakdown
     const [driverRows] = await pool.execute(
-      `SELECT driver, 
-              COUNT(*) as trips, 
+      `SELECT driver,
+              COUNT(*) as trips,
               COALESCE(SUM(companyShare), 0) as totalCompany,
               COALESCE(SUM(companyShare - paidCompanyAmount), 0) as sisa,
               SUM(CASE WHEN status = 'nunggak' THEN 1 ELSE 0 END) as nunggakCount
-       FROM schedules 
-       WHERE date >= ? AND date <= ?
-       GROUP BY driver 
+       FROM schedules
+       WHERE date >= ? AND date < ?
+       GROUP BY driver
        ORDER BY totalCompany DESC`,
-      [monthStart, monthEnd]
-    ) as any
+      [monthStart, nextMonthStart]
+    ) as [DriverRow[], unknown]
 
     const totalFare = Number(totalRows[0]?.totalFare || 0)
     const totalCompany = Number(totalRows[0]?.totalCompany || 0)
@@ -67,20 +140,10 @@ export async function POST(request: NextRequest) {
     const serviceCount = Number(serviceRows[0]?.serviceCount || 0)
     const labaBersih = totalCompany - totalService
 
-    const lunasCount = statusRows.find((r: any) => r.status === "lunas")?.count || 0
-    const nunggakCount = statusRows.find((r: any) => r.status === "nunggak")?.count || 0
-    const totalSisaNunggak = statusRows.find((r: any) => r.status === "nunggak")?.sisaTotal || 0
-
-    // Build Telegram message
-    // Pad driver names to align
-    const maxNameLen = Math.max(...driverRows.map((d: any) => String(d.driver).trim().length), 6)
-    let driverList = ""
-    for (const d of driverRows) {
-      const sisa = Number(d.sisa)
-      const emoji = sisa > 0 ? "⚠️" : "✅"
-      const name = String(d.driver).trim().padEnd(maxNameLen, " ")
-      driverList += `${emoji} ${name} : ${sisa > 0 ? `Rp ${formatRupiah(sisa)} (${d.nunggakCount} nunggak)` : "Lunas semua"}\n`
-    }
+    const lunasCount = Number(statusRows.find((r) => r.status === "lunas")?.count || 0)
+    const nunggakCount = Number(statusRows.find((r) => r.status === "nunggak")?.count || 0)
+    const totalSisaNunggak = Number(statusRows.find((r) => r.status === "nunggak")?.sisaTotal || 0)
+    const driverList = buildDriverList(driverRows)
 
     const message = `📊 <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -93,14 +156,13 @@ export async function POST(request: NextRequest) {
       `Laba Bersih     : Rp ${formatRupiah(labaBersih)}` +
       `</code>\n\n` +
       `📋 <b>Trip:</b> ${tripCount} total (${lunasCount} lunas, ${nunggakCount} nunggak)\n` +
-      (Number(totalSisaNunggak) > 0 ? `⚠️ <b>Total Nunggak:</b> Rp ${formatRupiah(Number(totalSisaNunggak))}\n` : "") +
+      (totalSisaNunggak > 0 ? `⚠️ <b>Total Nunggak:</b> Rp ${formatRupiah(totalSisaNunggak)}\n` : "") +
       `\n` +
       `👤 <b>Per Driver:</b>\n` +
-      `<code>` + driverList + `</code>\n` +
+      `<code>${driverList || "Belum ada data"}</code>\n` +
       `\n━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `<code>OkeMitra • Laporan Otomatis</code>`
 
-    // Send to Telegram
     const telegramRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,17 +195,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET handler for Vercel Cron (runs on 1st of each month)
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const key = searchParams.get("key")
-  
-  // For cron: report previous month
   const now = new Date()
   const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
   const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
 
-  // Reuse POST logic
   const fakeRequest = new Request(request.url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
