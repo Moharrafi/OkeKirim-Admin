@@ -80,7 +80,7 @@ export function MobileNav() {
                 "relative z-10 flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center",
                 isActive
                   ? "text-primary"
-                  : "text-muted-foreground active:text-foreground"
+                  : "text-muted-foreground active:text-foreground dark:text-white dark:active:text-white"
               )}
             >
               <item.icon
