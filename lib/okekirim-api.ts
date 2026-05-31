@@ -40,11 +40,17 @@ export async function fetchDrivers(): Promise<Driver[]> {
   }
 }
 
-export async function fetchSchedules(filter?: "pending" | "paid" | "all", driver?: string): Promise<Schedule[]> {
+export async function fetchSchedules(
+  filter?: "pending" | "paid" | "all",
+  driver?: string,
+  options?: { page?: number; limit?: number }
+): Promise<Schedule[]> {
   try {
     const params = new URLSearchParams()
     if (filter) params.set("filter", filter)
     if (driver) params.set("driver", driver)
+    if (options?.page) params.set("page", String(options.page))
+    if (options?.limit) params.set("limit", String(options.limit))
 
     const resp = await fetch(`/api/tarikan?${params.toString()}`)
     if (!resp.ok) return []

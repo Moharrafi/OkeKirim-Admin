@@ -95,8 +95,10 @@ export default function HistoryPage() {
     setHasMore(true)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
     try {
-      const allSchedules = await fetchSchedules(undefined, driverName)
-      const lunas = allSchedules.filter(s => s.status === "lunas")
+      const [lunas, allSchedules] = await Promise.all([
+        fetchHistory(driverName, filterDateFrom || undefined, filterDateTo || undefined),
+        fetchSchedules(undefined, driverName, { limit: 1000 }),
+      ])
       const nunggak = allSchedules.filter(s => s.status === "nunggak")
       setTotalTrips(allSchedules.length)
       setLunasCount(lunas.length)
@@ -130,7 +132,7 @@ export default function HistoryPage() {
     } finally {
       setLoadingApi(false)
     }
-  }, [filterDriver, isDriver, user.name])
+  }, [filterDateFrom, filterDateTo, filterDriver, isDriver, user.name])
 
   useEffect(() => {
     fetchTransactions()

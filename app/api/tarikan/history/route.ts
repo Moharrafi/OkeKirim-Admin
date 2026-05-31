@@ -1,21 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 
-// Simple in-memory cache (TTL: 20 seconds)
-const historyCache = new Map<string, { data: unknown; timestamp: number }>()
-const CACHE_TTL = 20_000
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const driver = searchParams.get("driver")
   const dateFrom = searchParams.get("from")
   const dateTo = searchParams.get("to")
-
-  const cacheKey = `history_${driver}_${dateFrom}_${dateTo}`
-  const cached = historyCache.get(cacheKey)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return NextResponse.json(cached.data)
-  }
 
   try {
     let query = `
@@ -25,6 +15,8 @@ export async function GET(request: NextRequest) {
       WHERE s.status = 'lunas'
     `
     const params: string[] = []
+    const paidAtExpr = "COALESCE(s.paidOffAt, s.lastPaidAt, s.date)"
+    const paidAtJakartaDateExpr = `DATE(DATE_ADD(${paidAtExpr}, INTERVAL 7 HOUR))`
 
     if (driver) {
       query += " AND s.driver LIKE ?"
@@ -32,12 +24,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (dateFrom) {
-      query += " AND s.date >= ?"
+      query += ` AND ${paidAtJakartaDateExpr} >= ?`
       params.push(dateFrom)
     }
 
     if (dateTo) {
-      query += " AND s.date <= ?"
+      query += ` AND ${paidAtJakartaDateExpr} <= ?`
       params.push(dateTo)
     }
 
@@ -55,17 +47,9 @@ export async function GET(request: NextRequest) {
       count: history.length,
     }
 
-    // Update cache
-    historyCache.set(cacheKey, { data: responseData, timestamp: Date.now() })
-    // Cleanup old entries
-    if (historyCache.size > 30) {
-      const now = Date.now()
-      for (const [k, v] of historyCache) {
-        if (now - v.timestamp > CACHE_TTL) historyCache.delete(k)
-      }
-    }
-
-    return NextResponse.json(responseData)
+    return NextResponse.json(responseData, {
+      headers: { "Cache-Control": "no-store" },
+    })
   } catch (error) {
     console.error("DB Error:", error)
     return NextResponse.json({ error: `Database error: ${error}` }, { status: 500 })

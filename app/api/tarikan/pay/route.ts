@@ -22,32 +22,40 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString().slice(0, 19).replace("T", " ")
 
-    if (amount && scheduleIds.length > 1) {
-      // Batch partial payment: distribute from oldest to newest
-      // Oldest gets paid first, newest gets the remainder
-      let remaining = Number(amount)
-      
-      // Get all schedules sorted by date ASC (oldest first)
-      const scheduleData: Array<{ id: number; companyShare: number; paidCompanyAmount: number; sisa: number }> = []
-      for (const id of scheduleIds) {
-        const [rows] = await pool.execute(
-          "SELECT id, companyShare, paidCompanyAmount, date FROM schedules WHERE id = ?",
-          [id]
-        ) as any
-        if (rows.length > 0) {
-          const r = rows[0]
-          scheduleData.push({
-            id: r.id,
-            companyShare: r.companyShare,
-            paidCompanyAmount: r.paidCompanyAmount || 0,
-            sisa: r.companyShare - (r.paidCompanyAmount || 0),
-          })
-        }
+    const explicitAmount = Number(amount)
+    const hasExplicitAmount = Number.isFinite(explicitAmount) && explicitAmount > 0
+
+    if (hasExplicitAmount && scheduleIds.length > 1) {
+      // Batch partial payment: distribute in the same order sent by the UI.
+      // Any shortage remains on the later selected order(s), not silently marked paid.
+      let remaining = explicitAmount
+
+      const placeholders = scheduleIds.map(() => "?").join(",")
+      const [rows] = await pool.execute(
+        `SELECT id, companyShare, paidCompanyAmount FROM schedules WHERE id IN (${placeholders})`,
+        scheduleIds
+      ) as any
+      const scheduleById = new Map<number, { id: number; companyShare: number; paidCompanyAmount: number; sisa: number }>()
+
+      for (const r of rows) {
+        const companyShare = Number(r.companyShare || 0)
+        const paidCompanyAmount = Number(r.paidCompanyAmount || 0)
+        scheduleById.set(Number(r.id), {
+          id: Number(r.id),
+          companyShare,
+          paidCompanyAmount,
+          sisa: Math.max(companyShare - paidCompanyAmount, 0),
+        })
       }
 
-      // Pay oldest first
+      const scheduleData = scheduleIds
+        .map((id) => scheduleById.get(id))
+        .filter((schedule): schedule is { id: number; companyShare: number; paidCompanyAmount: number; sisa: number } => !!schedule)
+
       for (const schedule of scheduleData) {
         if (remaining <= 0) break
+        if (schedule.sisa <= 0) continue
+
         const payForThis = Math.min(remaining, schedule.sisa)
         const newPaid = schedule.paidCompanyAmount + payForThis
         const isFullyPaid = newPaid >= schedule.companyShare
@@ -78,7 +86,7 @@ export async function POST(request: NextRequest) {
         const companyShare = rows[0].companyShare
         const currentPaid = rows[0].paidCompanyAmount || 0
 
-        const payAmount = amount ? Math.min(Number(amount), companyShare - currentPaid) : (companyShare - currentPaid)
+        const payAmount = hasExplicitAmount ? Math.min(explicitAmount, companyShare - currentPaid) : (companyShare - currentPaid)
         const newPaidTotal = currentPaid + payAmount
         const isFullyPaid = newPaidTotal >= companyShare
 

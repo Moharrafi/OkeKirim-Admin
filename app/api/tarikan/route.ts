@@ -2,29 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 import { notifyNewOrder } from "@/lib/notify-admin"
 
-// Simple in-memory cache (TTL: 15 seconds)
-const queryCache = new Map<string, { data: unknown; timestamp: number }>()
-const CACHE_TTL = 15_000
-
-function getCached(key: string) {
-  const entry = queryCache.get(key)
-  if (entry && Date.now() - entry.timestamp < CACHE_TTL) {
-    return entry.data
-  }
-  return null
-}
-
-function setCache(key: string, data: unknown) {
-  queryCache.set(key, { data, timestamp: Date.now() })
-  // Cleanup old entries
-  if (queryCache.size > 50) {
-    const now = Date.now()
-    for (const [k, v] of queryCache) {
-      if (now - v.timestamp > CACHE_TTL) queryCache.delete(k)
-    }
-  }
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const filter = searchParams.get("filter") // "pending" | "paid" | "all"
@@ -32,12 +9,6 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1")
   const limit = parseInt(searchParams.get("limit") || "50")
   const offset = (page - 1) * limit
-
-  const cacheKey = `tarikan_${filter}_${driver}_${page}_${limit}`
-  const cached = getCached(cacheKey)
-  if (cached) {
-    return NextResponse.json(cached)
-  }
 
   try {
     let query = `
@@ -87,9 +58,9 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     }
 
-    setCache(cacheKey, responseData)
-
-    return NextResponse.json(responseData)
+    return NextResponse.json(responseData, {
+      headers: { "Cache-Control": "no-store" },
+    })
   } catch (error) {
     console.error("DB Error:", error)
     return NextResponse.json({ error: `Database error: ${error}` }, { status: 500 })
@@ -125,9 +96,6 @@ export async function POST(request: NextRequest) {
     )
 
     const insertId = (result as { insertId: number }).insertId
-
-    // Clear cache after new data is inserted
-    queryCache.clear()
 
     // Notify admins about new order (fire and forget)
     notifyNewOrder(driver, origin || "", destination || "", fare).catch(() => {})
