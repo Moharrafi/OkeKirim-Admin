@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise"
+import type { ExecuteValues, QueryValues } from "mysql2"
 
 // Use a single connection instead of pool to avoid exceeding Aiven free tier limit
 let connection: mysql.Connection | null = null
@@ -25,11 +26,11 @@ async function getConnection() {
 
 // Pool-compatible wrapper that uses single connection
 const pool = {
-  async execute(sql: string, params?: unknown[]) {
+  async execute(sql: string, params?: ExecuteValues) {
     const conn = await getConnection()
     return conn.execute(sql, params)
   },
-  async query(sql: string, params?: unknown[]) {
+  async query(sql: string, params?: QueryValues) {
     const conn = await getConnection()
     return conn.query(sql, params)
   },

@@ -9,23 +9,24 @@ import { formatCurrency, parseCurrency } from "@/lib/utils/currency"
  */
 
 describe("CurrencyInput logic", () => {
+  const getDisplayValue = (numericValue: number) => (
+    numericValue === 0 ? "" : formatCurrency(numericValue)
+  )
+
   describe("display value derivation", () => {
     it("shows empty string for value 0", () => {
       // Component shows '' when value is 0 (placeholder shows instead)
-      const numericValue = 0
-      const displayValue = numericValue === 0 ? "" : formatCurrency(numericValue)
+      const displayValue = getDisplayValue(0)
       expect(displayValue).toBe("")
     })
 
     it("formats non-zero values with thousand separators", () => {
-      const numericValue = 1500000
-      const displayValue = numericValue === 0 ? "" : formatCurrency(numericValue)
+      const displayValue = getDisplayValue(1500000)
       expect(displayValue).toBe("1.500.000")
     })
 
     it("formats value at max boundary (99999999)", () => {
-      const numericValue = 99999999
-      const displayValue = numericValue === 0 ? "" : formatCurrency(numericValue)
+      const displayValue = getDisplayValue(99999999)
       expect(displayValue).toBe("99.999.999")
     })
   })

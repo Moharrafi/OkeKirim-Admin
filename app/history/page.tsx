@@ -57,9 +57,6 @@ export default function HistoryPage() {
     }
   }, [isAuthenticated, router])
 
-  if (!isAuthenticated) {
-    return null
-  }
   const [selectedTx, setSelectedTx] = useState<{
     id: string; date: string; time: string; driver: string; vehicle: string;
     route: string; amount: number; type: string; method: string; status: string;
@@ -174,6 +171,10 @@ export default function HistoryPage() {
     groups[date].push(tx)
     return groups
   }, {} as Record<string, typeof transactions>)
+
+  if (!isAuthenticated) {
+    return null
+  }
 
   return (
     <PullToRefresh onRefresh={fetchTransactions}>

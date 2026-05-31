@@ -130,10 +130,6 @@ export default function DepositPage() {
     }
   }, [isAuthenticated, router])
 
-  if (!isAuthenticated) {
-    return null
-  }
-  
   // Input Orderan States
   const [selectedDriver, setSelectedDriver] = useState("")
   const [argo, setArgo] = useState("")
@@ -826,6 +822,10 @@ export default function DepositPage() {
       setShowBatchPayment(true)
       navigateToView("batch")
     }
+  }
+
+  if (!isAuthenticated) {
+    return null
   }
 
   // Success screens
