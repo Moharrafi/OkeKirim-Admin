@@ -1647,15 +1647,19 @@ export default function DepositPage() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-foreground">Pilih Driver</Label>
                     <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                      <SelectTrigger className="bg-secondary border-0 h-12 rounded-xl">
+                      <SelectTrigger className="bg-secondary border-0 h-12 w-full rounded-xl">
                         <SelectValue placeholder="Pilih driver..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="min-w-[16rem]">
                         {activeDrivers.map((driver) => (
-                          <SelectItem key={driver.id} value={String(driver.id)}>
-                            <div className="flex flex-col items-start">
-                              <span>{driver.name}</span>
-                              <span className="text-xs text-muted-foreground">{driver.vehicle || "-"}</span>
+                          <SelectItem
+                            key={driver.id}
+                            value={String(driver.id)}
+                            className="py-2.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85"
+                          >
+                            <div className="flex min-w-0 flex-col items-start gap-0.5">
+                              <span className="max-w-[12rem] truncate font-semibold leading-tight">{driver.name}</span>
+                              <span className="driver-sub max-w-[12rem] truncate text-xs leading-tight text-muted-foreground">{driver.vehicle || "-"}</span>
                             </div>
                           </SelectItem>
                         ))}

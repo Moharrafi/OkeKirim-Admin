@@ -135,18 +135,22 @@ export default function RegisterPage() {
             <div className="space-y-2">
               <Label className="text-sm font-medium text-foreground">Pilih Kendaraan</Label>
               <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                <SelectTrigger className="h-12 rounded-xl bg-secondary border-0">
+                <SelectTrigger className="h-12 w-full rounded-xl bg-secondary border-0">
                   <div className="flex items-center gap-2">
                     <Car className="h-4 w-4 text-muted-foreground" />
                     <SelectValue placeholder="Pilih nopol kendaraan..." />
                   </div>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-[17rem]">
                   {drivers.map((d) => (
-                    <SelectItem key={d.id} value={String(d.id)}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{d.vehicle || "-"}</span>
-                        <span className="text-muted-foreground">— {d.name}</span>
+                    <SelectItem
+                      key={d.id}
+                      value={String(d.id)}
+                      className="py-2.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85"
+                    >
+                      <div className="flex min-w-0 flex-col items-start gap-0.5">
+                        <span className="max-w-[13rem] truncate font-semibold leading-tight">{d.vehicle || "-"}</span>
+                        <span className="driver-sub max-w-[13rem] truncate text-xs leading-tight text-muted-foreground">{d.name}</span>
                       </div>
                     </SelectItem>
                   ))}

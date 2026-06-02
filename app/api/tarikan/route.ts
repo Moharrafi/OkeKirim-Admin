@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
 
     const insertId = (result as { insertId: number }).insertId
 
-    // Notify admins about new order (fire and forget)
-    notifyNewOrder(driver, origin || "", destination || "", fare).catch(() => {})
+    // Wait for FCM logging/sending so serverless execution does not end before the push is queued.
+    await notifyNewOrder(driver, origin || "", destination || "", fare)
 
     return NextResponse.json({ success: true, id: insertId }, { status: 201 })
   } catch (error) {
