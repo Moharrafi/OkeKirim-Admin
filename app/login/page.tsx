@@ -236,11 +236,12 @@ function LoginContent() {
                         <SelectItem
                           key={d.id}
                           value={String(d.id)}
-                          className="py-2.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85"
+                          className="py-2 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[state=checked]:[&_.driver-sep]:text-primary-foreground/60 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sep]:text-primary-foreground/60"
                         >
-                          <div className="flex min-w-0 flex-col items-start gap-0.5">
-                            <span className="max-w-[13rem] truncate font-semibold leading-tight">{d.vehicle || "-"}</span>
-                            <span className="driver-sub max-w-[13rem] truncate text-xs leading-tight text-muted-foreground">{d.name}</span>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="max-w-[7rem] truncate font-semibold">{d.vehicle || "-"}</span>
+                            <span className="driver-sep text-muted-foreground">-</span>
+                            <span className="driver-sub max-w-[6rem] truncate text-muted-foreground">{d.name}</span>
                           </div>
                         </SelectItem>
                       ))}

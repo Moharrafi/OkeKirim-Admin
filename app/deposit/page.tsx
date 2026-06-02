@@ -1655,11 +1655,12 @@ export default function DepositPage() {
                           <SelectItem
                             key={driver.id}
                             value={String(driver.id)}
-                            className="py-2.5 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85"
+                            className="py-2 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[state=checked]:[&_.driver-sep]:text-primary-foreground/60 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sep]:text-primary-foreground/60"
                           >
-                            <div className="flex min-w-0 flex-col items-start gap-0.5">
-                              <span className="max-w-[12rem] truncate font-semibold leading-tight">{driver.name}</span>
-                              <span className="driver-sub max-w-[12rem] truncate text-xs leading-tight text-muted-foreground">{driver.vehicle || "-"}</span>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="max-w-[6.5rem] truncate font-semibold">{driver.name}</span>
+                              <span className="driver-sep text-muted-foreground">-</span>
+                              <span className="driver-sub max-w-[7rem] truncate text-muted-foreground">{driver.vehicle || "-"}</span>
                             </div>
                           </SelectItem>
                         ))}
