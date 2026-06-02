@@ -93,10 +93,10 @@ export async function POST(request: NextRequest) {
         (imageBase64 ? `\n${ICON_CHECK} Bukti transfer terlampir\n` : "") +
         `\n<i>OkeMitra ${FOOTER_DOT} Sistem Otomatis</i>`
     } else {
-      const displayCompanyShare = Number(companyShare ?? Math.round(Number(fare || 0) * 0.4))
+      const displayFare = Number(fare || 0) || Math.round(Number(companyShare || amount || 0) / 0.4)
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
-        ["Argo", formatRupiah(displayCompanyShare)],
+        ["Argo", formatRupiah(displayFare)],
         ["Rute", escapeHtml(route || "-")],
         ["Tipe", orderType === "offline" ? "Offline" : "Online"],
         ["Tanggal", waktu],
