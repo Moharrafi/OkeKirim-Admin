@@ -52,6 +52,7 @@ type HistoryTransaction = {
   driver: string
   vehicle: string
   route: string
+  argo: number
   amount: number
   type: string
   method: string
@@ -74,6 +75,7 @@ function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): H
     driver: s.driver || "Unknown",
     vehicle: s.vehicle || s.driverVehicle || "-",
     route: `${s.origin || "-"} → ${s.destination || "-"}`,
+    argo: s.fare || 0,
     amount: status === "success" ? fullAmount : remainingAmount,
     type: s.orderType === "offline" ? "offline" : "online",
     method: status === "success" ? (s.payment_notes || s.paymentNotes || "Lunas") : (s.payment_notes || s.paymentNotes || "Belum Setor"),
@@ -139,6 +141,7 @@ export default function HistoryPage() {
         driver: s.driver || "Unknown",
         vehicle: s.vehicle || s.driverVehicle || "-",
         route: `${s.origin || "-"} → ${s.destination || "-"}`,
+        argo: s.fare || 0,
         amount: s.companyShare || Math.round((s.fare || 0) * 0.4),
         type: s.orderType === "offline" ? "offline" : "online",
         method: s.payment_notes || s.paymentNotes || "Lunas",
@@ -406,6 +409,10 @@ export default function HistoryPage() {
                       <span className="font-medium text-foreground">{selectedTx.route}</span>
                     </div>
                     <div className="flex justify-between py-2">
+                      <span className="text-muted-foreground">Argo</span>
+                      <span className="font-medium text-foreground">Rp {selectedTx.argo.toLocaleString("id-ID")}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
                       <span className="text-muted-foreground">Tipe Order</span>
                       <span className="font-medium text-foreground capitalize">{selectedTx.type}</span>
                     </div>
@@ -423,6 +430,10 @@ export default function HistoryPage() {
                     <div className="flex justify-between py-2">
                       <span className="text-muted-foreground">Rute</span>
                       <span className="font-medium text-foreground">{selectedTx.route}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-muted-foreground">Argo</span>
+                      <span className="font-medium text-foreground">Rp {selectedTx.argo.toLocaleString("id-ID")}</span>
                     </div>
                   </>
                 )}
