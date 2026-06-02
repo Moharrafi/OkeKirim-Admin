@@ -755,53 +755,81 @@ export default function DepositPage() {
     }
   }
 
+  const processProofFile = useCallback((file: File, fallbackName = "bukti-transfer.png") => {
+    const validation = fileUploadSchema.safeParse({ size: file.size, type: file.type })
+    if (!validation.success) {
+      const errorMessage = validation.error.issues[0]?.message || "File tidak valid"
+      setFileUploadError(errorMessage)
+      return false
+    }
+
+    setFileUploadError(null)
+    setUploadedFile(file.name || fallbackName)
+
+    const reader = new FileReader()
+    reader.onerror = () => {
+      setFileUploadError("Gagal membaca gambar")
+    }
+    reader.onload = (ev) => {
+      const img = new window.Image()
+      img.onerror = () => {
+        setFileUploadError("Gambar tidak bisa diproses")
+      }
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        const maxSize = 800
+        let { width, height } = img
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize
+            width = maxSize
+          } else {
+            width = (width / height) * maxSize
+            height = maxSize
+          }
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext("2d")
+        ctx?.drawImage(img, 0, 0, width, height)
+        const compressed = canvas.toDataURL("image/jpeg", 0.7)
+        setUploadedImage(compressed)
+      }
+      img.src = ev.target?.result as string
+    }
+    reader.readAsDataURL(file)
+    return true
+  }, [])
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      // Validate file using fileUploadSchema before processing
-      const validation = fileUploadSchema.safeParse({ size: file.size, type: file.type })
-      if (!validation.success) {
-        // Show the first validation error and reject the file
-        const errorMessage = validation.error.issues[0]?.message || "File tidak valid"
-        setFileUploadError(errorMessage)
-        // Reset the input so the same file can be re-selected if needed
-        e.target.value = ""
-        // Preserve previous file state (don't clear uploadedFile/uploadedImage)
-        return
-      }
+    if (!file) return
 
-      // Clear any previous error on successful validation
-      setFileUploadError(null)
-      setUploadedFile(file.name)
-      // Compress image before storing
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        const img = new window.Image()
-        img.onload = () => {
-          const canvas = document.createElement("canvas")
-          const maxSize = 800
-          let { width, height } = img
-          if (width > maxSize || height > maxSize) {
-            if (width > height) {
-              height = (height / width) * maxSize
-              width = maxSize
-            } else {
-              width = (width / height) * maxSize
-              height = maxSize
-            }
-          }
-          canvas.width = width
-          canvas.height = height
-          const ctx = canvas.getContext("2d")
-          ctx?.drawImage(img, 0, 0, width, height)
-          const compressed = canvas.toDataURL("image/jpeg", 0.7)
-          setUploadedImage(compressed)
-        }
-        img.src = ev.target?.result as string
-      }
-      reader.readAsDataURL(file)
+    const accepted = processProofFile(file)
+    if (!accepted) {
+      e.target.value = ""
     }
   }
+
+  const handleProofPaste = useCallback((e: ClipboardEvent | React.ClipboardEvent<HTMLElement>) => {
+    const items = Array.from(e.clipboardData?.items || [])
+    const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"))
+    const file = imageItem?.getAsFile()
+    if (!file) return
+
+    e.preventDefault()
+    const extension = file.type.split("/")[1] || "png"
+    processProofFile(file, `bukti-transfer-paste.${extension}`)
+  }, [processProofFile])
+
+  useEffect(() => {
+    if (viewState !== "detail" && viewState !== "batch") return
+
+    window.addEventListener("paste", handleProofPaste)
+    return () => {
+      window.removeEventListener("paste", handleProofPaste)
+    }
+  }, [handleProofPaste, viewState])
 
   const toggleOrderSelection = (orderId: string) => {
     setSelectedOrders(prev => {
@@ -984,7 +1012,7 @@ export default function DepositPage() {
             <CardContent className="p-4">
               <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
               <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Upload bukti transfer untuk {selectedOrders.length} orderan sekaligus
+                Upload atau paste bukti transfer untuk {selectedOrders.length} orderan sekaligus
               </p>
 
               {fileUploadError && (
@@ -1017,10 +1045,13 @@ export default function DepositPage() {
                   </div>
                 </div>
               ) : (
-                <label className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 transition-colors cursor-pointer">
+                <label
+                  tabIndex={0}
+                  className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
+                >
                   <div className="text-center">
                     <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">Ketuk untuk upload</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
                     <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
                   </div>
                   <input
@@ -1219,7 +1250,7 @@ export default function DepositPage() {
             <CardContent className="p-4">
               <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
               <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Upload bukti transfer atau pembayaran untuk konfirmasi setoran
+                Upload atau paste bukti transfer untuk konfirmasi setoran
               </p>
 
               {fileUploadError && (
@@ -1252,10 +1283,13 @@ export default function DepositPage() {
                   </div>
                 </div>
               ) : (
-                <label className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 transition-colors cursor-pointer">
+                <label
+                  tabIndex={0}
+                  className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
+                >
                   <div className="text-center">
                     <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">Ketuk untuk upload</p>
+                    <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
                     <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
                   </div>
                   <input
