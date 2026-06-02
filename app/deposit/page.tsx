@@ -95,9 +95,14 @@ function parseCurrencyToken(token: string) {
 
   if (lastSeparator >= 0) {
     const decimalPart = compact.slice(lastSeparator + 1)
+    const integerCandidate = compact.slice(0, lastSeparator)
     const hasMultipleSeparators = (compact.match(/[.,]/g) || []).length > 1
-    if (decimalPart.length === 2 && hasMultipleSeparators) {
-      integerPart = compact.slice(0, lastSeparator)
+    const decimalLooksLikeCents = /^\d{2}$/.test(decimalPart)
+    const decimalLooksLikeOcrCents = /^00\d$/.test(decimalPart) && hasMultipleSeparators
+    const integerHasCurrencyGrouping = /[.,]\d{3}$/.test(integerCandidate)
+
+    if (decimalLooksLikeCents || (decimalLooksLikeOcrCents && (hasMultipleSeparators || integerHasCurrencyGrouping))) {
+      integerPart = integerCandidate
     }
   }
 
