@@ -16,6 +16,7 @@ interface ConfirmDialogProps {
   title: string
   message?: string
   amount?: number
+  amountLabel?: string
   orderCount?: number
   confirmText?: string
   cancelText?: string
@@ -28,6 +29,7 @@ export function ConfirmDialog({
   title,
   message,
   amount,
+  amountLabel = "Jumlah Bayar",
   orderCount,
   confirmText = "Ya, Lanjutkan",
   cancelText = "Batal",
@@ -57,7 +59,7 @@ export function ConfirmDialog({
         {amount !== undefined && (
           <div className="py-3 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Jumlah Bayar</span>
+              <span className="text-sm text-muted-foreground">{amountLabel}</span>
               <span className="text-lg font-bold text-primary">
                 Rp {formatCurrency(amount)}
               </span>

@@ -189,6 +189,7 @@ export default function DepositPage() {
   })
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split("T")[0])
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
+  const [showOrderConfirm, setShowOrderConfirm] = useState(false)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
 
   // react-hook-form with Zod validation for order input
@@ -474,6 +475,12 @@ export default function DepositPage() {
 
   useEffect(() => {
     const handleAndroidBack = (event: Event) => {
+      if (showOrderConfirm) {
+        event.preventDefault()
+        setShowOrderConfirm(false)
+        return
+      }
+
       if (showConfirm) {
         event.preventDefault()
         setShowConfirm(false)
@@ -508,6 +515,7 @@ export default function DepositPage() {
     showBatchPayment,
     showConfirm,
     showDepositSuccess,
+    showOrderConfirm,
   ])
 
   // Fetch drivers on mount
@@ -1884,7 +1892,7 @@ export default function DepositPage() {
             <Button
               className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={(isAdmin && !selectedDriver) || !isOrderFormValid || isSubmittingOrder}
-              onClick={handleSubmitOrder}
+              onClick={() => setShowOrderConfirm(true)}
             >
               {isSubmittingOrder ? (
                 <div className="flex items-center gap-2">
@@ -2306,6 +2314,26 @@ export default function DepositPage() {
           </div>
         </div>
       )}
+
+      {/* Order Confirmation Dialog */}
+      <ConfirmDialog
+        open={showOrderConfirm}
+        title="Konfirmasi Orderan"
+        message={`Driver: ${
+          isAdmin
+            ? (activeDrivers.find((d) => String(d.id) === selectedDriver)?.name || "-")
+            : user.name
+        } | Rute: ${lokasiMuat || "-"} - ${lokasiBongkar || "-"} | Tanggal: ${orderDate}`}
+        amount={parseInt(argo || "0")}
+        amountLabel="Nilai Argo"
+        confirmText="Ya, Simpan"
+        cancelText="Cek Lagi"
+        onConfirm={() => {
+          setShowOrderConfirm(false)
+          handleSubmitOrder()
+        }}
+        onCancel={() => setShowOrderConfirm(false)}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog
