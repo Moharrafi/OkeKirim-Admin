@@ -32,6 +32,8 @@ import {
   Trash2,
   Pencil,
   Search,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isOverdue, groupOrdersByDate, filterOrders } from "@/lib/utils/orders"
@@ -43,6 +45,7 @@ import { orderFormSchema, fileUploadSchema, type OrderFormData } from "@/lib/sch
 import { FormField } from "@/components/ui/form-field"
 import { SkeletonOrderList } from "@/components/ui/skeleton-order-list"
 import { CurrencyInput } from "@/components/ui/currency-input"
+import { Textarea } from "@/components/ui/textarea"
 import { LocationAutocomplete } from "@/components/ui/location-autocomplete"
 import { loadLocationHistory, saveLocationToHistory } from "@/lib/utils/location-history"
 import { showSuccessToast, showErrorToast, showTimeoutToast } from "@/lib/toast"
@@ -56,9 +59,11 @@ import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport"
 type MainTab = "orderan" | "setoran"
 type OrderType = "online" | "offline"
 type ViewState = "list" | "detail" | "batch" | "success"
+type ProofOcrStatus = "idle" | "reading" | "matched" | "mismatch" | "not_found" | "failed"
 
 // Tab index mapping for direction detection (constant, outside component)
 const TAB_INDEX: Record<MainTab, number> = { orderan: 0, setoran: 1 }
+const PROOF_AMOUNT_TOLERANCE = 100
 
 interface Order {
   id: string
@@ -77,6 +82,43 @@ interface Order {
   time: string
   status: string
   isOverdue7: boolean
+}
+
+function parseCurrencyToken(token: string) {
+  const compact = token.replace(/\s/g, "")
+  if (!compact) return 0
+
+  const lastDot = compact.lastIndexOf(".")
+  const lastComma = compact.lastIndexOf(",")
+  const lastSeparator = Math.max(lastDot, lastComma)
+  let integerPart = compact
+
+  if (lastSeparator >= 0) {
+    const decimalPart = compact.slice(lastSeparator + 1)
+    const hasMultipleSeparators = (compact.match(/[.,]/g) || []).length > 1
+    if (decimalPart.length === 2 && hasMultipleSeparators) {
+      integerPart = compact.slice(0, lastSeparator)
+    }
+  }
+
+  const digits = integerPart.replace(/\D/g, "")
+  return digits ? Number(digits) : 0
+}
+
+function extractTransferAmount(text: string) {
+  const normalized = text.replace(/[Oo]/g, "0")
+  const matches = Array.from(normalized.matchAll(/(?:RP|IDR)\s*[:.]?\s*([0-9][0-9.,\s]{2,})/gi))
+  const amounts = matches
+    .map((match) => parseCurrencyToken(match[1] || ""))
+    .filter((amount) => amount >= 1000 && amount <= 999999999)
+
+  if (amounts.length === 0) return null
+  return Math.max(...amounts)
+}
+
+function isAmountMismatch(expected: number, detected: number | null) {
+  if (!detected || expected <= 0) return false
+  return Math.abs(expected - detected) > PROOF_AMOUNT_TOLERANCE
 }
 
 export default function DepositPage() {
@@ -188,6 +230,10 @@ export default function DepositPage() {
   const [uploadedFile, setUploadedFile] = useState<string | null>(null)
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
+  const [proofOcrAmount, setProofOcrAmount] = useState<number | null>(null)
+  const [proofOcrStatus, setProofOcrStatus] = useState<ProofOcrStatus>("idle")
+  const [proofOcrError, setProofOcrError] = useState<string | null>(null)
+  const [proofMismatchReason, setProofMismatchReason] = useState("")
   const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false)
   const [showDepositSuccess, setShowDepositSuccess] = useState(false)
   const [depositSuccessData, setDepositSuccessData] = useState<{
@@ -206,6 +252,15 @@ export default function DepositPage() {
   const [editDate, setEditDate] = useState("")
   const [payAmount, setPayAmount] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+  const proofOcrRequestRef = useRef(0)
+
+  const resetProofCheck = useCallback(() => {
+    proofOcrRequestRef.current += 1
+    setProofOcrAmount(null)
+    setProofOcrStatus("idle")
+    setProofOcrError(null)
+    setProofMismatchReason("")
+  }, [])
 
   // Computed validation for order submit button (Requirement 2.6)
   const argoValue = parseInt(argo || "0")
@@ -214,6 +269,27 @@ export default function DepositPage() {
     lokasiBongkar.trim().length > 0 &&
     argoValue >= 1000 &&
     argoValue <= 999999999
+  const depositPaymentAmount = useMemo(() => {
+    const partialAmount = payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : 0
+    if (showBatchPayment) {
+      return partialAmount || batchTotal
+    }
+    return partialAmount || selectedOrder?.sisa || 0
+  }, [batchTotal, payAmount, selectedOrder?.sisa, showBatchPayment])
+  const proofNeedsReason = proofOcrStatus === "mismatch" && proofMismatchReason.trim().length < 3
+  const proofCheckBlocking = proofOcrStatus === "reading" || proofNeedsReason
+
+  useEffect(() => {
+    if (!proofOcrAmount || proofOcrStatus === "idle" || proofOcrStatus === "reading" || proofOcrStatus === "not_found" || proofOcrStatus === "failed") {
+      return
+    }
+
+    const mismatch = isAmountMismatch(depositPaymentAmount, proofOcrAmount)
+    setProofOcrStatus(mismatch ? "mismatch" : "matched")
+    if (!mismatch) {
+      setProofMismatchReason("")
+    }
+  }, [depositPaymentAmount, proofOcrAmount, proofOcrStatus])
 
   // Page transition animation state
   const [viewState, setViewState] = useState<ViewState>("list")
@@ -262,6 +338,7 @@ export default function DepositPage() {
         setUploadedImage(null)
         setPayAmount("")
         setFileUploadError(null)
+        resetProofCheck()
         setViewState("list")
         setAnimationClass("")
       } else if (showBatchPayment) {
@@ -270,6 +347,7 @@ export default function DepositPage() {
         setUploadedImage(null)
         setPayAmount("")
         setFileUploadError(null)
+        resetProofCheck()
         setViewState("list")
         setAnimationClass("")
       } else if (showDepositSuccess) {
@@ -281,7 +359,7 @@ export default function DepositPage() {
     }
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [selectedOrder, showBatchPayment, showDepositSuccess])
+  }, [resetProofCheck, selectedOrder, showBatchPayment, showDepositSuccess])
 
   // Navigate back with slide-out animation
   const navigateBack = useCallback((target: ViewState, onComplete: () => void) => {
@@ -325,8 +403,9 @@ export default function DepositPage() {
       setUploadedImage(null)
       setPayAmount("")
       setFileUploadError(null)
+      resetProofCheck()
     })
-  }, [navigateBack])
+  }, [navigateBack, resetProofCheck])
 
   const closeSinglePaymentView = useCallback(() => {
     navigateBack("list", () => {
@@ -335,8 +414,9 @@ export default function DepositPage() {
       setUploadedImage(null)
       setPayAmount("")
       setFileUploadError(null)
+      resetProofCheck()
     })
-  }, [navigateBack])
+  }, [navigateBack, resetProofCheck])
 
   // Fetch real data from OkeKirim API
   const [apiOrders, setApiOrders] = useState<Order[]>([])
@@ -354,6 +434,7 @@ export default function DepositPage() {
     setUploadedFile(null)
     setUploadedImage(null)
     setFileUploadError(null)
+    resetProofCheck()
     setPayAmount("")
     setViewState("list")
     setAnimationClass("")
@@ -384,7 +465,7 @@ export default function DepositPage() {
       })
       .catch(() => setApiOrders([]))
       .finally(() => setLoadingOrders(false))
-  }, [filterDriver, isDriver, user.name])
+  }, [filterDriver, isDriver, resetProofCheck, user.name])
 
   useEffect(() => {
     const handleAndroidBack = (event: Event) => {
@@ -625,6 +706,15 @@ export default function DepositPage() {
   }
 
   const handleSubmitDeposit = async () => {
+    if (proofOcrStatus === "reading") {
+      showErrorToast("Bukti TF masih dibaca, tunggu sebentar")
+      return
+    }
+    if (proofNeedsReason) {
+      showErrorToast("Isi alasan selisih bukti TF dulu")
+      return
+    }
+
     setIsSubmittingDeposit(true)
     
     const controller = new AbortController()
@@ -709,6 +799,8 @@ export default function DepositPage() {
             imageBase64: uploadedImage || undefined,
             batchItems: batchItems,
             sisaSetoran: sisaAfterPayment > 0 ? sisaAfterPayment : undefined,
+            proofDetectedAmount: proofOcrAmount || undefined,
+            proofMismatchReason: proofOcrStatus === "mismatch" ? proofMismatchReason.trim() : undefined,
           }),
         })
       } catch {
@@ -755,6 +847,35 @@ export default function DepositPage() {
     }
   }
 
+  const analyzeProofImage = useCallback(async (imageDataUrl: string) => {
+    const requestId = proofOcrRequestRef.current + 1
+    proofOcrRequestRef.current = requestId
+    setProofOcrAmount(null)
+    setProofOcrStatus("reading")
+    setProofOcrError(null)
+    setProofMismatchReason("")
+
+    try {
+      const { recognize } = await import("tesseract.js")
+      const result = await recognize(imageDataUrl, "eng")
+      if (proofOcrRequestRef.current !== requestId) return
+
+      const detectedAmount = extractTransferAmount(result.data.text || "")
+      if (!detectedAmount) {
+        setProofOcrStatus("not_found")
+        setProofOcrError("Nominal bukti TF tidak terbaca otomatis")
+        return
+      }
+
+      setProofOcrAmount(detectedAmount)
+      setProofOcrStatus(isAmountMismatch(depositPaymentAmount, detectedAmount) ? "mismatch" : "matched")
+    } catch {
+      if (proofOcrRequestRef.current !== requestId) return
+      setProofOcrStatus("failed")
+      setProofOcrError("Gagal membaca nominal bukti TF")
+    }
+  }, [depositPaymentAmount])
+
   const processProofFile = useCallback((file: File, fallbackName = "bukti-transfer.png") => {
     const validation = fileUploadSchema.safeParse({ size: file.size, type: file.type })
     if (!validation.success) {
@@ -764,16 +885,23 @@ export default function DepositPage() {
     }
 
     setFileUploadError(null)
+    proofOcrRequestRef.current += 1
     setUploadedFile(file.name || fallbackName)
+    setProofOcrAmount(null)
+    setProofOcrStatus("reading")
+    setProofOcrError(null)
+    setProofMismatchReason("")
 
     const reader = new FileReader()
     reader.onerror = () => {
       setFileUploadError("Gagal membaca gambar")
+      setProofOcrStatus("failed")
     }
     reader.onload = (ev) => {
       const img = new window.Image()
       img.onerror = () => {
         setFileUploadError("Gambar tidak bisa diproses")
+        setProofOcrStatus("failed")
       }
       img.onload = () => {
         const canvas = document.createElement("canvas")
@@ -794,12 +922,13 @@ export default function DepositPage() {
         ctx?.drawImage(img, 0, 0, width, height)
         const compressed = canvas.toDataURL("image/jpeg", 0.7)
         setUploadedImage(compressed)
+        void analyzeProofImage(compressed)
       }
       img.src = ev.target?.result as string
     }
     reader.readAsDataURL(file)
     return true
-  }, [])
+  }, [analyzeProofImage])
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -849,9 +978,80 @@ export default function DepositPage() {
 
   const handleBatchPayment = () => {
     if (selectedOrders.length > 0) {
+      resetProofCheck()
       setShowBatchPayment(true)
       navigateToView("batch")
     }
+  }
+
+  const renderProofCheckPanel = (expectedAmount: number) => {
+    if (!uploadedFile || proofOcrStatus === "idle") return null
+
+    if (proofOcrStatus === "reading") {
+      return (
+        <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-primary">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Membaca nominal bukti TF...
+          </div>
+        </div>
+      )
+    }
+
+    if (proofOcrStatus === "matched") {
+      return (
+        <div className="mt-3 rounded-xl border border-success/20 bg-success/10 p-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-success">Nominal bukti cocok</span>
+            <span className="font-semibold text-foreground">
+              Rp {formatCurrency(proofOcrAmount || 0)}
+            </span>
+          </div>
+        </div>
+      )
+    }
+
+    if (proofOcrStatus === "mismatch") {
+      return (
+        <div className="mt-3 space-y-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold text-foreground">Nominal bukti tidak sesuai</p>
+              <p className="text-muted-foreground">
+                Jumlah bayar Rp {formatCurrency(expectedAmount)} tetapi bukti terbaca Rp {formatCurrency(proofOcrAmount || 0)}.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-foreground">Alasan tetap gunakan bukti ini</Label>
+            <Textarea
+              value={proofMismatchReason}
+              onChange={(e) => setProofMismatchReason(e.target.value)}
+              placeholder="Contoh: transfer dua kali, bukti salah kirim, atau sudah dicek manual"
+              className="min-h-20 rounded-xl bg-background"
+            />
+            {proofNeedsReason && (
+              <p className="text-xs text-warning">Alasan wajib diisi sebelum konfirmasi.</p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <div>
+            <p className="font-medium text-foreground">Nominal bukti belum bisa dicek otomatis</p>
+            <p className="text-xs text-muted-foreground">
+              {proofOcrError || "Silakan cek manual sebelum konfirmasi."}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!isAuthenticated) {
@@ -1037,7 +1237,7 @@ export default function DepositPage() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null) }}
+                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
                       className="p-1.5 rounded-full hover:bg-secondary"
                     >
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -1062,13 +1262,14 @@ export default function DepositPage() {
                   />
                 </label>
               )}
+              {renderProofCheckPanel(depositPaymentAmount)}
             </CardContent>
           </Card>
 
           {/* Submit Button */}
           <Button
             className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!uploadedFile || isSubmittingDeposit}
+            disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
             onClick={() => setShowConfirm(true)}
           >
             {isSubmittingDeposit ? (
@@ -1275,7 +1476,7 @@ export default function DepositPage() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null) }}
+                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
                       className="p-1.5 rounded-full hover:bg-secondary"
                     >
                       <X className="h-4 w-4 text-muted-foreground" />
@@ -1300,6 +1501,7 @@ export default function DepositPage() {
                   />
                 </label>
               )}
+              {renderProofCheckPanel(depositPaymentAmount)}
             </CardContent>
           </Card>
 
@@ -1355,7 +1557,7 @@ export default function DepositPage() {
           {/* Submit Button */}
           <Button
             className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!uploadedFile || isSubmittingDeposit}
+            disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
             onClick={() => setShowConfirm(true)}
           >
             {isSubmittingDeposit ? (
@@ -1880,6 +2082,7 @@ export default function DepositPage() {
                     if (isBatchMode) {
                       toggleOrderSelection(order.id)
                     } else {
+                      resetProofCheck()
                       setSelectedOrder(order)
                       navigateToView("detail")
                     }

@@ -43,7 +43,19 @@ function formatInfoRows(rows: Array<[string, string]>) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { driver, amount, route, orderType, fare, companyShare, imageBase64, batchItems, sisaSetoran } = body
+    const {
+      driver,
+      amount,
+      route,
+      orderType,
+      fare,
+      companyShare,
+      imageBase64,
+      batchItems,
+      sisaSetoran,
+      proofDetectedAmount,
+      proofMismatchReason,
+    } = body
 
     if (!driver || !amount) {
       return NextResponse.json({ error: "Driver dan amount wajib" }, { status: 400 })
@@ -78,6 +90,12 @@ export async function POST(request: NextRequest) {
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
         infoRows.push(["Sisa Setoran", formatRupiah(sisaSetoran)])
       }
+      if (proofDetectedAmount) {
+        infoRows.push(["Nominal Bukti", formatRupiah(proofDetectedAmount)])
+      }
+      if (proofMismatchReason) {
+        infoRows.push(["Alasan Selisih", String(proofMismatchReason)])
+      }
 
       const routeList = items
         .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
@@ -104,6 +122,12 @@ export async function POST(request: NextRequest) {
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
         infoRows.push(["Sisa", formatRupiah(sisaSetoran)])
+      }
+      if (proofDetectedAmount) {
+        infoRows.push(["Nominal Bukti", formatRupiah(proofDetectedAmount)])
+      }
+      if (proofMismatchReason) {
+        infoRows.push(["Alasan Selisih", String(proofMismatchReason)])
       }
 
       message = `${ICON_INBOX} <b>SETORAN MASUK</b>\n` +
