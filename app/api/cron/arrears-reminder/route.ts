@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         SUM(CAST(s.companyShare AS SIGNED) - CAST(s.paidCompanyAmount AS SIGNED)) as pendingTotal,
         t.token
       FROM schedules s
-      JOIN fcm_tokens t ON LOWER(TRIM(s.driver)) = LOWER(TRIM(t.driver_name))
+      JOIN fcm_tokens t ON LOWER(TRIM(s.driver)) = LOWER(TRIM(t.driver_name)) COLLATE utf8mb4_general_ci
       WHERE s.status = 'nunggak'
         AND t.token IS NOT NULL
         AND t.token != ''
