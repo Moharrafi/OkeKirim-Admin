@@ -214,6 +214,7 @@ export default function AnalysisPage() {
 
       return {
         month: monthName,
+        monthNum: d.month,
         companyShare: companyShareVal,
         driverShare: driverShareVal,
         totalFare: totalFareVal,
@@ -226,17 +227,22 @@ export default function AnalysisPage() {
     })
   }, [data])
 
-  const bestMonth = useMemo(() => {
-    if (monthlyChartData.length === 0) return null
-    return [...monthlyChartData].sort((a, b) => b.totalFare - a.totalFare)[0]
+  const completedMonthsData = useMemo(() => {
+    const currentMonthNum = new Date().getMonth() + 1
+    return monthlyChartData.filter(d => d.monthNum !== currentMonthNum)
   }, [monthlyChartData])
 
+  const bestMonth = useMemo(() => {
+    if (completedMonthsData.length === 0) return null
+    return [...completedMonthsData].sort((a, b) => b.totalFare - a.totalFare)[0]
+  }, [completedMonthsData])
+
   const worstMonth = useMemo(() => {
-    if (monthlyChartData.length === 0) return null
-    const positiveMonths = monthlyChartData.filter(d => d.totalFare > 0)
-    const list = positiveMonths.length > 0 ? positiveMonths : monthlyChartData
+    if (completedMonthsData.length === 0) return null
+    const positiveMonths = completedMonthsData.filter(d => d.totalFare > 0)
+    const list = positiveMonths.length > 0 ? positiveMonths : completedMonthsData
     return [...list].sort((a, b) => a.totalFare - b.totalFare)[0]
-  }, [monthlyChartData])
+  }, [completedMonthsData])
 
   const handleRefresh = async () => {
     await fetchData()
