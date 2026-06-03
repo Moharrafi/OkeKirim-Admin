@@ -450,7 +450,7 @@ export default function AnalysisPage() {
                   "relative z-10 flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-200 outline-none",
                   activeTab === tab.id
                     ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/35 dark:hover:bg-white/5"
+                    : "text-muted-foreground hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10"
                 )}
               >
                 {tab.label}
