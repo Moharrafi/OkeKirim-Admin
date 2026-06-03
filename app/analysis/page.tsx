@@ -435,7 +435,7 @@ export default function AnalysisPage() {
           <div className="relative flex gap-1 bg-secondary/40 dark:bg-secondary/25 p-1 rounded-xl border border-border/80 overflow-hidden">
             {/* Sliding Active Tab Background */}
             <div
-              className="absolute top-1 bottom-1 bg-card dark:bg-muted/85 shadow-sm rounded-lg transition-all duration-300 ease-out pointer-events-none"
+              className="absolute top-1 bottom-1 bg-primary/10 dark:bg-primary/20 rounded-lg transition-all duration-300 ease-out pointer-events-none"
               style={{
                 left: `calc(${activeIndex} * ${100 / tabs.length}% + 4px)`,
                 width: `calc(${100 / tabs.length}% - 8px)`,
@@ -449,7 +449,7 @@ export default function AnalysisPage() {
                 className={cn(
                   "relative z-10 flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-200 outline-none",
                   activeTab === tab.id
-                    ? "text-foreground"
+                    ? "text-primary font-bold"
                     : "text-muted-foreground hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10"
                 )}
               >
