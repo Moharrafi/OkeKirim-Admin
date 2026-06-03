@@ -199,24 +199,9 @@ export default function AnalysisPage() {
     }
   }, [data, isAdmin, serviceStats])
 
-  const handleRefresh = async () => {
-    await fetchData()
-  }
-
-  if (!isAuthenticated || !data || !finances) {
-    return (
-      <div className="min-h-screen bg-background">
-        <MobileHeader title="Analisis Performa" showBack onBack={() => router.push("/")} />
-        <div className="flex flex-col items-center justify-center py-24">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-3" />
-          <p className="text-sm text-muted-foreground">Memuat data analisis...</p>
-        </div>
-      </div>
-    )
-  }
-
   // Monthly trends chart data
   const monthlyChartData = useMemo(() => {
+    if (!data) return []
     return data.monthlyChart.map(d => {
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
       const monthName = monthNames[d.month - 1]
@@ -239,7 +224,7 @@ export default function AnalysisPage() {
         "Total Argo": totalFareVal / 1000000,
       }
     })
-  }, [data.monthlyChart])
+  }, [data])
 
   const bestMonth = useMemo(() => {
     if (monthlyChartData.length === 0) return null
@@ -252,6 +237,22 @@ export default function AnalysisPage() {
     const list = positiveMonths.length > 0 ? positiveMonths : monthlyChartData
     return [...list].sort((a, b) => a.totalFare - b.totalFare)[0]
   }, [monthlyChartData])
+
+  const handleRefresh = async () => {
+    await fetchData()
+  }
+
+  if (!isAuthenticated || !data || !finances) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MobileHeader title="Analisis Performa" showBack onBack={() => router.push("/")} />
+        <div className="flex flex-col items-center justify-center py-24">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-3" />
+          <p className="text-sm text-muted-foreground">Memuat data analisis...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Order breakdown chart data
   const orderTypeData = data.orderTypeBreakdown.map((ot, idx) => ({
