@@ -278,86 +278,141 @@ export default function AnalysisPage() {
         <main className="px-4 py-4 space-y-4">
           
           {/* Main Financial Summary Cards */}
-          <section className="grid grid-cols-2 gap-3">
-            <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <Coins className="h-4 w-4 text-primary" />
-                  </div>
-                  <Badge className={cn("text-[9px] px-1.5 py-0", finances.argoGrowth >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
-                    {finances.argoGrowth >= 0 ? "+" : ""}{finances.argoGrowth}% MoM
-                  </Badge>
-                </div>
-                <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
-                  Rp {formatRupiah(finances.argoTotal)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Total Argo Bulan Ini</p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
-              <CardContent className="p-0">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-xl bg-blue-500/10">
-                    <Wallet className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <Badge className={cn("text-[9px] px-1.5 py-0", finances.companyGrowth >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
-                    {finances.companyGrowth >= 0 ? "+" : ""}{finances.companyGrowth}% MoM
-                  </Badge>
-                </div>
-                <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
-                  Rp {formatRupiah(isAdmin ? finances.companyShare : finances.driverShare)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {isAdmin ? "Wajib Setor (40%)" : "Pendapatan Bersih (60%)"}
-                </p>
-              </CardContent>
-            </Card>
-
-            {isAdmin && (
+          <div className="space-y-3">
+            {isAdmin ? (
               <>
-                <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="flex items-center justify-between">
-                      <div className="p-2 rounded-xl bg-amber-500/10">
-                        <Wrench className="h-4 w-4 text-amber-500" />
-                      </div>
-                      {serviceStats.lastMonth > 0 && (
-                        <span className="text-[9px] text-muted-foreground">
-                          Lalu: Rp {formatRupiah(serviceStats.lastMonth)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
-                      Rp {formatRupiah(serviceStats.currentMonth)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Biaya Service Bulan Ini</p>
-                  </CardContent>
-                </Card>
-
+                {/* Hero Card: Laba Bersih Perusahaan */}
                 <Card className={cn(
-                  "border shadow-sm p-4 relative overflow-hidden",
-                  finances.netProfit >= 0 ? "border-success/20 bg-success/5 dark:bg-success/10" : "border-destructive/20 bg-destructive/5 dark:bg-destructive/10"
+                  "border shadow-sm p-4 relative overflow-hidden rounded-2xl",
+                  finances.netProfit >= 0 
+                    ? "border-success/20 bg-gradient-to-br from-success/8 dark:from-success/15 via-card to-card" 
+                    : "border-destructive/20 bg-gradient-to-br from-destructive/8 dark:from-destructive/15 via-card to-card"
                 )}>
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 space-y-4 relative z-10">
                     <div className="flex items-center justify-between">
-                      <div className={cn("p-2 rounded-xl", finances.netProfit >= 0 ? "bg-success/10" : "bg-destructive/10")}>
-                        <TrendingUp className={cn("h-4 w-4", finances.netProfit >= 0 ? "text-success" : "text-destructive")} />
+                      <div className="flex items-center gap-2">
+                        <div className={cn("p-2 rounded-xl shrink-0", finances.netProfit >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                          <TrendingUp className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Laba Bersih Perusahaan</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">Bagi hasil bersih dikurangi servis</p>
+                        </div>
                       </div>
-                      <Badge className={cn("text-[9px] px-1.5 py-0", finances.netProfitGrowth >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+                      <Badge className={cn("text-[10px] font-semibold px-2 py-0.5", finances.netProfitGrowth >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
                         {finances.netProfitGrowth >= 0 ? "+" : ""}{finances.netProfitGrowth}% MoM
                       </Badge>
                     </div>
-                    <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
-                      Rp {formatRupiah(finances.netProfit)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Laba Bersih Perusahaan</p>
+                    <div className="flex items-baseline mt-2">
+                      <span className="text-sm font-semibold text-muted-foreground mr-1.5">Rp</span>
+                      <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                        {formatRupiah(finances.netProfit)}
+                      </span>
+                    </div>
                   </CardContent>
+                  <TrendingUp className={cn(
+                    "absolute -right-3 -bottom-3 h-24 w-24 stroke-[1] pointer-events-none opacity-10 dark:opacity-15",
+                    finances.netProfit >= 0 ? "text-success" : "text-destructive"
+                  )} />
                 </Card>
+
+                {/* Sub-metrics row */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="border-l-[3px] border-l-primary border border-y-border border-r-border bg-card shadow-sm p-3 rounded-r-xl rounded-l-sm relative overflow-hidden flex flex-col justify-between min-h-[76px]">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Total Argo</p>
+                      <p className="text-[11px] font-extrabold text-foreground mt-1 truncate">
+                        Rp {formatRupiah(finances.argoTotal)}
+                      </p>
+                    </div>
+                    <span className={cn("text-[8px] font-bold mt-1.5 block", finances.argoGrowth >= 0 ? "text-success" : "text-destructive")}>
+                      {finances.argoGrowth >= 0 ? "+" : ""}{finances.argoGrowth}% MoM
+                    </span>
+                  </div>
+
+                  <div className="border-l-[3px] border-l-blue-500 border border-y-border border-r-border bg-card shadow-sm p-3 rounded-r-xl rounded-l-sm relative overflow-hidden flex flex-col justify-between min-h-[76px]">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Wajib Setor</p>
+                      <p className="text-[11px] font-extrabold text-foreground mt-1 truncate">
+                        Rp {formatRupiah(finances.companyShare)}
+                      </p>
+                    </div>
+                    <span className={cn("text-[8px] font-bold mt-1.5 block", finances.companyGrowth >= 0 ? "text-success" : "text-destructive")}>
+                      {finances.companyGrowth >= 0 ? "+" : ""}{finances.companyGrowth}% MoM
+                    </span>
+                  </div>
+
+                  <div className="border-l-[3px] border-l-amber-500 border border-y-border border-r-border bg-card shadow-sm p-3 rounded-r-xl rounded-l-sm relative overflow-hidden flex flex-col justify-between min-h-[76px]">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Biaya Servis</p>
+                      <p className="text-[11px] font-extrabold text-foreground mt-1 truncate">
+                        Rp {formatRupiah(serviceStats.currentMonth)}
+                      </p>
+                    </div>
+                    <span className="text-[8px] font-medium text-muted-foreground mt-1.5 block truncate">
+                      {serviceStats.lastMonth > 0 ? `Lalu: Rp ${formatRupiah(serviceStats.lastMonth)}` : "-"}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Hero Card: Pendapatan Bersih Driver */}
+                <Card className="border border-primary/20 bg-gradient-to-br from-primary/8 dark:from-primary/15 via-card to-card shadow-sm p-4 relative overflow-hidden rounded-2xl">
+                  <CardContent className="p-0 space-y-4 relative z-10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+                          <Wallet className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Pendapatan Bersih</p>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">Porsi pendapatan driver (60%)</p>
+                        </div>
+                      </div>
+                      <Badge className={cn("text-[10px] font-semibold px-2 py-0.5", finances.driverGrowth >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+                        {finances.driverGrowth >= 0 ? "+" : ""}{finances.driverGrowth}% MoM
+                      </Badge>
+                    </div>
+                    <div className="flex items-baseline mt-2">
+                      <span className="text-sm font-semibold text-muted-foreground mr-1.5">Rp</span>
+                      <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                        {formatRupiah(finances.driverShare)}
+                      </span>
+                    </div>
+                  </CardContent>
+                  <Wallet className="absolute -right-3 -bottom-3 h-24 w-24 text-primary/5 dark:text-primary/10 stroke-[1] pointer-events-none" />
+                </Card>
+
+                {/* Sub-metrics row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border-l-[3px] border-l-primary border border-y-border border-r-border bg-card shadow-sm p-3 rounded-r-xl rounded-l-sm relative overflow-hidden flex flex-col justify-between min-h-[76px]">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Total Argo</p>
+                      <p className="text-xs font-extrabold text-foreground mt-1 truncate">
+                        Rp {formatRupiah(finances.argoTotal)}
+                      </p>
+                    </div>
+                    <span className={cn("text-[8px] font-bold mt-1.5 block", finances.argoGrowth >= 0 ? "text-success" : "text-destructive")}>
+                      {finances.argoGrowth >= 0 ? "+" : ""}{finances.argoGrowth}% MoM
+                    </span>
+                  </div>
+
+                  <div className="border-l-[3px] border-l-indigo-500 border border-y-border border-r-border bg-card shadow-sm p-3 rounded-r-xl rounded-l-sm relative overflow-hidden flex flex-col justify-between min-h-[76px]">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Volume Trip</p>
+                      <p className="text-xs font-extrabold text-foreground mt-1">
+                        {data.monthlyCount} Trip
+                      </p>
+                    </div>
+                    <span className="text-[8px] font-medium text-muted-foreground mt-1.5 block">
+                      Bulan berjalan
+                    </span>
+                  </div>
+                </div>
               </>
             )}
-          </section>
+          </div>
 
           {/* Navigation Tabs */}
           <div className="flex gap-1.5 bg-secondary/35 p-1 rounded-xl border border-border/80">
@@ -410,8 +465,8 @@ export default function AnalysisPage() {
                 {/* Highlights */}
                 <div className="grid grid-cols-2 gap-3">
                   {bestMonth && bestMonth.totalFare > 0 && (
-                    <Card className="border-success/20 bg-success/5 dark:bg-success/10 shadow-sm">
-                      <CardContent className="p-3.5 flex items-start gap-2.5">
+                    <Card className="border-success/20 bg-success/5 dark:bg-success/10 shadow-sm relative overflow-hidden">
+                      <CardContent className="p-3.5 flex items-start gap-2.5 relative z-10">
                         <div className="p-1.5 rounded-lg bg-success/15 shrink-0 mt-0.5">
                           <ArrowUpRight className="h-4 w-4 text-success" />
                         </div>
@@ -421,11 +476,12 @@ export default function AnalysisPage() {
                           <p className="text-sm font-extrabold text-success mt-0.5">Rp {formatRupiah(bestMonth.totalFare)}</p>
                         </div>
                       </CardContent>
+                      <ArrowUpRight className="absolute -right-3 -bottom-3 h-16 w-16 text-success/5 dark:text-success/10 stroke-[1.5] pointer-events-none" />
                     </Card>
                   )}
                   {worstMonth && worstMonth.totalFare > 0 && (
-                    <Card className="border-destructive/20 bg-destructive/5 dark:bg-destructive/10 shadow-sm">
-                      <CardContent className="p-3.5 flex items-start gap-2.5">
+                    <Card className="border-destructive/20 bg-destructive/5 dark:bg-destructive/10 shadow-sm relative overflow-hidden">
+                      <CardContent className="p-3.5 flex items-start gap-2.5 relative z-10">
                         <div className="p-1.5 rounded-lg bg-destructive/15 shrink-0 mt-0.5">
                           <ArrowDownRight className="h-4 w-4 text-destructive" />
                         </div>
@@ -435,6 +491,7 @@ export default function AnalysisPage() {
                           <p className="text-sm font-extrabold text-destructive mt-0.5">Rp {formatRupiah(worstMonth.totalFare)}</p>
                         </div>
                       </CardContent>
+                      <ArrowDownRight className="absolute -right-3 -bottom-3 h-16 w-16 text-destructive/5 dark:text-destructive/10 stroke-[1.5] pointer-events-none" />
                     </Card>
                   )}
                 </div>
