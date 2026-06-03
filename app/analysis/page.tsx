@@ -244,6 +244,23 @@ export default function AnalysisPage() {
     return [...list].sort((a, b) => a.totalFare - b.totalFare)[0]
   }, [completedMonthsData])
 
+  const tabs = useMemo(() => {
+    const list = [
+      { id: "trends", label: "Perkembangan" },
+      { id: "shares", label: "Keuntungan" },
+      { id: "orders", label: "Tipe Order" },
+    ]
+    if (isAdmin) {
+      list.push({ id: "admin", label: "Ops & Driver" })
+    }
+    return list
+  }, [isAdmin])
+
+  const activeIndex = useMemo(() => {
+    const idx = tabs.findIndex(t => t.id === activeTab)
+    return idx >= 0 ? idx : 0
+  }, [tabs, activeTab])
+
   const handleRefresh = async () => {
     await fetchData()
   }
@@ -415,45 +432,30 @@ export default function AnalysisPage() {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex gap-1.5 bg-secondary/35 p-1 rounded-xl border border-border/80">
-            <button
-              onClick={() => setActiveTab("trends")}
-              className={cn(
-                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
-                activeTab === "trends" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Perkembangan
-            </button>
-            <button
-              onClick={() => setActiveTab("shares")}
-              className={cn(
-                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
-                activeTab === "shares" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Keuntungan
-            </button>
-            <button
-              onClick={() => setActiveTab("orders")}
-              className={cn(
-                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
-                activeTab === "orders" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Tipe Order
-            </button>
-            {isAdmin && (
+          <div className="relative flex gap-1 bg-secondary/40 dark:bg-secondary/25 p-1 rounded-xl border border-border/80 overflow-hidden">
+            {/* Sliding Active Tab Background */}
+            <div
+              className="absolute top-1 bottom-1 bg-card dark:bg-muted/85 shadow-sm rounded-lg transition-all duration-300 ease-out pointer-events-none"
+              style={{
+                left: `calc(${activeIndex} * ${100 / tabs.length}% + 4px)`,
+                width: `calc(${100 / tabs.length}% - 8px)`,
+              }}
+            />
+            
+            {tabs.map((tab) => (
               <button
-                onClick={() => setActiveTab("admin")}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
                 className={cn(
-                  "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
-                  activeTab === "admin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  "relative z-10 flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-200 outline-none",
+                  activeTab === tab.id
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/35 dark:hover:bg-white/5"
                 )}
               >
-                Ops & Driver
+                {tab.label}
               </button>
-            )}
+            ))}
           </div>
 
           {/* Tab Contents */}
