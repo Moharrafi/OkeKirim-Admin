@@ -12,8 +12,9 @@ import {
   Cell,
 } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
-import { Trophy, TrendingUp, Medal, Zap } from "lucide-react"
+import { Trophy, TrendingUp, Medal, Zap, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
 interface DashboardChartsProps {
   monthlyChart: Array<{ month: number; total: number }>
@@ -200,7 +201,13 @@ export default function DashboardCharts({
       {monthlyChart && monthlyChart.length > 0 && (
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <h3 className="font-semibold text-foreground mb-4">Pendapatan Bulanan</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-foreground">Pendapatan Bulanan</h3>
+              <Link href="/analysis" className="text-xs font-semibold text-primary flex items-center gap-0.5 hover:underline">
+                Lihat Analisis
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
             <div className="h-48" role="img" aria-label="Grafik pendapatan bulanan">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart

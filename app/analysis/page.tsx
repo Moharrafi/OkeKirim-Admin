@@ -1,0 +1,663 @@
+"use client"
+
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useRouter } from "next/navigation"
+import { MobileHeader } from "@/components/mobile-header"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import {
+  TrendingUp,
+  Wallet,
+  Wrench,
+  Smartphone,
+  Banknote,
+  Users,
+  Percent,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Info,
+  Calendar,
+  Layers,
+  ChevronRight,
+  Coins,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useUser } from "@/lib/user-context"
+import { PullToRefresh } from "@/components/pull-to-refresh"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from "recharts"
+
+interface DashboardData {
+  monthlyCompanyShare: number
+  monthlyDriverShare: number
+  monthlyFare: number
+  monthlyCount: number
+  lastMonthCompanyShare: number
+  lastMonthDriverShare: number
+  lastMonthFare: number
+  pendingTotal: number
+  pendingCount: number
+  todayTotal: number
+  todayCount: number
+  activeDrivers: number
+  overdueCount: number
+  driverChartMonth?: string
+  recentTransactions: Array<{
+    id: number
+    driver: string
+    origin: string
+    destination: string
+    fare: number
+    companyShare: number
+    status: string
+    orderType: string
+    date: string
+  }>
+  monthlyChart: Array<{ month: number; total: number }>
+  driverIncome: Array<{ driver: string; total: number; trips?: number }>
+  orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
+}
+
+interface ServiceLog {
+  id: number
+  vehicle: string
+  driver: string
+  type: string
+  date: string
+  cost: number
+  status: string
+  hasReceipt: number
+}
+
+function formatRupiah(amount: number): string {
+  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+}
+
+export default function AnalysisPage() {
+  const router = useRouter()
+  const { isAdmin, user, isAuthenticated } = useUser()
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [services, setServices] = useState<ServiceLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<"trends" | "shares" | "orders" | "admin">("trends")
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login")
+    }
+  }, [isAuthenticated, router])
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (!isAdmin && user.name) {
+        params.set("driver", user.name)
+      }
+
+      // Fetch dashboard data
+      const dashRes = await fetch(`/api/dashboard?${params.toString()}`)
+      const dashData = await dashRes.json()
+      setData(dashData)
+
+      // Fetch service logs if admin (for laba bersih calculations)
+      if (isAdmin) {
+        const servRes = await fetch("/api/services")
+        const servData = await servRes.json()
+        setServices(servData.services || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch analysis data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }, [isAdmin, user.name])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData()
+    }
+  }, [fetchData, isAuthenticated])
+
+  // Total service cost calculation (current month vs last month)
+  const serviceStats = useMemo(() => {
+    if (!isAdmin || services.length === 0) return { currentMonth: 0, lastMonth: 0 }
+    
+    const now = new Date()
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`
+
+    let currentMonthTotal = 0
+    let lastMonthTotal = 0
+
+    services.forEach(s => {
+      if (!s.date) return
+      if (s.date.startsWith(currentMonthStr)) {
+        currentMonthTotal += Number(s.cost || 0)
+      } else if (s.date.startsWith(lastMonthStr)) {
+        lastMonthTotal += Number(s.cost || 0)
+      }
+    })
+
+    return {
+      currentMonth: currentMonthTotal,
+      lastMonth: lastMonthTotal
+    }
+  }, [isAdmin, services])
+
+  // Financial calculations
+  const finances = useMemo(() => {
+    if (!data) return null
+
+    const companyShare = data.monthlyCompanyShare || 0
+    const driverShare = data.monthlyDriverShare || 0
+    const argoTotal = data.monthlyFare || 0
+    
+    const prevCompanyShare = data.lastMonthCompanyShare || 0
+    const prevDriverShare = data.lastMonthDriverShare || 0
+    const prevArgoTotal = data.lastMonthFare || 0
+
+    // Admin profit = Company Share - Service Costs
+    const netProfit = companyShare - (isAdmin ? serviceStats.currentMonth : 0)
+    const prevNetProfit = prevCompanyShare - (isAdmin ? serviceStats.lastMonth : 0)
+
+    // Growth percentages
+    const calcGrowth = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? 100 : 0
+      return Math.round(((curr - prev) / prev) * 100)
+    }
+
+    return {
+      companyShare,
+      driverShare,
+      argoTotal,
+      netProfit,
+      prevCompanyShare,
+      prevDriverShare,
+      prevArgoTotal,
+      prevNetProfit,
+      companyGrowth: calcGrowth(companyShare, prevCompanyShare),
+      driverGrowth: calcGrowth(driverShare, prevDriverShare),
+      argoGrowth: calcGrowth(argoTotal, prevArgoTotal),
+      netProfitGrowth: calcGrowth(netProfit, prevNetProfit)
+    }
+  }, [data, isAdmin, serviceStats])
+
+  const handleRefresh = async () => {
+    await fetchData()
+  }
+
+  if (!isAuthenticated || !data || !finances) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MobileHeader title="Analisis Performa" showBack onBack={() => router.push("/")} />
+        <div className="flex flex-col items-center justify-center py-24">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-3" />
+          <p className="text-sm text-muted-foreground">Memuat data analisis...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Monthly trends chart data
+  const monthlyChartData = data.monthlyChart.map(d => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+    const monthName = monthNames[d.month - 1]
+    
+    // Grouped data estimates
+    const companyShareVal = d.total
+    const driverShareVal = Math.round(d.total * 1.5) // Since company share is 40%, driver share is 60%
+    const totalFareVal = companyShareVal + driverShareVal
+
+    return {
+      month: monthName,
+      "Bagi Hasil": companyShareVal / 1000000,
+      "Pendapatan Driver": driverShareVal / 1000000,
+      "Total Argo": totalFareVal / 1000000,
+    }
+  })
+
+  // Order breakdown chart data
+  const orderTypeData = data.orderTypeBreakdown.map((ot, idx) => ({
+    name: ot.type,
+    value: ot.total,
+    count: ot.count,
+    color: idx === 0 ? "var(--primary)" : "oklch(0.65 0.18 85)",
+  }))
+
+  const totalOrderTypeFare = orderTypeData.reduce((s, x) => s + x.value, 0)
+
+  return (
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="min-h-screen pb-28">
+        <MobileHeader title="Analisis Performa" showBack onBack={() => router.push("/")} />
+
+        <main className="px-4 py-4 space-y-4">
+          
+          {/* Main Financial Summary Cards */}
+          <section className="grid grid-cols-2 gap-3">
+            <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-primary/10">
+                    <Coins className="h-4 w-4 text-primary" />
+                  </div>
+                  <Badge className={cn("text-[9px] px-1.5 py-0", finances.argoGrowth >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                    {finances.argoGrowth >= 0 ? "+" : ""}{finances.argoGrowth}% MoM
+                  </Badge>
+                </div>
+                <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
+                  Rp {formatRupiah(finances.argoTotal)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Total Argo Bulan Ini</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-blue-500/10">
+                    <Wallet className="h-4 w-4 text-blue-500" />
+                  </div>
+                  <Badge className={cn("text-[9px] px-1.5 py-0", finances.companyGrowth >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                    {finances.companyGrowth >= 0 ? "+" : ""}{finances.companyGrowth}% MoM
+                  </Badge>
+                </div>
+                <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
+                  Rp {formatRupiah(isAdmin ? finances.companyShare : finances.driverShare)}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isAdmin ? "Wajib Setor (40%)" : "Pendapatan Bersih (60%)"}
+                </p>
+              </CardContent>
+            </Card>
+
+            {isAdmin && (
+              <>
+                <Card className="border-border bg-card shadow-sm p-4 relative overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between">
+                      <div className="p-2 rounded-xl bg-amber-500/10">
+                        <Wrench className="h-4 w-4 text-amber-500" />
+                      </div>
+                      {serviceStats.lastMonth > 0 && (
+                        <span className="text-[9px] text-muted-foreground">
+                          Lalu: Rp {formatRupiah(serviceStats.lastMonth)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
+                      Rp {formatRupiah(serviceStats.currentMonth)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Biaya Service Bulan Ini</p>
+                  </CardContent>
+                </Card>
+
+                <Card className={cn(
+                  "border shadow-sm p-4 relative overflow-hidden",
+                  finances.netProfit >= 0 ? "border-success/20 bg-success/5 dark:bg-success/10" : "border-destructive/20 bg-destructive/5 dark:bg-destructive/10"
+                )}>
+                  <CardContent className="p-0">
+                    <div className="flex items-center justify-between">
+                      <div className={cn("p-2 rounded-xl", finances.netProfit >= 0 ? "bg-success/10" : "bg-destructive/10")}>
+                        <TrendingUp className={cn("h-4 w-4", finances.netProfit >= 0 ? "text-success" : "text-destructive")} />
+                      </div>
+                      <Badge className={cn("text-[9px] px-1.5 py-0", finances.netProfitGrowth >= 0 ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+                        {finances.netProfitGrowth >= 0 ? "+" : ""}{finances.netProfitGrowth}% MoM
+                      </Badge>
+                    </div>
+                    <p className="text-lg font-bold text-foreground mt-3 tracking-tight">
+                      Rp {formatRupiah(finances.netProfit)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Laba Bersih Perusahaan</p>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </section>
+
+          {/* Navigation Tabs */}
+          <div className="flex gap-1.5 bg-secondary/35 p-1 rounded-xl border border-border/80">
+            <button
+              onClick={() => setActiveTab("trends")}
+              className={cn(
+                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
+                activeTab === "trends" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Perkembangan
+            </button>
+            <button
+              onClick={() => setActiveTab("shares")}
+              className={cn(
+                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
+                activeTab === "shares" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Keuntungan
+            </button>
+            <button
+              onClick={() => setActiveTab("orders")}
+              className={cn(
+                "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
+                activeTab === "orders" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Tipe Order
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab("admin")}
+                className={cn(
+                  "flex-1 py-2 text-xs font-semibold rounded-lg transition-all",
+                  activeTab === "admin" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Ops & Driver
+              </button>
+            )}
+          </div>
+
+          {/* Tab Contents */}
+          <section className="space-y-4">
+            
+            {/* Trends Tab */}
+            {activeTab === "trends" && (
+              <Card className="border-border bg-card">
+                <CardContent className="p-4 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Tren Pendapatan Bulanan</h4>
+                    <p className="text-[11px] text-muted-foreground">Progresi pembagian hasil bulanan dalam Juta Rupiah</p>
+                  </div>
+
+                  <div className="h-60 w-full" role="img" aria-label="Grafik tren bulanan">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="colorBagiHasil" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorDriver" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                          formatter={(value: number) => [`Rp ${value.toFixed(1)} Jt`, '']}
+                        />
+                        <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                        <Area type="monotone" dataKey="Bagi Hasil" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorBagiHasil)" />
+                        <Area type="monotone" dataKey="Pendapatan Driver" stroke="oklch(0.65 0.18 85)" strokeWidth={2} fillOpacity={1} fill="url(#colorDriver)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-secondary/20 p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                      <Info className="h-4 w-4 text-primary" />
+                      <span>Analisis Pertumbuhan Bulanan</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Total argo Anda bulan ini adalah <b>Rp {formatRupiah(finances.argoTotal)}</b>, mengalami 
+                      {finances.argoGrowth >= 0 ? (
+                        <span className="text-success font-semibold"> kenaikan sebanyak {finances.argoGrowth}% </span>
+                      ) : (
+                        <span className="text-destructive font-semibold"> penurunan sebanyak {Math.abs(finances.argoGrowth)}% </span>
+                      )} 
+                      dibandingkan bulan lalu (Rp {formatRupiah(finances.prevArgoTotal)}).
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Shares Tab */}
+            {activeTab === "shares" && (
+              <Card className="border-border bg-card">
+                <CardContent className="p-4 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Analisis Profitabilitas & Kontribusi</h4>
+                    <p className="text-[11px] text-muted-foreground">Pembagian keuntungan dari argo (40% Perusahaan / 60% Driver)</p>
+                  </div>
+
+                  {/* Progress bars illustrating the division of share */}
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-foreground">Bagian Perusahaan (40%)</span>
+                        <span className="font-bold text-primary">Rp {formatRupiah(finances.companyShare)}</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-secondary overflow-hidden">
+                        <div className="h-full rounded-full bg-primary" style={{ width: "40%" }} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-semibold text-foreground">Bagian Driver (60%)</span>
+                        <span className="font-bold text-success">Rp {formatRupiah(finances.driverShare)}</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-secondary overflow-hidden">
+                        <div className="h-full rounded-full bg-emerald-500" style={{ width: "60%" }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div className="rounded-xl border border-border bg-secondary/15 p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Rata-rata Margin</p>
+                      <p className="text-lg font-extrabold text-foreground mt-1">40.0%</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Wajib Setor Tetap</p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-secondary/15 p-3 text-center">
+                      <p className="text-xs text-muted-foreground">Estimasi Driver Take-home</p>
+                      <p className="text-lg font-extrabold text-foreground mt-1">60.0%</p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5">Pendapatan Driver</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Orders Tab */}
+            {activeTab === "orders" && (
+              <Card className="border-border bg-card">
+                <CardContent className="p-4 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Pembagian Tipe Order</h4>
+                    <p className="text-[11px] text-muted-foreground">Perbandingan transaksi dari Order Online vs Offline</p>
+                  </div>
+
+                  {totalOrderTypeFare > 0 ? (
+                    <div className="flex items-center justify-between gap-6 py-2">
+                      <div className="h-36 w-36 shrink-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={orderTypeData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={30}
+                              outerRadius={50}
+                              paddingAngle={4}
+                              dataKey="value"
+                            >
+                              {orderTypeData.map((entry, idx) => (
+                                <Cell key={idx} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                              formatter={(value: number) => [`Rp ${formatRupiah(value)}`, '']}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      <div className="flex-1 space-y-3">
+                        {orderTypeData.map((ot) => {
+                          const percentage = totalOrderTypeFare > 0 ? Math.round((ot.value / totalOrderTypeFare) * 100) : 0
+                          return (
+                            <div key={ot.name} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: ot.color }} />
+                                  <span className="font-semibold text-foreground">{ot.name}</span>
+                                </div>
+                                <span className="font-bold text-foreground">{percentage}%</span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground pl-4">
+                                Rp {formatRupiah(ot.value)} • {ot.count} trip
+                              </p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-xs text-muted-foreground">
+                      Tidak ada data tipe order untuk periode ini
+                    </div>
+                  )}
+
+                  <div className="border-t border-border pt-4 grid grid-cols-2 gap-4">
+                    {orderTypeData.map((ot) => {
+                      const avgFare = ot.count > 0 ? Math.round(ot.value / ot.count) : 0
+                      return (
+                        <div key={ot.name} className="space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground">{ot.name} Avg. Argo / Trip</p>
+                          <p className="text-sm font-bold text-foreground">Rp {formatRupiah(avgFare)}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Admin Leaderboard & Service Tab */}
+            {activeTab === "admin" && isAdmin && (
+              <div className="space-y-4">
+                
+                {/* Driver Rankings Leaderboard */}
+                <Card className="border-border bg-card">
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Peringkat Kontribusi Setoran Driver</h4>
+                      <p className="text-[11px] text-muted-foreground">Supir dengan setoran wajib terbesar bulan ini</p>
+                    </div>
+
+                    <div className="divide-y divide-border">
+                      {data.driverIncome && data.driverIncome.length > 0 ? (
+                        data.driverIncome.map((driver, index) => {
+                          const driverTotal = driver.total || 0
+                          const driverTrips = driver.trips || 0
+                          const rankColor = index === 0 ? "text-amber-500" : index === 1 ? "text-gray-400" : index === 2 ? "text-amber-700" : "text-muted-foreground"
+                          
+                          return (
+                            <div key={driver.driver} className="flex items-center justify-between py-2.5 gap-3">
+                              <div className="flex items-center gap-3">
+                                <span className={cn("text-xs font-bold w-4 text-center", rankColor)}>
+                                  {index + 1}
+                                </span>
+                                <div>
+                                  <p className="text-xs font-semibold text-foreground">{driver.driver}</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">{driverTrips} trip selesai</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-bold text-foreground">Rp {formatRupiah(driverTotal)}</p>
+                                <p className="text-[9px] text-muted-foreground mt-0.5">Setoran (40%)</p>
+                              </div>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="p-4 text-center text-xs text-muted-foreground">Belum ada data kontribusi supir</div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Service Logs summary */}
+                <Card className="border-border bg-card">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground">Log Pengeluaran Servis Kendaraan</h4>
+                        <p className="text-[11px] text-muted-foreground">Histori biaya perawatan kendaraan operasional</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-primary flex items-center gap-0.5 px-2"
+                        onClick={() => router.push("/service")}
+                      >
+                        Detail
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    <div className="divide-y divide-border">
+                      {services && services.length > 0 ? (
+                        services.slice(0, 4).map((s) => {
+                          const dateObj = new Date(s.date)
+                          const formattedDate = !Number.isNaN(dateObj.getTime())
+                            ? dateObj.toLocaleDateString("id-ID", { day: "numeric", month: "short" })
+                            : s.date
+                          return (
+                            <div key={s.id} className="flex items-center justify-between py-2.5">
+                              <div>
+                                <p className="text-xs font-semibold text-foreground">{s.vehicle}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {s.driver} • {s.type} • {formattedDate}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-bold text-destructive">Rp {formatRupiah(s.cost)}</p>
+                                <Badge className={cn(
+                                  "text-[8px] px-1 py-0 mt-0.5",
+                                  s.status === "selesai" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                                )}>
+                                  {s.status}
+                                </Badge>
+                              </div>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="p-4 text-center text-xs text-muted-foreground">Belum ada pengeluaran servis</div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+              </div>
+            )}
+          </section>
+
+        </main>
+      </div>
+    </PullToRefresh>
+  )
+}
