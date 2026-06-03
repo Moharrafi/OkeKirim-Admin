@@ -96,7 +96,7 @@ export async function notifyDepositPayment(driverName: string, amount: number, o
     title,
     body,
     type: "deposit_payment",
-    data: { driver: driverName, amount: String(amount), url: "/deposit" },
+    data: { driver: driverName, amount: String(amount), url: "/history" },
   })
 }
 
@@ -113,6 +113,6 @@ export async function notifyNewOrder(driverName: string, origin: string, destina
     title,
     body,
     type: "new_order",
-    data: { driver: driverName, url: "/deposit" },
+    data: { driver: driverName, url: "/deposit?tab=setoran" },
   })
 }

@@ -43,10 +43,17 @@ function dedupeNotifications(items: OverdueOrder[]) {
 }
 
 function mapDbNotification(n: any): OverdueOrder {
-  let data: Record<string, any> = {}
+  let data: Record<string, string> = {}
   try {
-    data = typeof n.data === "string" ? JSON.parse(n.data || "{}") : (n.data || {})
+    data = typeof n.data === "string" ? JSON.parse(n.data) : n.data || {}
   } catch {}
+
+  let url = data.url || "/deposit"
+  if (n.type === "new_order" && url === "/deposit") {
+    url = "/deposit?tab=setoran"
+  } else if (n.type === "deposit_payment" && url === "/deposit") {
+    url = "/history"
+  }
 
   return {
     id: n.id,
@@ -56,7 +63,7 @@ function mapDbNotification(n: any): OverdueOrder {
     notifBody: n.body,
     notifType: n.type,
     isRead: n.is_read === 1,
-    url: data.url || "/deposit",
+    url: url,
   }
 }
 
