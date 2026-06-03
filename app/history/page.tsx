@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -163,30 +163,105 @@ export default function HistoryPage() {
   }, [fetchTransactions, filterDateFrom, filterDateTo])
 
   const transactions = apiTransactions
-  const activeDrivers = apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
+  const activeDrivers = useMemo(() => {
+    return apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
+  }, [apiDrivers])
 
-  const filteredTransactions = transactions.filter((tx) => {
-    const matchesSearch = isDriver
-      ? tx.route.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        tx.id.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      : tx.driver.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        tx.id.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-    const matchesFilter = activeFilter === "all" || tx.status === activeFilter
-    return matchesSearch && matchesFilter
-  })
+  const filteredTransactions = useMemo(() => {
+    const query = debouncedSearchQuery.toLowerCase().trim()
+    return transactions.filter((tx) => {
+      const matchesSearch = isDriver
+        ? tx.route.toLowerCase().includes(query) ||
+          tx.id.toLowerCase().includes(query)
+        : tx.driver.toLowerCase().includes(query) ||
+          tx.id.toLowerCase().includes(query)
+      const matchesFilter = activeFilter === "all" || tx.status === activeFilter
+      return matchesSearch && matchesFilter
+    })
+  }, [transactions, isDriver, debouncedSearchQuery, activeFilter])
 
-  const totalAmount = transactions
-    .filter((tx) => tx.status === "success")
-    .reduce((sum, tx) => sum + tx.amount, 0)
+  const totalAmount = useMemo(() => {
+    return transactions
+      .filter((tx) => tx.status === "success")
+      .reduce((sum, tx) => sum + tx.amount, 0)
+  }, [transactions])
 
-  const groupedTransactions = filteredTransactions.reduce((groups, tx) => {
-    const date = tx.date
-    if (!groups[date]) {
-      groups[date] = []
-    }
-    groups[date].push(tx)
-    return groups
-  }, {} as Record<string, typeof transactions>)
+  const groupedTransactions = useMemo(() => {
+    return filteredTransactions.reduce((groups, tx) => {
+      const date = tx.date
+      if (!groups[date]) {
+        groups[date] = []
+      }
+      groups[date].push(tx)
+      return groups
+    }, {} as Record<string, typeof transactions>)
+  }, [filteredTransactions])
+
+  const renderedList = useMemo(() => {
+    return (
+      <>
+        {Object.entries(groupedTransactions).map(([date, txs]) => (
+          <div key={date}>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              {date}
+            </p>
+            <Card className="border-border bg-card">
+              <CardContent className="p-0 divide-y divide-border">
+                {txs.map((tx) => {
+                  const statusConfig = getStatusConfig(tx.status, isDriver)
+                  return (
+                    <button
+                      key={tx.id}
+                      onClick={() => setSelectedTx(tx)}
+                      className="w-full flex items-center justify-between p-3 text-left active:bg-secondary/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "p-2.5 rounded-xl",
+                          tx.type === "online" ? "bg-primary/10" : "bg-chart-3/10"
+                        )}>
+                          {tx.type === "online" ? (
+                            <Smartphone className="h-4 w-4 text-primary" />
+                          ) : (
+                            <Banknote className="h-4 w-4 text-chart-3" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground text-sm">
+                            {tx.driver}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            {tx.route}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {tx.method} • {tx.time}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          <p className={cn(
+                            "font-semibold text-sm",
+                            tx.status === "success" ? "text-foreground" : "text-muted-foreground"
+                          )}>
+                            {tx.status === "failed" ? "-" : isDriver ? "" : "+"}Rp {tx.amount.toLocaleString("id-ID")}
+                          </p>
+                          <Badge className={cn("text-[10px] px-1.5 py-0", statusConfig.color)}>
+                            {statusConfig.label}
+                          </Badge>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </button>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        ))}
+      </>
+    )
+  }, [groupedTransactions, isDriver])
 
   if (!isAuthenticated) {
     return null
@@ -307,66 +382,7 @@ export default function HistoryPage() {
           </div>
         ) : (
         <div className="space-y-4">
-          {Object.entries(groupedTransactions).map(([date, txs]) => (
-            <div key={date}>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                {date}
-              </p>
-              <Card className="border-border bg-card">
-                <CardContent className="p-0 divide-y divide-border">
-                  {txs.map((tx) => {
-                    const statusConfig = getStatusConfig(tx.status, isDriver)
-                    return (
-                      <button
-                        key={tx.id}
-                        onClick={() => setSelectedTx(tx)}
-                        className="w-full flex items-center justify-between p-3 text-left active:bg-secondary/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "p-2.5 rounded-xl",
-                            tx.type === "online" ? "bg-primary/10" : "bg-chart-3/10"
-                          )}>
-                            {tx.type === "online" ? (
-                              <Smartphone className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Banknote className="h-4 w-4 text-chart-3" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-foreground text-sm">
-                              {tx.driver}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[180px]">
-                              {tx.route}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {tx.method} • {tx.time}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right flex items-center gap-2">
-                          <div>
-                            <p className={cn(
-                              "font-semibold text-sm",
-                              tx.status === "success" ? "text-foreground" : "text-muted-foreground"
-                            )}>
-                              {tx.status === "failed" ? "-" : isDriver ? "" : "+"}Rp {tx.amount.toLocaleString("id-ID")}
-                            </p>
-                            <Badge className={cn("text-[10px] px-1.5 py-0", statusConfig.color)}>
-                              {statusConfig.label}
-                            </Badge>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </button>
-                    )
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-          ))}
-
+          {renderedList}
         </div>
         )}
       </div>
@@ -374,11 +390,11 @@ export default function HistoryPage() {
       {/* Transaction Detail Sheet */}
       {selectedTx && (
         <div 
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] animate-fade-in"
           onClick={() => setSelectedTx(null)}
         >
           <div 
-            className="fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            className="fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl max-h-[85vh] overflow-y-auto will-change-transform"
             style={{ animation: "slideUpSheet 300ms cubic-bezier(0.32, 0.72, 0, 1) forwards" }}
             onClick={(e) => e.stopPropagation()}
           >

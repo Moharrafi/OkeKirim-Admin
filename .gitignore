@@ -9,6 +9,9 @@ __v0_jsx-dev-runtime.ts
 # Environment variables
 .env*.local
 
+# Kiro MCP config (contains API keys)
+.kiro/settings/mcp.json
+
 # Common ignores
 node_modules
 .next/
