@@ -89,6 +89,16 @@ export async function GET(request: NextRequest) {
               priority: "high",
               notification: { sound: "default", channelId: "deposit_reminder" },
             },
+            apns: {
+              headers: {
+                "apns-priority": "10",
+              },
+              payload: {
+                aps: {
+                  sound: "default",
+                },
+              },
+            },
           })
           sentCount++
         } catch (err) {
