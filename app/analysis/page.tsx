@@ -67,7 +67,7 @@ interface DashboardData {
     orderType: string
     date: string
   }>
-  monthlyChart: Array<{ month: number; total: number }>
+  monthlyChart: Array<{ month: number; total: number; totalFare?: number; tripCount?: number }>
   driverIncome: Array<{ driver: string; total: number; trips?: number }>
   orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
 }
@@ -216,22 +216,42 @@ export default function AnalysisPage() {
   }
 
   // Monthly trends chart data
-  const monthlyChartData = data.monthlyChart.map(d => {
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
-    const monthName = monthNames[d.month - 1]
-    
-    // Grouped data estimates
-    const companyShareVal = d.total
-    const driverShareVal = Math.round(d.total * 1.5) // Since company share is 40%, driver share is 60%
-    const totalFareVal = companyShareVal + driverShareVal
+  const monthlyChartData = useMemo(() => {
+    return data.monthlyChart.map(d => {
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
+      const monthName = monthNames[d.month - 1]
+      
+      const companyShareVal = d.total || 0
+      const totalFareVal = d.totalFare || (companyShareVal * 2.5)
+      const driverShareVal = totalFareVal - companyShareVal
+      const tripCountVal = d.tripCount || 0
+      const avgFareVal = tripCountVal > 0 ? Math.round(totalFareVal / tripCountVal) : 0
 
-    return {
-      month: monthName,
-      "Bagi Hasil": companyShareVal / 1000000,
-      "Pendapatan Driver": driverShareVal / 1000000,
-      "Total Argo": totalFareVal / 1000000,
-    }
-  })
+      return {
+        month: monthName,
+        companyShare: companyShareVal,
+        driverShare: driverShareVal,
+        totalFare: totalFareVal,
+        tripCount: tripCountVal,
+        avgFare: avgFareVal,
+        "Bagi Hasil": companyShareVal / 1000000,
+        "Pendapatan Driver": driverShareVal / 1000000,
+        "Total Argo": totalFareVal / 1000000,
+      }
+    })
+  }, [data.monthlyChart])
+
+  const bestMonth = useMemo(() => {
+    if (monthlyChartData.length === 0) return null
+    return [...monthlyChartData].sort((a, b) => b.totalFare - a.totalFare)[0]
+  }, [monthlyChartData])
+
+  const worstMonth = useMemo(() => {
+    if (monthlyChartData.length === 0) return null
+    const positiveMonths = monthlyChartData.filter(d => d.totalFare > 0)
+    const list = positiveMonths.length > 0 ? positiveMonths : monthlyChartData
+    return [...list].sort((a, b) => a.totalFare - b.totalFare)[0]
+  }, [monthlyChartData])
 
   // Order breakdown chart data
   const orderTypeData = data.orderTypeBreakdown.map((ot, idx) => ({
@@ -379,56 +399,181 @@ export default function AnalysisPage() {
             
             {/* Trends Tab */}
             {activeTab === "trends" && (
-              <Card className="border-border bg-card">
-                <CardContent className="p-4 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-bold text-foreground">Tren Pendapatan Bulanan</h4>
-                    <p className="text-[11px] text-muted-foreground">Progresi pembagian hasil bulanan dalam Juta Rupiah</p>
-                  </div>
+              <div className="space-y-4 animate-fade-in">
+                {/* Highlights */}
+                <div className="grid grid-cols-2 gap-3">
+                  {bestMonth && bestMonth.totalFare > 0 && (
+                    <Card className="border-success/20 bg-success/5 dark:bg-success/10 shadow-sm">
+                      <CardContent className="p-3.5 flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-success/15 shrink-0 mt-0.5">
+                          <ArrowUpRight className="h-4 w-4 text-success" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Bulan Terbaik</p>
+                          <p className="text-xs font-bold text-foreground mt-0.5">{bestMonth.month}</p>
+                          <p className="text-sm font-extrabold text-success mt-0.5">Rp {formatRupiah(bestMonth.totalFare)}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {worstMonth && worstMonth.totalFare > 0 && (
+                    <Card className="border-destructive/20 bg-destructive/5 dark:bg-destructive/10 shadow-sm">
+                      <CardContent className="p-3.5 flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-destructive/15 shrink-0 mt-0.5">
+                          <ArrowDownRight className="h-4 w-4 text-destructive" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Bulan Terendah</p>
+                          <p className="text-xs font-bold text-foreground mt-0.5">{worstMonth.month}</p>
+                          <p className="text-sm font-extrabold text-destructive mt-0.5">Rp {formatRupiah(worstMonth.totalFare)}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
 
-                  <div className="h-60 w-full" role="img" aria-label="Grafik tren bulanan">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
-                        <defs>
-                          <linearGradient id="colorBagiHasil" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-                          </linearGradient>
-                          <linearGradient id="colorDriver" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
-                          formatter={(value: number) => [`Rp ${value.toFixed(1)} Jt`, '']}
-                        />
-                        <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
-                        <Area type="monotone" dataKey="Bagi Hasil" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorBagiHasil)" />
-                        <Area type="monotone" dataKey="Pendapatan Driver" stroke="oklch(0.65 0.18 85)" strokeWidth={2} fillOpacity={1} fill="url(#colorDriver)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="rounded-xl border border-border bg-secondary/20 p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                      <Info className="h-4 w-4 text-primary" />
-                      <span>Analisis Pertumbuhan Bulanan</span>
+                {/* Monthly Earnings Chart */}
+                <Card className="border-border bg-card shadow-sm">
+                  <CardContent className="p-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Tren Pendapatan Bulanan</h4>
+                      <p className="text-[11px] text-muted-foreground">Progresi pembagian hasil bulanan dalam Juta Rupiah</p>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Total argo Anda bulan ini adalah <b>Rp {formatRupiah(finances.argoTotal)}</b>, mengalami 
-                      {finances.argoGrowth >= 0 ? (
-                        <span className="text-success font-semibold"> kenaikan sebanyak {finances.argoGrowth}% </span>
-                      ) : (
-                        <span className="text-destructive font-semibold"> penurunan sebanyak {Math.abs(finances.argoGrowth)}% </span>
-                      )} 
-                      dibandingkan bulan lalu (Rp {formatRupiah(finances.prevArgoTotal)}).
-                    </p>
+
+                    <div className="h-56 w-full" role="img" aria-label="Grafik tren bulanan">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
+                          <defs>
+                            <linearGradient id="colorBagiHasil" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorDriver" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="oklch(0.65 0.18 85)" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                            formatter={(value: number) => [`Rp ${value.toFixed(1)} Jt`, '']}
+                          />
+                          <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                          <Area type="monotone" dataKey="Bagi Hasil" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorBagiHasil)" />
+                          <Area type="monotone" dataKey="Pendapatan Driver" stroke="oklch(0.65 0.18 85)" strokeWidth={2} fillOpacity={1} fill="url(#colorDriver)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Trip Volume Trend */}
+                <Card className="border-border bg-card shadow-sm">
+                  <CardContent className="p-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Tren Volume Trip Bulanan</h4>
+                      <p className="text-[11px] text-muted-foreground">Jumlah orderan yang diselesaikan dari bulan ke bulan</p>
+                    </div>
+
+                    <div className="h-44 w-full" role="img" aria-label="Grafik volume trip bulanan">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
+                          <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                            formatter={(value: number) => [`${value} Trip`, 'Volume']}
+                          />
+                          <Bar dataKey="tripCount" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Average Fare Trend */}
+                <Card className="border-border bg-card shadow-sm">
+                  <CardContent className="p-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Tren Rata-rata Argo per Trip</h4>
+                      <p className="text-[11px] text-muted-foreground">Rata-rata nilai argo yang diperoleh per trip</p>
+                    </div>
+
+                    <div className="h-44 w-full" role="img" aria-label="Grafik argo rata-rata">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
+                          <defs>
+                            <linearGradient id="colorAvgFare" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="oklch(0.7 0.16 120)" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="oklch(0.7 0.16 120)" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `Rp ${formatRupiah(Math.round(v))}`} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                            formatter={(value: number) => [`Rp ${formatRupiah(Math.round(value))}`, 'Rata-rata']}
+                          />
+                          <Area type="monotone" dataKey="avgFare" stroke="oklch(0.7 0.16 120)" strokeWidth={2} fillOpacity={1} fill="url(#colorAvgFare)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Historical Data Table */}
+                <Card className="border-border bg-card shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground">Tabel Data Historis</h4>
+                      <p className="text-[11px] text-muted-foreground">Rincian angka performa riil dari bulan ke bulan</p>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-secondary/40 border-b border-border text-muted-foreground text-[10px] font-semibold uppercase tracking-wider">
+                            <th className="py-2.5 px-3">Bulan</th>
+                            <th className="py-2.5 px-3 text-right">Trip</th>
+                            <th className="py-2.5 px-3 text-right">Total Argo</th>
+                            <th className="py-2.5 px-3 text-right">{isAdmin ? "Bagi Hasil" : "Pendapatan"}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {monthlyChartData.map((row) => (
+                            <tr key={row.month} className="hover:bg-secondary/10 transition-colors">
+                              <td className="py-2 px-3 font-medium text-foreground">{row.month}</td>
+                              <td className="py-2 px-3 text-right text-muted-foreground">{row.tripCount}</td>
+                              <td className="py-2 px-3 text-right text-foreground font-semibold">Rp {formatRupiah(row.totalFare)}</td>
+                              <td className="py-2 px-3 text-right text-primary font-bold">
+                                Rp {formatRupiah(isAdmin ? row.companyShare : row.driverShare)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Analysis Box */}
+                <div className="rounded-xl border border-border bg-secondary/20 p-3.5 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <Info className="h-4 w-4 text-primary" />
+                    <span>Analisis Pertumbuhan Bulanan</span>
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Total argo Anda bulan ini adalah <b>Rp {formatRupiah(finances.argoTotal)}</b>, mengalami 
+                    {finances.argoGrowth >= 0 ? (
+                      <span className="text-success font-semibold"> kenaikan sebanyak {finances.argoGrowth}% </span>
+                    ) : (
+                      <span className="text-destructive font-semibold"> penurunan sebanyak {Math.abs(finances.argoGrowth)}% </span>
+                    )} 
+                    dibandingkan bulan lalu (Rp {formatRupiah(finances.prevArgoTotal)}).
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Shares Tab */}

@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
     ) as any
 
     const [monthlyChart] = await pool.execute(
-      `SELECT MONTH(date) as month, CAST(SUM(companyShare) AS UNSIGNED) as total 
+      `SELECT MONTH(date) as month, 
+              CAST(SUM(companyShare) AS UNSIGNED) as total,
+              CAST(SUM(fare) AS UNSIGNED) as totalFare,
+              COUNT(*) as tripCount
        FROM schedules 
        WHERE YEAR(date) = ?${driverWhere}
        GROUP BY MONTH(date) 
@@ -121,9 +124,11 @@ export async function GET(request: NextRequest) {
       [threeDaysAgoStr, ...driverParam]
     ) as any
 
-    const chartData = (monthlyChart as Array<{ month: number; total: string | number }>).map(r => ({
+    const chartData = (monthlyChart as Array<{ month: number; total: string | number; totalFare: string | number; tripCount: string | number }>).map(r => ({
       month: Number(r.month),
       total: Number(r.total),
+      totalFare: Number(r.totalFare || 0),
+      tripCount: Number(r.tripCount || 0),
     }))
 
     const driverData = (driverIncome as Array<{ driver: string; total: string | number; trips: string | number }>).map(r => ({
