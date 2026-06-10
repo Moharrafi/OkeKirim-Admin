@@ -12,10 +12,23 @@ function addOneMonth(dateString: string) {
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
 }
 
+function parseMonthStart(monthValue: string | null) {
+  if (!monthValue) return null
+
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(monthValue)
+  if (!match) return null
+
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return null
+
+  return `${match[1]}-${match[2]}-01`
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const driverFilter = searchParams.get("driver")
-  const cacheKey = `dashboard_${driverFilter || "all"}`
+  const requestedDriverDepositMonthStart = parseMonthStart(searchParams.get("driverDepositMonth"))
+  const cacheKey = `dashboard_${driverFilter || "all"}_${requestedDriverDepositMonthStart || "auto"}`
 
   // Return cached data if still fresh
   if (cache && cache.key === cacheKey && Date.now() - cache.timestamp < CACHE_TTL) {
@@ -31,6 +44,7 @@ export async function GET(request: NextRequest) {
     const lastMonthStart = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}-01`
 
     const driverWhere = driverFilter ? " AND driver LIKE ?" : ""
+    const scheduleDriverWhere = driverFilter ? " AND s.driver LIKE ?" : ""
     const driverParam = driverFilter ? [`%${driverFilter}%`] : []
 
     const currentDay = now.getDate()
@@ -106,6 +120,22 @@ export async function GET(request: NextRequest) {
       [driverChartMonthStart, driverChartMonthEnd]
     ).then(([rows]: any) => [rows]) as any
 
+    const driverDepositMonthStart = requestedDriverDepositMonthStart || driverChartMonthStart
+    const driverDepositMonthEnd = addOneMonth(driverDepositMonthStart)
+
+    const [driverDepositByMonth] = await pool.execute(
+      `SELECT s.driver,
+              CAST(COALESCE(SUM(s.companyShare), 0) AS UNSIGNED) as total,
+              CAST(COALESCE(SUM(COALESCE(s.paidCompanyAmount, 0)), 0) AS UNSIGNED) as paid,
+              CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.companyShare, 0) AS SIGNED) - CAST(COALESCE(s.paidCompanyAmount, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as remaining,
+              COUNT(*) as trips
+       FROM schedules s
+       WHERE s.date >= ? AND s.date < ?${scheduleDriverWhere}
+       GROUP BY s.driver
+       ORDER BY total DESC, paid DESC`,
+      [driverDepositMonthStart, driverDepositMonthEnd, ...driverParam]
+    ).then(([rows]: any) => [rows]) as any
+
     const [orderTypeBreakdown] = await pool.execute(
       `SELECT orderType, CAST(SUM(fare) AS UNSIGNED) as total, COUNT(*) as count
        FROM schedules 
@@ -137,6 +167,14 @@ export async function GET(request: NextRequest) {
       trips: Number(r.trips || 0),
     }))
 
+    const driverDepositData = (driverDepositByMonth as Array<{ driver: string; total: string | number; paid: string | number; remaining: string | number; trips: string | number }>).map(r => ({
+      driver: String(r.driver).trim(),
+      total: Number(r.total || 0),
+      paid: Number(r.paid || 0),
+      remaining: Number(r.remaining || 0),
+      trips: Number(r.trips || 0),
+    }))
+
     const monthlyCompany = Number((monthlyRows as any[])[0]?.totalCompany || 0)
     const monthlyFare = Number((monthlyRows as any[])[0]?.totalFare || 0)
     const lastMonthCompany = Number((lastMonthRows as any[])[0]?.totalCompany || 0)
@@ -157,9 +195,11 @@ export async function GET(request: NextRequest) {
       activeDrivers: Number((driverRows as any[])[0]?.count || 0),
       overdueCount: Number((overdueRows as any[])[0]?.count || 0),
       driverChartMonth: driverChartMonthStart,
+      driverDepositMonth: driverDepositMonthStart,
       recentTransactions: recentRows,
       monthlyChart: chartData,
       driverIncome: driverData,
+      driverDepositByMonth: driverDepositData,
       orderTypeBreakdown: (orderTypeBreakdown as Array<{ orderType: string; total: string | number; count: string | number }>).map(r => ({
         type: r.orderType === "offline" ? "Offline" : "Online",
         total: Number(r.total),

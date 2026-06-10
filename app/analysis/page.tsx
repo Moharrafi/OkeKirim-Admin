@@ -7,6 +7,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   TrendingUp,
   Wallet,
   Wrench,
@@ -56,6 +63,7 @@ interface DashboardData {
   activeDrivers: number
   overdueCount: number
   driverChartMonth?: string
+  driverDepositMonth?: string
   recentTransactions: Array<{
     id: number
     driver: string
@@ -69,6 +77,7 @@ interface DashboardData {
   }>
   monthlyChart: Array<{ month: number; total: number; totalFare?: number; tripCount?: number }>
   driverIncome: Array<{ driver: string; total: number; trips?: number }>
+  driverDepositByMonth: Array<{ driver: string; total: number; paid: number; remaining: number; trips?: number }>
   orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
 }
 
@@ -87,6 +96,36 @@ function formatRupiah(amount: number): string {
   return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")
 }
 
+const monthLabels = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+]
+
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number)
+  const monthName = monthLabels[month - 1]
+  if (!year || !monthName) return "Bulan dipilih"
+  return `${monthName} ${year}`
+}
+
+function shortenDriverName(name: string) {
+  return name.length > 13 ? `${name.slice(0, 12)}...` : name
+}
+
 export default function AnalysisPage() {
   const router = useRouter()
   const { isAdmin, user, isAuthenticated } = useUser()
@@ -94,6 +133,7 @@ export default function AnalysisPage() {
   const [services, setServices] = useState<ServiceLog[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"trends" | "shares" | "orders" | "admin">("trends")
+  const [selectedDepositMonth, setSelectedDepositMonth] = useState("")
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -101,18 +141,24 @@ export default function AnalysisPage() {
     }
   }, [isAuthenticated, router])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (depositMonth?: string) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (!isAdmin && user.name) {
         params.set("driver", user.name)
       }
+      if (depositMonth) {
+        params.set("driverDepositMonth", depositMonth)
+      }
 
       // Fetch dashboard data
       const dashRes = await fetch(`/api/dashboard?${params.toString()}`)
       const dashData = await dashRes.json()
       setData(dashData)
+      if (!depositMonth && typeof dashData.driverDepositMonth === "string") {
+        setSelectedDepositMonth(dashData.driverDepositMonth.slice(0, 7))
+      }
 
       // Fetch service logs if admin (for laba bersih calculations)
       if (isAdmin) {
@@ -227,6 +273,64 @@ export default function AnalysisPage() {
     })
   }, [data])
 
+  const depositMonthOptions = useMemo(() => {
+    const optionMap = new Map<string, string>()
+    const now = new Date()
+
+    for (let i = 0; i < 12; i++) {
+      const optionDate = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const monthKey = getMonthKey(optionDate)
+      optionMap.set(monthKey, formatMonthLabel(monthKey))
+    }
+
+    monthlyChartData.forEach((row) => {
+      const monthKey = `${now.getFullYear()}-${String(row.monthNum).padStart(2, "0")}`
+      optionMap.set(monthKey, formatMonthLabel(monthKey))
+    })
+
+    if (selectedDepositMonth) {
+      optionMap.set(selectedDepositMonth, formatMonthLabel(selectedDepositMonth))
+    }
+
+    return Array.from(optionMap.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => b.value.localeCompare(a.value))
+  }, [monthlyChartData, selectedDepositMonth])
+
+  const driverDepositRows = useMemo(() => {
+    if (!data) return []
+
+    const rows = data.driverDepositByMonth || data.driverIncome || []
+    return rows.map((row) => {
+      const total = Number(row.total || 0)
+      const paid = "paid" in row ? Number(row.paid || 0) : 0
+      const remaining = "remaining" in row ? Number(row.remaining || 0) : Math.max(total - paid, 0)
+
+      return {
+        driver: row.driver,
+        total,
+        paid,
+        remaining,
+        trips: Number(row.trips || 0),
+      }
+    })
+  }, [data])
+
+  const driverDepositSummary = useMemo(() => {
+    return driverDepositRows.reduce(
+      (summary, row) => ({
+        total: summary.total + row.total,
+        paid: summary.paid + row.paid,
+        remaining: summary.remaining + row.remaining,
+        trips: summary.trips + row.trips,
+      }),
+      { total: 0, paid: 0, remaining: 0, trips: 0 }
+    )
+  }, [driverDepositRows])
+
+  const driverDepositChartHeight = Math.max(220, driverDepositRows.length * 42)
+  const selectedDepositMonthLabel = selectedDepositMonth ? formatMonthLabel(selectedDepositMonth) : "Bulan dipilih"
+
   const completedMonthsData = useMemo(() => {
     const currentMonthNum = new Date().getMonth() + 1
     return monthlyChartData.filter(d => d.monthNum !== currentMonthNum)
@@ -262,7 +366,12 @@ export default function AnalysisPage() {
   }, [tabs, activeTab])
 
   const handleRefresh = async () => {
-    await fetchData()
+    await fetchData(selectedDepositMonth || undefined)
+  }
+
+  const handleDepositMonthChange = async (month: string) => {
+    setSelectedDepositMonth(month)
+    await fetchData(month)
   }
 
   if (!isAuthenticated || !data || !finances) {
@@ -534,27 +643,118 @@ export default function AnalysisPage() {
                   </CardContent>
                 </Card>
 
-                {/* Trip Volume Trend */}
+                {/* Driver Monthly Deposit */}
                 <Card className="border-border bg-card shadow-sm">
                   <CardContent className="p-4 space-y-4">
-                    <div>
-                      <h4 className="text-sm font-bold text-foreground">Tren Volume Trip Bulanan</h4>
-                      <p className="text-[11px] text-muted-foreground">Jumlah orderan yang diselesaikan dari bulan ke bulan</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-foreground">Setoran Driver per Bulan</h4>
+                        <p className="text-[11px] text-muted-foreground">Jumlah setoran tiap driver untuk periode {selectedDepositMonthLabel}</p>
+                      </div>
+
+                      <Select value={selectedDepositMonth} onValueChange={handleDepositMonthChange}>
+                        <SelectTrigger size="sm" className="w-full sm:w-[150px]">
+                          <SelectValue placeholder="Pilih bulan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {depositMonthOptions.map((month) => (
+                            <SelectItem key={month.value} value={month.value}>
+                              {month.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    <div className="h-44 w-full" role="img" aria-label="Grafik volume trip bulanan">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={monthlyChartData} margin={{ top: 5, right: 5, left: -22, bottom: 5 }}>
-                          <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                          <Tooltip
-                            contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
-                            formatter={(value: number) => [`${value} Trip`, 'Volume']}
-                          />
-                          <Bar dataKey="tripCount" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-xl border border-border bg-secondary/15 p-2.5">
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Wajib Setor</p>
+                        <p className="mt-1 break-words text-[11px] font-extrabold leading-tight text-foreground">Rp {formatRupiah(driverDepositSummary.total)}</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-primary/5 p-2.5">
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Masuk</p>
+                        <p className="mt-1 break-words text-[11px] font-extrabold leading-tight text-primary">Rp {formatRupiah(driverDepositSummary.paid)}</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-amber-500/5 p-2.5">
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Sisa</p>
+                        <p className="mt-1 break-words text-[11px] font-extrabold leading-tight text-amber-600">Rp {formatRupiah(driverDepositSummary.remaining)}</p>
+                      </div>
                     </div>
+
+                    {driverDepositRows.length > 0 ? (
+                      <>
+                        <div
+                          className="w-full"
+                          style={{ height: `${driverDepositChartHeight}px` }}
+                          role="img"
+                          aria-label="Grafik setoran driver per bulan"
+                        >
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={driverDepositRows}
+                              layout="vertical"
+                              margin={{ top: 5, right: 8, left: 0, bottom: 5 }}
+                            >
+                              <XAxis
+                                type="number"
+                                tick={{ fontSize: 10 }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(value) => `${Math.round(Number(value) / 1000000)}Jt`}
+                              />
+                              <YAxis
+                                type="category"
+                                dataKey="driver"
+                                width={88}
+                                tick={{ fontSize: 10 }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={shortenDriverName}
+                              />
+                              <Tooltip
+                                contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '11px' }}
+                                formatter={(value: number, name: string) => [`Rp ${formatRupiah(Number(value || 0))}`, name]}
+                              />
+                              <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                              <Bar dataKey="paid" name="Setoran Masuk" stackId="setoran" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                              <Bar dataKey="remaining" name="Sisa Setoran" stackId="setoran" fill="oklch(0.72 0.16 75)" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        <div className="divide-y divide-border rounded-xl border border-border">
+                          {driverDepositRows.map((driver) => {
+                            const completion = driver.total > 0 ? Math.min(Math.round((driver.paid / driver.total) * 100), 100) : 0
+
+                            return (
+                              <div key={driver.driver} className="p-3 space-y-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-semibold text-foreground">{driver.driver}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{driver.trips} trip - {completion}% masuk</p>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <p className="text-xs font-bold text-foreground">Rp {formatRupiah(driver.total)}</p>
+                                    <p className="text-[9px] text-muted-foreground mt-0.5">Wajib setor</p>
+                                  </div>
+                                </div>
+                                <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary" style={{ width: `${completion}%` }} />
+                                </div>
+                                <div className="flex flex-col gap-1 text-[10px] sm:flex-row sm:justify-between">
+                                  <span className="text-primary font-semibold">Masuk Rp {formatRupiah(driver.paid)}</span>
+                                  <span className="text-amber-600 font-semibold">Sisa Rp {formatRupiah(driver.remaining)}</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-8 text-center text-xs text-muted-foreground">
+                        Belum ada data setoran driver untuk {selectedDepositMonthLabel}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
