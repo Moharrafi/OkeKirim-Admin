@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
       imageBase64,
       batchItems,
       sisaSetoran,
-      proofDetectedAmount,
       proofMismatchReason,
     } = body
 
@@ -77,21 +76,20 @@ export async function POST(request: NextRequest) {
       const harusSetor = items.reduce((sum, item) => {
         return sum + Number(item.companyShare ?? Math.round((item.fare || 0) * 0.4))
       }, 0)
+      const sisaBatch = Math.max(harusSetor - Number(amount || 0), 0)
       const types = [...new Set(items.map((item) => item.type === "offline" ? "Offline" : "Online"))]
       const typeStr = types.join(" & ")
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
         ["Jumlah", `${items.length} orderan`],
         ["Harus Disetor", formatRupiah(harusSetor)],
+        ...(sisaBatch > 0 ? [["Sisa", formatRupiah(sisaBatch)] as [string, string]] : []),
         ["Tipe", typeStr],
         ["Tanggal", waktu],
       ]
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
-        infoRows.push(["Sisa Setoran", formatRupiah(sisaSetoran)])
-      }
-      if (proofDetectedAmount) {
-        infoRows.push(["Nominal Bukti", formatRupiah(proofDetectedAmount)])
+        infoRows.push(["Sisa Total Setoran", formatRupiah(sisaSetoran)])
       }
       if (proofMismatchReason) {
         infoRows.push(["Alasan Selisih", String(proofMismatchReason)])
@@ -121,10 +119,7 @@ export async function POST(request: NextRequest) {
       ]
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
-        infoRows.push(["Sisa", formatRupiah(sisaSetoran)])
-      }
-      if (proofDetectedAmount) {
-        infoRows.push(["Nominal Bukti", formatRupiah(proofDetectedAmount)])
+        infoRows.push(["Sisa Total Setoran", formatRupiah(sisaSetoran)])
       }
       if (proofMismatchReason) {
         infoRows.push(["Alasan Selisih", String(proofMismatchReason)])

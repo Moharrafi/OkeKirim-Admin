@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import {
+  createMonthlyDepositRecapPdf,
+  type MonthlyDepositSummary,
+  type MonthlyDriverDepositRow,
+  type MonthlyProfitSummary,
+} from "@/lib/monthly-report-pdf"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
@@ -31,8 +37,11 @@ type ServiceRow = {
 type DriverRow = {
   driver: string
   trips: string | number
+  totalFare: string | number
   totalCompany: string | number
-  sisa: string | number
+  driverShare: string | number
+  paid: string | number
+  remaining: string | number
   nunggakCount: string | number
 }
 
@@ -53,6 +62,17 @@ function getNextMonthStart(year: number, month: number): string {
   return `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
 }
 
+function formatGeneratedAt() {
+  return new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 function resolveReportMonth(body: { month?: number; year?: number }) {
   const now = new Date()
   const requestedMonth = Number(body.month)
@@ -69,10 +89,14 @@ function resolveReportMonth(body: { month?: number; year?: number }) {
 }
 
 function buildDriverList(driverRows: DriverRow[]): string {
+  if (driverRows.length === 0) {
+    return "Belum ada data"
+  }
+
   const maxNameLen = Math.max(...driverRows.map((d) => String(d.driver).trim().length), 6)
 
   return driverRows.map((d) => {
-    const sisa = Number(d.sisa)
+    const sisa = Number(d.remaining)
     const statusIcon = sisa > 0 ? ICON_WARNING : ICON_OK
     const name = escapeHtml(String(d.driver).trim().padEnd(maxNameLen, " "))
     const statusText = sisa > 0
@@ -130,8 +154,11 @@ export async function POST(request: NextRequest) {
     const [driverRows] = await pool.execute(
       `SELECT driver,
               COUNT(*) as trips,
+              COALESCE(SUM(fare), 0) as totalFare,
               COALESCE(SUM(companyShare), 0) as totalCompany,
-              COALESCE(SUM(companyShare - paidCompanyAmount), 0) as sisa,
+              COALESCE(SUM(GREATEST(CAST(COALESCE(fare, 0) AS SIGNED) - CAST(COALESCE(companyShare, 0) AS SIGNED), 0)), 0) as driverShare,
+              COALESCE(SUM(paidCompanyAmount), 0) as paid,
+              COALESCE(SUM(GREATEST(CAST(COALESCE(companyShare, 0) AS SIGNED) - CAST(COALESCE(paidCompanyAmount, 0) AS SIGNED), 0)), 0) as remaining,
               SUM(CASE WHEN status = 'nunggak' THEN 1 ELSE 0 END) as nunggakCount
        FROM schedules
        WHERE date >= ? AND date < ?
@@ -145,12 +172,43 @@ export async function POST(request: NextRequest) {
     const tripCount = Number(totalRows[0]?.tripCount || 0)
     const totalService = Number(serviceRows[0]?.totalService || 0)
     const serviceCount = Number(serviceRows[0]?.serviceCount || 0)
+    const paidTotal = driverRows.reduce((sum, row) => sum + Number(row.paid || 0), 0)
+    const remainingTotal = driverRows.reduce((sum, row) => sum + Number(row.remaining || 0), 0)
+    const driverShareTotal = Math.max(totalFare - totalCompany, 0)
     const labaBersih = totalCompany - totalService
+    const cashProfit = paidTotal - totalService
+    const completionRate = totalCompany > 0 ? Math.min(Math.round((paidTotal / totalCompany) * 100), 100) : 0
 
     const lunasCount = Number(statusRows.find((r) => r.status === "lunas")?.count || 0)
     const nunggakCount = Number(statusRows.find((r) => r.status === "nunggak")?.count || 0)
-    const totalSisaNunggak = Number(statusRows.find((r) => r.status === "nunggak")?.sisaTotal || 0)
+    const totalSisaNunggak = Number(statusRows.find((r) => r.status === "nunggak")?.sisaTotal || remainingTotal)
     const driverList = buildDriverList(driverRows)
+    const driverDepositRows: MonthlyDriverDepositRow[] = driverRows.map((row) => ({
+      driver: String(row.driver || "").trim(),
+      totalFare: Number(row.totalFare || 0),
+      total: Number(row.totalCompany || 0),
+      driverShare: Number(row.driverShare || 0),
+      paid: Number(row.paid || 0),
+      remaining: Number(row.remaining || 0),
+      trips: Number(row.trips || 0),
+    }))
+    const depositSummary: MonthlyDepositSummary = {
+      totalFare,
+      total: totalCompany,
+      driverShare: driverShareTotal,
+      paid: paidTotal,
+      remaining: remainingTotal,
+      trips: tripCount,
+    }
+    const profitSummary: MonthlyProfitSummary = {
+      ...depositSummary,
+      serviceCost: totalService,
+      netProfit: labaBersih,
+      cashProfit,
+      completionRate,
+    }
+    const periodLabel = `${monthName} ${year}`
+    const generatedAt = formatGeneratedAt()
 
     const message = `${ICON_REPORT} <b>LAPORAN BULANAN - ${monthName.toUpperCase()} ${year}</b>\n` +
       `${SEPARATOR}\n\n` +
@@ -181,9 +239,31 @@ export async function POST(request: NextRequest) {
     })
 
     const telegramResult = await telegramRes.json()
+    const pdfBuffer = createMonthlyDepositRecapPdf(
+      driverDepositRows,
+      depositSummary,
+      profitSummary,
+      periodLabel,
+      generatedAt
+    )
+    const documentForm = new FormData()
+    const filename = `laporan-profit-setoran-${year}-${String(month).padStart(2, "0")}.pdf`
+    documentForm.append("chat_id", CHAT_ID)
+    documentForm.append("caption", `Laporan PDF Profit & Setoran Driver - ${periodLabel}`)
+    documentForm.append("document", new Blob([new Uint8Array(pdfBuffer)], { type: "application/pdf" }), filename)
+
+    const documentRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      method: "POST",
+      body: documentForm,
+    })
+    const documentResult = await documentRes.json()
 
     return NextResponse.json({
-      success: telegramResult.ok,
+      success: Boolean(telegramResult.ok && documentResult.ok),
+      telegram: {
+        message: telegramResult.ok,
+        pdf: documentResult.ok,
+      },
       data: {
         month: monthName,
         year,
@@ -191,6 +271,8 @@ export async function POST(request: NextRequest) {
         totalCompany,
         totalService,
         labaBersih,
+        paidTotal,
+        remainingTotal,
         tripCount,
         lunasCount,
         nunggakCount,

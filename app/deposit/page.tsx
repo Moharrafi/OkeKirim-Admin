@@ -55,6 +55,11 @@ import { ANDROID_BACK_EVENT } from "@/components/android-back-handler"
 import { StepIndicator } from "@/components/ui/step-indicator"
 import { SuccessPage } from "@/components/deposit/success-page"
 import { useKeyboardViewport } from "@/hooks/use-keyboard-viewport"
+import {
+  parseManualPaymentAmount,
+  resolveDepositPaymentAmount,
+  shouldAutoRecordPartialFromProof,
+} from "@/lib/deposit-payment"
 
 type MainTab = "orderan" | "setoran"
 type OrderType = "online" | "offline"
@@ -275,13 +280,29 @@ export default function DepositPage() {
     lokasiBongkar.trim().length > 0 &&
     argoValue >= 1000 &&
     argoValue <= 999999999
+  const manualPaymentAmount = useMemo(() => parseManualPaymentAmount(payAmount), [payAmount])
   const depositPaymentAmount = useMemo(() => {
-    const partialAmount = payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : 0
     if (showBatchPayment) {
-      return partialAmount || batchTotal
+      return manualPaymentAmount || batchTotal
     }
-    return partialAmount || selectedOrder?.sisa || 0
-  }, [batchTotal, payAmount, selectedOrder?.sisa, showBatchPayment])
+    return manualPaymentAmount || selectedOrder?.sisa || 0
+  }, [batchTotal, manualPaymentAmount, selectedOrder?.sisa, showBatchPayment])
+  const autoPartialFromProof = useMemo(() => shouldAutoRecordPartialFromProof({
+    expectedAmount: depositPaymentAmount,
+    manualAmount: manualPaymentAmount,
+    proofDetectedAmount: proofOcrAmount,
+    tolerance: PROOF_AMOUNT_TOLERANCE,
+  }), [depositPaymentAmount, manualPaymentAmount, proofOcrAmount])
+  const submittedDepositPaymentAmount = useMemo(() => resolveDepositPaymentAmount({
+    expectedAmount: depositPaymentAmount,
+    manualAmount: manualPaymentAmount,
+    proofDetectedAmount: proofOcrAmount,
+    tolerance: PROOF_AMOUNT_TOLERANCE,
+  }), [depositPaymentAmount, manualPaymentAmount, proofOcrAmount])
+  const autoPartialRemainingAmount = Math.max(depositPaymentAmount - submittedDepositPaymentAmount, 0)
+  const depositConfirmMessage = autoPartialFromProof
+    ? `Nominal bukti lebih kecil. Sistem mencatat Rp ${formatCurrency(submittedDepositPaymentAmount)} sebagai cicilan dan sisa Rp ${formatCurrency(autoPartialRemainingAmount)} tetap belum lunas.`
+    : "Yakin mau melanjutkan pembayaran setoran ini?"
   const proofNeedsReason = proofOcrStatus === "mismatch" && proofMismatchReason.trim().length < 3
   const proofCheckBlocking = proofOcrStatus === "reading" || proofNeedsReason
 
@@ -746,17 +767,14 @@ export default function DepositPage() {
     try {
       // Update payment status in database
       if (orderIds.length > 0) {
-        const partialAmount = (payAmount && payAmount !== "" && payAmount !== "0" && parseInt(payAmount) > 0) ? parseInt(payAmount) : undefined
+        const amountToRecord = submittedDepositPaymentAmount
+        const shouldSendExplicitAmount = manualPaymentAmount > 0 || autoPartialFromProof
+        const explicitAmount = shouldSendExplicitAmount ? amountToRecord : undefined
         
         // Determine payment notes
         let paymentNotes = "Lunas"
-        if (partialAmount) {
-          const totalSisa = showBatchPayment 
-            ? batchTotal 
-            : (selectedOrder?.sisa || 0)
-          if (partialAmount < totalSisa) {
-            paymentNotes = `Cicil Rp ${partialAmount.toLocaleString("id-ID")}`
-          }
+        if (amountToRecord > 0 && amountToRecord < depositPaymentAmount) {
+          paymentNotes = `Cicil Rp ${amountToRecord.toLocaleString("id-ID")}`
         }
 
         const payResp = await fetch("/api/tarikan/pay", {
@@ -765,7 +783,7 @@ export default function DepositPage() {
           body: JSON.stringify({ 
             ids: orderIds, 
             paymentNotes, 
-            amount: partialAmount 
+            amount: explicitAmount
           }),
           signal: controller.signal,
         })
@@ -777,9 +795,7 @@ export default function DepositPage() {
       // Send Telegram notification (non-blocking, don't use abort signal)
       try {
         const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
-        const totalAmount = showBatchPayment 
-          ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal) 
-          : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
+        const totalAmount = submittedDepositPaymentAmount
         const driverName = order?.driver || user.name
         const route = order ? `${order.lokasiMuat} → ${order.lokasiBongkar}` : "-"
         const type = order?.type || "online"
@@ -826,9 +842,7 @@ export default function DepositPage() {
 
       // Store success data for SuccessPage component
       const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
-      const totalAmount = showBatchPayment
-        ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal)
-        : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0))
+      const totalAmount = submittedDepositPaymentAmount
       const successDriverName = order?.driver || user.name
       const successRoute = showBatchPayment
         ? `${selectedOrders.length} orderan (batch)`
@@ -929,10 +943,23 @@ export default function DepositPage() {
             height = maxSize
           }
         }
-        canvas.width = width
-        canvas.height = height
+        const outputWidth = Math.max(1, Math.round(width))
+        const outputHeight = Math.max(1, Math.round(height))
+        canvas.width = outputWidth
+        canvas.height = outputHeight
         const ctx = canvas.getContext("2d")
-        ctx?.drawImage(img, 0, 0, width, height)
+        if (!ctx) {
+          setFileUploadError("Gambar tidak bisa diproses")
+          setProofOcrStatus("failed")
+          return
+        }
+
+        // Keep transparent PNG proofs from turning black when exported as JPEG.
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, outputWidth, outputHeight)
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = "high"
+        ctx.drawImage(img, 0, 0, outputWidth, outputHeight)
         const compressed = canvas.toDataURL("image/jpeg", 0.7)
         setUploadedImage(compressed)
         void analyzeProofImage(compressed)
@@ -1025,6 +1052,8 @@ export default function DepositPage() {
     }
 
     if (proofOcrStatus === "mismatch") {
+      const proofShortage = proofOcrAmount ? expectedAmount - proofOcrAmount : 0
+
       return (
         <div className="mt-3 space-y-3 rounded-xl border border-warning/30 bg-warning/10 p-3">
           <div className="flex items-start gap-2">
@@ -1034,6 +1063,11 @@ export default function DepositPage() {
               <p className="text-muted-foreground">
                 Jumlah bayar Rp {formatCurrency(expectedAmount)} tetapi bukti terbaca Rp {formatCurrency(proofOcrAmount || 0)}.
               </p>
+              {manualPaymentAmount <= 0 && proofShortage > PROOF_AMOUNT_TOLERANCE && (
+                <p className="text-warning">
+                  Sistem akan mencatat Rp {formatCurrency(proofOcrAmount || 0)} sebagai pembayaran sebagian. Sisa Rp {formatCurrency(proofShortage)} tetap belum lunas.
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-1.5">
@@ -1304,8 +1338,8 @@ export default function DepositPage() {
       <ConfirmDialog
         open={showConfirm}
         title="Konfirmasi Setoran"
-        message="Yakin mau melanjutkan pembayaran setoran ini?"
-        amount={payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal}
+        message={depositConfirmMessage}
+        amount={submittedDepositPaymentAmount}
         orderCount={selectedOrders.length}
         confirmText="Ya, Lanjutkan"
         cancelText="Batal"
@@ -1592,8 +1626,8 @@ export default function DepositPage() {
       <ConfirmDialog
         open={showConfirm}
         title="Konfirmasi Setoran"
-        message="Yakin mau melanjutkan pembayaran setoran ini?"
-        amount={payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : (selectedOrder?.sisa || 0)}
+        message={depositConfirmMessage}
+        amount={submittedDepositPaymentAmount}
         confirmText="Ya, Lanjutkan"
         cancelText="Batal"
         onConfirm={() => {
@@ -2339,11 +2373,8 @@ export default function DepositPage() {
       <ConfirmDialog
         open={showConfirm}
         title="Konfirmasi Setoran"
-        message="Yakin mau melanjutkan pembayaran setoran ini?"
-        amount={showBatchPayment
-          ? (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : batchTotal)
-          : (payAmount && parseInt(payAmount) > 0 ? parseInt(payAmount) : ((selectedOrder as Order | null)?.sisa || 0))
-        }
+        message={depositConfirmMessage}
+        amount={submittedDepositPaymentAmount}
         orderCount={showBatchPayment ? selectedOrders.length : undefined}
         confirmText="Ya, Lanjutkan"
         cancelText="Batal"
