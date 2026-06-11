@@ -29,6 +29,16 @@ export interface Driver {
   status: string
 }
 
+export interface HistoryResponse {
+  history: Schedule[]
+  count: number
+  hasMore: boolean
+  range?: {
+    from: string | null
+    to: string | null
+  }
+}
+
 export async function fetchDrivers(): Promise<Driver[]> {
   try {
     const resp = await fetch("/api/drivers")
@@ -71,19 +81,45 @@ export async function fetchPaidSchedules(driverName?: string): Promise<Schedule[
 }
 
 export async function fetchHistory(driver?: string, dateFrom?: string, dateTo?: string): Promise<Schedule[]> {
+  const response = await fetchHistoryPage(driver, dateFrom, dateTo)
+  return response.history
+}
+
+export async function fetchHistoryPage(
+  driver?: string,
+  dateFrom?: string,
+  dateTo?: string,
+  options?: {
+    includePending?: boolean
+    minDate?: string
+    windowDays?: number
+    limit?: number
+  }
+): Promise<HistoryResponse> {
   try {
     const params = new URLSearchParams()
     if (driver) params.set("driver", driver)
     if (dateFrom) params.set("from", dateFrom)
     if (dateTo) params.set("to", dateTo)
+    if (options?.includePending) params.set("includePending", "true")
+    if (options?.minDate) params.set("minDate", options.minDate)
+    if (options?.windowDays) params.set("windowDays", String(options.windowDays))
+    if (options?.limit) params.set("limit", String(options.limit))
 
     const resp = await fetch(`/api/tarikan/history?${params.toString()}`)
-    if (!resp.ok) return []
+    if (!resp.ok) {
+      return { history: [], count: 0, hasMore: false }
+    }
     const data = await resp.json()
-    return data.history || []
+    return {
+      history: data.history || [],
+      count: Number(data.count || 0),
+      hasMore: Boolean(data.hasMore),
+      range: data.range,
+    }
   } catch (err) {
     console.warn("Failed to fetch history:", err)
-    return []
+    return { history: [], count: 0, hasMore: false }
   }
 }
 

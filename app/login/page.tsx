@@ -91,7 +91,7 @@ function LoginContent() {
     if (loginType === "admin") {
       await new Promise((resolve) => setTimeout(resolve, 800))
       if (email === "admin@okekirim.com" && password === "admin123") {
-        login("admin")
+        await login("admin")
         router.push("/")
       } else {
         setError("Email atau password salah")
@@ -118,11 +118,12 @@ function LoginContent() {
         const data = await res.json()
 
         if (data.success) {
+          await login("driver", data.driver.name)
+
           // Save driver details to localStorage
           localStorage.setItem("driverVehicle", data.driver.vehicle || "")
           localStorage.setItem("driverPhone", data.driver.phone || "")
           localStorage.setItem("driverEmail", data.driver.email || "")
-          login("driver", data.driver.name)
           router.push("/")
         } else if (data.needsRegistration) {
           setError("Silakan daftar terlebih dahulu")

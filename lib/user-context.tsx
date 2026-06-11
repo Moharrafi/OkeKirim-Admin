@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { initPushNotifications } from "./push-notifications"
+import { initPushNotifications, resetPushNotifications } from "./push-notifications"
 
 type UserRole = "admin" | "driver"
 
@@ -20,8 +20,8 @@ interface UserContextType {
   isAdmin: boolean
   isDriver: boolean
   isAuthenticated: boolean
-  login: (role: UserRole, driverName?: string) => void
-  logout: () => void
+  login: (role: UserRole, driverName?: string) => Promise<void>
+  logout: () => Promise<void>
 }
 
 const defaultAdminUser: User = {
@@ -43,6 +43,12 @@ const defaultDriverUser: User = {
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
 
+const driverStorageKeys = ["driverName", "driverVehicle", "driverPhone", "driverEmail"]
+
+function clearDriverIdentity() {
+  driverStorageKeys.forEach((key) => localStorage.removeItem(key))
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole>("admin")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -63,8 +69,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
           initPushNotifications(driverName, "driver")
         }
       } else if (savedRole === "admin") {
-        const adminName = localStorage.getItem("driverName") || "Admin"
-        initPushNotifications(adminName, "admin")
+        const staleDriverName = localStorage.getItem("driverName") || undefined
+        clearDriverIdentity()
+
+        void (async () => {
+          if (staleDriverName) {
+            await resetPushNotifications(staleDriverName)
+          }
+          await initPushNotifications("Admin", "admin")
+        })()
       }
     }
   }, [])
@@ -74,33 +87,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("userRole", newRole)
   }
 
-  const login = (newRole: UserRole, driverName?: string) => {
+  const login = async (newRole: UserRole, driverName?: string) => {
+    const previousDriverName = localStorage.getItem("driverName") || undefined
+
+    await resetPushNotifications(previousDriverName)
+
     setRole(newRole)
     setIsAuthenticated(true)
     localStorage.setItem("userRole", newRole)
     localStorage.setItem("isAuthenticated", "true")
-    if (driverName) {
-      localStorage.setItem("driverName", driverName)
-    }
+
     if (newRole === "driver" && driverName) {
-      initPushNotifications(driverName, "driver")
+      clearDriverIdentity()
+      localStorage.setItem("driverName", driverName)
+      await initPushNotifications(driverName, "driver")
     } else if (newRole === "admin") {
-      initPushNotifications(driverName || "Admin", "admin")
+      clearDriverIdentity()
+      await initPushNotifications("Admin", "admin")
     }
   }
 
-  const logout = () => {
-    // Remove FCM token from server on logout
-    const driverName = localStorage.getItem("driverName")
-    if (driverName) {
-      fetch("/api/fcm-token", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driverName }),
-      }).catch(() => {})
-    }
+  const logout = async () => {
+    const driverName = localStorage.getItem("driverName") || undefined
+
+    await resetPushNotifications(driverName)
+
     setIsAuthenticated(false)
+    setRole("admin")
     localStorage.removeItem("isAuthenticated")
+    localStorage.removeItem("userRole")
+    clearDriverIdentity()
   }
 
   const user = role === "admin" ? defaultAdminUser : (() => {

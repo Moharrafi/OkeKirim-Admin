@@ -161,8 +161,8 @@ export default function ProfilePage() {
 
   const stats = isAdmin ? adminStats : driverStats
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push("/login")
   }
 

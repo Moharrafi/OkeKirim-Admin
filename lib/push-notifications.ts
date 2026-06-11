@@ -3,9 +3,47 @@
 import { Capacitor } from "@capacitor/core"
 import { PushNotifications } from "@capacitor/push-notifications"
 
+const FCM_TOKEN_STORAGE_KEY = "fcmToken"
+
 function getNotificationUrl(data?: Record<string, unknown>) {
   const url = typeof data?.url === "string" ? data.url : ""
   return url || "/deposit"
+}
+
+function getStoredFcmToken() {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem(FCM_TOKEN_STORAGE_KEY)
+}
+
+export async function removeRegisteredPushToken(driverName?: string) {
+  const token = getStoredFcmToken()
+  if (!token && !driverName) return
+
+  try {
+    await fetch("/api/fcm-token", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driverName, token }),
+    })
+  } catch (error) {
+    console.error("Failed to remove FCM token:", error)
+  } finally {
+    if (typeof window !== "undefined" && token) {
+      localStorage.removeItem(FCM_TOKEN_STORAGE_KEY)
+    }
+  }
+}
+
+export async function resetPushNotifications(driverName?: string) {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await PushNotifications.removeAllListeners()
+    }
+  } catch (error) {
+    console.error("Failed to reset push listeners:", error)
+  }
+
+  await removeRegisteredPushToken(driverName)
 }
 
 /**
@@ -55,7 +93,7 @@ export async function initPushNotifications(driverName: string, role: string = "
     // Also try to get delivery token directly (for cases where listener doesn't fire)
     setTimeout(async () => {
       try {
-        const result = await PushNotifications.getDeliveredNotifications()
+        await PushNotifications.getDeliveredNotifications()
         // If we got here without error, FCM is working
         console.log("Push notifications active for:", driverName)
       } catch {}
@@ -67,6 +105,10 @@ export async function initPushNotifications(driverName: string, role: string = "
 
 async function saveToken(driverName: string, token: string, role: string = "driver") {
   try {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token)
+    }
+
     await fetch("/api/fcm-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

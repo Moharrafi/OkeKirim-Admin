@@ -9,15 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Search,
-  Download,
   Smartphone,
   Banknote,
   ChevronRight,
   X,
-  Calendar,
-  Filter,
-  MapPin,
-  Wallet,
 } from "lucide-react"
 import {
   Select,
@@ -28,9 +23,11 @@ import {
 } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
-import { fetchSchedules, fetchHistory, fetchDrivers, type Schedule, type Driver } from "@/lib/okekirim-api"
+import { fetchHistoryPage, fetchDrivers, type Schedule, type Driver } from "@/lib/okekirim-api"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { useDebounce } from "@/hooks/use-debounce"
+
+const HISTORY_CHUNK_DAYS = 3
 
 const getStatusConfig = (status: string, isDriver: boolean = false) => {
   switch (status) {
@@ -57,6 +54,22 @@ type HistoryTransaction = {
   type: string
   method: string
   status: string
+}
+
+function addDaysToDateString(dateString: string, days: number) {
+  const [year, month, day] = dateString.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+function dedupeTransactions(items: HistoryTransaction[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
 }
 
 function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): HistoryTransaction {
@@ -102,9 +115,9 @@ export default function HistoryPage() {
   const [filterDriver, setFilterDriver] = useState("")
   const [filterDateFrom, setFilterDateFrom] = useState("")
   const [filterDateTo, setFilterDateTo] = useState("")
-  const [totalTrips, setTotalTrips] = useState(0)
-  const [lunasCount, setLunasCount] = useState(0)
-  const [nunggakCount, setNunggakCount] = useState(0)
+  const [loadingMoreApi, setLoadingMoreApi] = useState(false)
+  const [hasMoreTransactions, setHasMoreTransactions] = useState(false)
+  const [nextChunkTo, setNextChunkTo] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDrivers().then(setApiDrivers).catch(() => {})
@@ -115,54 +128,72 @@ export default function HistoryPage() {
   const fetchTransactions = useCallback(async () => {
     setLoadingApi(true)
     setApiTransactions([])
+    setHasMoreTransactions(false)
+    setNextChunkTo(null)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
     try {
-      const [lunas, allSchedules] = await Promise.all([
-        fetchHistory(driverName, filterDateFrom || undefined, filterDateTo || undefined),
-        fetchSchedules(undefined, driverName, { limit: 5000 }),
-      ])
-      const nunggak = allSchedules.filter(s => s.status === "nunggak")
-      setTotalTrips(allSchedules.length)
-      setLunasCount(lunas.length)
-      setNunggakCount(nunggak.length)
-
-      const mapped = lunas.map(s => ({
-        id: `TRX-${String(s.id).padStart(3, "0")}`,
-        date: s.paidOffAt 
-          ? new Date(s.paidOffAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
-          : s.lastPaidAt
-            ? new Date(s.lastPaidAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
-            : s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-        time: s.paidOffAt 
-          ? new Date(s.paidOffAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-          : s.lastPaidAt 
-            ? new Date(s.lastPaidAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) 
-            : "",
-        driver: s.driver || "Unknown",
-        vehicle: s.vehicle || s.driverVehicle || "-",
-        route: `${s.origin || "-"} → ${s.destination || "-"}`,
-        argo: s.fare || 0,
-        amount: s.companyShare || Math.round((s.fare || 0) * 0.4),
-        type: s.orderType === "offline" ? "offline" : "online",
-        method: s.payment_notes || s.paymentNotes || "Lunas",
-        status: "success" as const,
-      }))
-      setApiTransactions([
-        ...mapped,
-        ...nunggak.map((s) => mapScheduleToTransaction(s, "pending")),
-      ])
+      const response = await fetchHistoryPage(driverName, undefined, filterDateTo || undefined, {
+        includePending: true,
+        minDate: filterDateFrom || undefined,
+        windowDays: HISTORY_CHUNK_DAYS,
+      })
+      const mapped = response.history.map((schedule) =>
+        mapScheduleToTransaction(schedule, schedule.status === "lunas" ? "success" : "pending")
+      )
+      setApiTransactions(mapped)
+      setHasMoreTransactions(response.hasMore)
+      setNextChunkTo(response.hasMore && response.range?.from
+        ? addDaysToDateString(response.range.from, -1)
+        : null)
     } catch {
       setApiTransactions([])
+      setHasMoreTransactions(false)
+      setNextChunkTo(null)
     } finally {
       setLoadingApi(false)
     }
   }, [filterDateFrom, filterDateTo, filterDriver, isDriver, user.name])
 
+  const loadMoreTransactions = useCallback(async () => {
+    if (!nextChunkTo || loadingMoreApi) return
+
+    setLoadingMoreApi(true)
+    const driverName = isDriver ? user.name : (filterDriver || undefined)
+    try {
+      const response = await fetchHistoryPage(driverName, undefined, nextChunkTo, {
+        includePending: true,
+        minDate: filterDateFrom || undefined,
+        windowDays: HISTORY_CHUNK_DAYS,
+      })
+      const mapped = response.history.map((schedule) =>
+        mapScheduleToTransaction(schedule, schedule.status === "lunas" ? "success" : "pending")
+      )
+
+      setApiTransactions((current) => dedupeTransactions([...current, ...mapped]))
+      setHasMoreTransactions(response.hasMore)
+      setNextChunkTo(response.hasMore && response.range?.from
+        ? addDaysToDateString(response.range.from, -1)
+        : null)
+    } catch {
+      setHasMoreTransactions(false)
+    } finally {
+      setLoadingMoreApi(false)
+    }
+  }, [filterDateFrom, filterDriver, isDriver, loadingMoreApi, nextChunkTo, user.name])
+
   useEffect(() => {
     fetchTransactions()
-  }, [fetchTransactions, filterDateFrom, filterDateTo])
+  }, [fetchTransactions])
 
   const transactions = apiTransactions
+  const summaryCounts = useMemo(() => {
+    return {
+      totalTrips: transactions.length,
+      lunasCount: transactions.filter((tx) => tx.status === "success").length,
+      nunggakCount: transactions.filter((tx) => tx.status === "pending").length,
+    }
+  }, [transactions])
+
   const activeDrivers = useMemo(() => {
     return apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
   }, [apiDrivers])
@@ -288,15 +319,15 @@ export default function HistoryPage() {
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Trip</p>
-                  <p className="text-sm font-bold text-foreground">{totalTrips}</p>
+                  <p className="text-sm font-bold text-foreground">{summaryCounts.totalTrips}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Lunas</p>
-                  <p className="text-sm font-bold text-success">{lunasCount}</p>
+                  <p className="text-sm font-bold text-success">{summaryCounts.lunasCount}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-muted-foreground">Nunggak</p>
-                  <p className="text-sm font-bold text-warning">{nunggakCount}</p>
+                  <p className="text-sm font-bold text-warning">{summaryCounts.nunggakCount}</p>
                 </div>
               </div>
             </div>
@@ -383,6 +414,21 @@ export default function HistoryPage() {
         ) : (
         <div className="space-y-4">
           {renderedList}
+          {filteredTransactions.length === 0 && (
+            <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+              Belum ada riwayat untuk periode ini
+            </div>
+          )}
+          {hasMoreTransactions && (
+            <Button
+              variant="outline"
+              className="w-full h-11 rounded-xl"
+              onClick={loadMoreTransactions}
+              disabled={loadingMoreApi}
+            >
+              {loadingMoreApi ? "Memuat..." : "Muat 3 hari sebelumnya"}
+            </Button>
+          )}
         </div>
         )}
       </div>

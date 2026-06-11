@@ -125,7 +125,9 @@ export async function GET(request: NextRequest) {
 
     const [driverDepositByMonth] = await pool.execute(
       `SELECT s.driver,
+              CAST(COALESCE(SUM(s.fare), 0) AS UNSIGNED) as totalFare,
               CAST(COALESCE(SUM(s.companyShare), 0) AS UNSIGNED) as total,
+              CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.fare, 0) AS SIGNED) - CAST(COALESCE(s.companyShare, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as driverShare,
               CAST(COALESCE(SUM(COALESCE(s.paidCompanyAmount, 0)), 0) AS UNSIGNED) as paid,
               CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.companyShare, 0) AS SIGNED) - CAST(COALESCE(s.paidCompanyAmount, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as remaining,
               COUNT(*) as trips
@@ -167,9 +169,11 @@ export async function GET(request: NextRequest) {
       trips: Number(r.trips || 0),
     }))
 
-    const driverDepositData = (driverDepositByMonth as Array<{ driver: string; total: string | number; paid: string | number; remaining: string | number; trips: string | number }>).map(r => ({
+    const driverDepositData = (driverDepositByMonth as Array<{ driver: string; totalFare: string | number; total: string | number; driverShare: string | number; paid: string | number; remaining: string | number; trips: string | number }>).map(r => ({
       driver: String(r.driver).trim(),
+      totalFare: Number(r.totalFare || 0),
       total: Number(r.total || 0),
+      driverShare: Number(r.driverShare || 0),
       paid: Number(r.paid || 0),
       remaining: Number(r.remaining || 0),
       trips: Number(r.trips || 0),
