@@ -60,6 +60,7 @@ import {
   resolveDepositPaymentAmount,
   shouldAutoRecordPartialFromProof,
 } from "@/lib/deposit-payment"
+import { getBatchItemDepositDue } from "@/lib/deposit-batch"
 
 type MainTab = "orderan" | "setoran"
 type OrderType = "online" | "offline"
@@ -815,6 +816,14 @@ export default function DepositPage() {
             }).filter(Boolean)
           : undefined
 
+        batchItems?.forEach((item, index) => {
+          const order = orders.find(o => o.id === selectedOrders[index])
+          if (order) {
+            const telegramItem = item as { sisa?: number }
+            telegramItem.sisa = Math.max(order.sisa, 0)
+          }
+        })
+
         await fetch("/api/telegram", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1008,7 +1017,7 @@ export default function DepositPage() {
       
       const total = newSelection.reduce((sum, id) => {
         const order = orders.find(o => o.id === id)
-        return sum + (order?.sisa || order?.argo || 0)
+        return sum + (order ? getBatchItemDepositDue(order) : 0)
       }, 0)
       setBatchTotal(total)
       
@@ -2089,7 +2098,7 @@ export default function DepositPage() {
                     setSelectedOrders(allOrderIds)
                     const total = allOrderIds.reduce((sum, id) => {
                       const order = orders.find(o => o.id === id)
-                      return sum + (order?.sisa || order?.argo || 0)
+                      return sum + (order ? getBatchItemDepositDue(order) : 0)
                     }, 0)
                     setBatchTotal(total)
                   }}

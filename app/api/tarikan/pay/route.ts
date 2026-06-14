@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
 
     const explicitAmount = Number(amount)
     const hasExplicitAmount = Number.isFinite(explicitAmount) && explicitAmount > 0
+    let appliedAmount = 0
 
     if (hasExplicitAmount && scheduleIds.length > 1) {
       // Batch partial payment: distribute in the same order sent by the UI.
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
             schedule.id,
           ]
         )
+        appliedAmount += payForThis
         remaining -= payForThis
       }
     } else {
@@ -83,10 +85,12 @@ export async function POST(request: NextRequest) {
 
         if (rows.length === 0) continue
 
-        const companyShare = rows[0].companyShare
-        const currentPaid = rows[0].paidCompanyAmount || 0
+        const companyShare = Number(rows[0].companyShare || 0)
+        const currentPaid = Number(rows[0].paidCompanyAmount || 0)
+        const remainingDue = Math.max(companyShare - currentPaid, 0)
 
-        const payAmount = hasExplicitAmount ? Math.min(explicitAmount, companyShare - currentPaid) : (companyShare - currentPaid)
+        const payAmount = hasExplicitAmount ? Math.min(explicitAmount, remainingDue) : remainingDue
+        appliedAmount += Math.max(Number(payAmount || 0), 0)
         const newPaidTotal = currentPaid + payAmount
         const isFullyPaid = newPaidTotal >= companyShare
 
@@ -112,17 +116,7 @@ export async function POST(request: NextRequest) {
         [scheduleIds[0]]
       ) as any
       const driverName = driverRows?.[0]?.driver || "Driver"
-      const totalAmount = amount ? Number(amount) : 0
-
-      // Calculate total paid if no explicit amount
-      let notifAmount = totalAmount
-      if (!notifAmount) {
-        const [sumRows] = await pool.execute(
-          `SELECT COALESCE(SUM(companyShare), 0) as total FROM schedules WHERE id IN (${scheduleIds.map(() => "?").join(",")})`,
-          scheduleIds
-        ) as any
-        notifAmount = sumRows?.[0]?.total || 0
-      }
+      const notifAmount = appliedAmount || (amount ? Number(amount) : 0)
 
       await notifyDepositPayment(driverName, notifAmount, scheduleIds.length)
     } catch {}

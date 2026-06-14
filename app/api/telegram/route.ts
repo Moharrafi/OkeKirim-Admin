@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getBatchDepositDue } from "@/lib/deposit-batch"
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
@@ -13,6 +14,7 @@ interface BatchItem {
   route: string
   fare: number
   companyShare?: number
+  sisa?: number
   type: string
 }
 
@@ -73,9 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (batchItems && Array.isArray(batchItems) && batchItems.length > 1) {
       const items = batchItems as BatchItem[]
-      const harusSetor = items.reduce((sum, item) => {
-        return sum + Number(item.companyShare ?? Math.round((item.fare || 0) * 0.4))
-      }, 0)
+      const harusSetor = getBatchDepositDue(items)
       const sisaBatch = Math.max(harusSetor - Number(amount || 0), 0)
       const types = [...new Set(items.map((item) => item.type === "offline" ? "Offline" : "Online"))]
       const typeStr = types.join(" & ")
