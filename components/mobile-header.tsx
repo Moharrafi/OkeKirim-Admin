@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type UIEvent } from "react"
-import { Bell, Settings, ChevronLeft, Clock, ArrowLeft, Wallet, MapPin } from "lucide-react"
+import { Bell, Settings, ChevronLeft, ArrowLeft, Wallet, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
@@ -27,9 +27,28 @@ interface MobileHeaderProps {
 }
 
 const NOTIFICATION_PAGE_SIZE = 10
+const NOTIFICATION_TIME_ZONE = "Asia/Jakarta"
+
+function parseNotificationDate(dateStr: string) {
+  const trimmed = dateStr.trim()
+  if (!trimmed) return null
+
+  const hasExplicitTimeZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(trimmed)
+  const hasTime = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(trimmed)
+  const normalized = hasTime && !hasExplicitTimeZone
+    ? `${trimmed.replace(" ", "T")}Z`
+    : trimmed
+  const date = new Date(normalized)
+
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
 function sortNotifications(items: OverdueOrder[]) {
-  return [...items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  return [...items].sort((a, b) => {
+    const dateA = parseNotificationDate(a.date)?.getTime() || 0
+    const dateB = parseNotificationDate(b.date)?.getTime() || 0
+    return dateB - dateA
+  })
 }
 
 function dedupeNotifications(items: OverdueOrder[]) {
@@ -68,21 +87,23 @@ function mapDbNotification(n: any): OverdueOrder {
 }
 
 function getDateGroupLabel(dateStr: string) {
-  const date = new Date(dateStr)
-  if (Number.isNaN(date.getTime())) return "Tanggal tidak diketahui"
+  const date = parseNotificationDate(dateStr)
+  if (!date) return "Tanggal tidak diketahui"
 
   const today = new Date()
   const yesterday = new Date()
   yesterday.setDate(today.getDate() - 1)
 
-  const key = date.toLocaleDateString("id-ID")
-  if (key === today.toLocaleDateString("id-ID")) return "Hari Ini"
-  if (key === yesterday.toLocaleDateString("id-ID")) return "Kemarin"
+  const dateOptions = { timeZone: NOTIFICATION_TIME_ZONE }
+  const key = date.toLocaleDateString("id-ID", dateOptions)
+  if (key === today.toLocaleDateString("id-ID", dateOptions)) return "Hari Ini"
+  if (key === yesterday.toLocaleDateString("id-ID", dateOptions)) return "Kemarin"
 
   return date.toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: NOTIFICATION_TIME_ZONE,
   })
 }
 
@@ -114,7 +135,7 @@ function getNotificationIconConfig(order: OverdueOrder) {
   }
 }
 
-export function MobileHeader({ title, showGreeting = false, showBack = false, onBack, overdueCount = 0 }: MobileHeaderProps) {
+export function MobileHeader({ title, showGreeting = false, showBack = false, onBack }: MobileHeaderProps) {
   const { user, isAdmin } = useUser()
   const [showNotifications, setShowNotifications] = useState(false)
   const [overdueOrders, setOverdueOrders] = useState<OverdueOrder[]>([])
@@ -238,8 +259,23 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
 
   function formatDate(dateStr: string): string {
     try {
-      const d = new Date(dateStr)
-      return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+      const d = parseNotificationDate(dateStr)
+      if (!d) return dateStr
+
+      const date = d.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: NOTIFICATION_TIME_ZONE,
+      })
+      const time = d.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: NOTIFICATION_TIME_ZONE,
+      })
+
+      return `${date}, ${time}`
     } catch {
       return dateStr
     }
@@ -385,8 +421,14 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
                           className={`flex items-start gap-3 rounded-xl p-4 transition-colors active:bg-secondary ${order.notifType ? "bg-card" : "bg-card"} ${order.isRead === false ? "bg-primary/5" : "bg-card"}`}
                           onClick={() => setShowNotifications(false)}
                         >
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconConfig.className}`}>
+                          <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconConfig.className}`}>
                             {iconConfig.icon}
+                            {order.isRead === false && (
+                              <span
+                                className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-card"
+                                aria-label="Belum dibaca"
+                              />
+                            )}
                           </div>
                           <div className="min-w-0 flex-1">
                             {order.notifTitle ? (

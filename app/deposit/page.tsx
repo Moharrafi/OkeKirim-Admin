@@ -70,6 +70,7 @@ type ProofOcrStatus = "idle" | "reading" | "matched" | "mismatch" | "not_found" 
 // Tab index mapping for direction detection (constant, outside component)
 const TAB_INDEX: Record<MainTab, number> = { orderan: 0, setoran: 1 }
 const PROOF_AMOUNT_TOLERANCE = 100
+const REQUIRED_TRANSFER_RECIPIENT = "GITA VEBBY ILLAHY"
 
 interface Order {
   id: string
@@ -130,6 +131,100 @@ function extractTransferAmount(text: string) {
 function isAmountMismatch(expected: number, detected: number | null) {
   if (!detected || expected <= 0) return false
   return Math.abs(expected - detected) > PROOF_AMOUNT_TOLERANCE
+}
+
+function normalizeRecipientText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/1/g, "I")
+    .replace(/0/g, "O")
+    .replace(/5/g, "S")
+    .replace(/8/g, "B")
+    .replace(/[^A-Z]/g, "")
+}
+
+function recipientSimilarity(candidate: string) {
+  const target = normalizeRecipientText(REQUIRED_TRANSFER_RECIPIENT)
+  const normalizedCandidate = normalizeRecipientText(candidate)
+  if (!normalizedCandidate) return 0
+  if (normalizedCandidate.includes(target)) return 1
+
+  const rows = target.length + 1
+  const cols = normalizedCandidate.length + 1
+  const distances = Array.from({ length: rows }, (_, row) => Array(cols).fill(row))
+  for (let col = 0; col < cols; col++) distances[0][col] = col
+
+  for (let row = 1; row < rows; row++) {
+    for (let col = 1; col < cols; col++) {
+      const cost = target[row - 1] === normalizedCandidate[col - 1] ? 0 : 1
+      distances[row][col] = Math.min(
+        distances[row - 1][col] + 1,
+        distances[row][col - 1] + 1,
+        distances[row - 1][col - 1] + cost
+      )
+    }
+  }
+
+  const distance = distances[target.length][normalizedCandidate.length]
+  return 1 - distance / Math.max(target.length, normalizedCandidate.length)
+}
+
+function extractTransferRecipient(text: string) {
+  const requiredWords = REQUIRED_TRANSFER_RECIPIENT.split(" ")
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+
+  const directLine = lines.find((line) => {
+    const normalizedLine = line
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+    return requiredWords.every((word) => normalizedLine.includes(word))
+  })
+
+  if (directLine) {
+    return { matched: true, detectedName: directLine }
+  }
+
+  const destinationRecipientLine = lines.find((line, index) => {
+    const previousLineLooksLikeDestination = /^ke\s*\d+/i.test(lines[index - 1] || "")
+    const letterCount = (line.match(/[A-Za-z]/g) || []).length
+    const nonRecipientPattern = /^(BCA|BRI|BNI|MANDIRI|CIMB|DANA|OVO|GOPAY|SHOPEEPAY|RP|IDR|ADMIN|BIAYA|TOTAL)/i
+    return previousLineLooksLikeDestination && letterCount >= 3 && !nonRecipientPattern.test(line)
+  })
+
+  if (destinationRecipientLine) {
+    const score = recipientSimilarity(destinationRecipientLine)
+    return { matched: score >= 0.82, detectedName: destinationRecipientLine }
+  }
+
+  const ignoredLinePattern = /^(M[\s-]?TRANSFER|TRANSFER|BERHASIL|GAGAL|PENDING|BCA|RP|IDR|ADMIN|BIAYA|TOTAL|NO\.?|REF|TANGGAL|DARI|KE\s*\d+)/i
+  const candidateLines = lines.filter((line, index) => {
+    const letterCount = (line.match(/[A-Za-z]/g) || []).length
+    const previousLineLooksLikeDestination = /^ke\s*\d+/i.test(lines[index - 1] || "")
+    return letterCount >= 6 && (previousLineLooksLikeDestination || !ignoredLinePattern.test(line))
+  })
+
+  let bestCandidate: { line: string; score: number } | null = null
+  for (const line of candidateLines) {
+    const score = recipientSimilarity(line)
+    if (!bestCandidate || score > bestCandidate.score) {
+      bestCandidate = { line, score }
+    }
+  }
+
+  if (bestCandidate && bestCandidate.score >= 0.82) {
+    return { matched: true, detectedName: bestCandidate.line }
+  }
+
+  return {
+    matched: false,
+    detectedName: bestCandidate?.score && bestCandidate.score >= 0.45 ? bestCandidate.line : null,
+  }
 }
 
 export default function DepositPage() {
@@ -243,6 +338,8 @@ export default function DepositPage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
   const [proofOcrAmount, setProofOcrAmount] = useState<number | null>(null)
+  const [proofOcrRecipient, setProofOcrRecipient] = useState<string | null>(null)
+  const [proofOcrRecipientMatched, setProofOcrRecipientMatched] = useState<boolean | null>(null)
   const [proofOcrStatus, setProofOcrStatus] = useState<ProofOcrStatus>("idle")
   const [proofOcrError, setProofOcrError] = useState<string | null>(null)
   const [proofMismatchReason, setProofMismatchReason] = useState("")
@@ -269,6 +366,8 @@ export default function DepositPage() {
   const resetProofCheck = useCallback(() => {
     proofOcrRequestRef.current += 1
     setProofOcrAmount(null)
+    setProofOcrRecipient(null)
+    setProofOcrRecipientMatched(null)
     setProofOcrStatus("idle")
     setProofOcrError(null)
     setProofMismatchReason("")
@@ -304,20 +403,28 @@ export default function DepositPage() {
   const depositConfirmMessage = autoPartialFromProof
     ? `Nominal bukti lebih kecil. Sistem mencatat Rp ${formatCurrency(submittedDepositPaymentAmount)} sebagai cicilan dan sisa Rp ${formatCurrency(autoPartialRemainingAmount)} tetap belum lunas.`
     : "Yakin mau melanjutkan pembayaran setoran ini?"
-  const proofNeedsReason = proofOcrStatus === "mismatch" && proofMismatchReason.trim().length < 3
-  const proofCheckBlocking = proofOcrStatus === "reading" || proofNeedsReason
+  const proofRecipientBlocking =
+    Boolean(uploadedFile) &&
+    proofOcrStatus !== "idle" &&
+    proofOcrStatus !== "reading" &&
+    proofOcrRecipientMatched !== true
+  const proofNeedsReason =
+    proofOcrStatus === "mismatch" &&
+    proofOcrRecipientMatched === true &&
+    proofMismatchReason.trim().length < 3
+  const proofCheckBlocking = proofOcrStatus === "reading" || proofNeedsReason || proofRecipientBlocking
 
   useEffect(() => {
     if (!proofOcrAmount || proofOcrStatus === "idle" || proofOcrStatus === "reading" || proofOcrStatus === "not_found" || proofOcrStatus === "failed") {
       return
     }
 
-    const mismatch = isAmountMismatch(depositPaymentAmount, proofOcrAmount)
+    const mismatch = isAmountMismatch(depositPaymentAmount, proofOcrAmount) || proofOcrRecipientMatched !== true
     setProofOcrStatus(mismatch ? "mismatch" : "matched")
     if (!mismatch) {
       setProofMismatchReason("")
     }
-  }, [depositPaymentAmount, proofOcrAmount, proofOcrStatus])
+  }, [depositPaymentAmount, proofOcrAmount, proofOcrRecipientMatched, proofOcrStatus])
 
   // Page transition animation state
   const [viewState, setViewState] = useState<ViewState>("list")
@@ -745,6 +852,10 @@ export default function DepositPage() {
       showErrorToast("Bukti TF masih dibaca, tunggu sebentar")
       return
     }
+    if (proofRecipientBlocking) {
+      showErrorToast(`Nama penerima berbeda, bukan ${REQUIRED_TRANSFER_RECIPIENT}`)
+      return
+    }
     if (proofNeedsReason) {
       showErrorToast("Isi alasan selisih bukti TF dulu")
       return
@@ -887,6 +998,8 @@ export default function DepositPage() {
     const requestId = proofOcrRequestRef.current + 1
     proofOcrRequestRef.current = requestId
     setProofOcrAmount(null)
+    setProofOcrRecipient(null)
+    setProofOcrRecipientMatched(null)
     setProofOcrStatus("reading")
     setProofOcrError(null)
     setProofMismatchReason("")
@@ -896,7 +1009,12 @@ export default function DepositPage() {
       const result = await recognize(imageDataUrl, "eng")
       if (proofOcrRequestRef.current !== requestId) return
 
-      const detectedAmount = extractTransferAmount(result.data.text || "")
+      const ocrText = result.data.text || ""
+      const recipientResult = extractTransferRecipient(ocrText)
+      const detectedAmount = extractTransferAmount(ocrText)
+      setProofOcrRecipient(recipientResult.detectedName)
+      setProofOcrRecipientMatched(recipientResult.matched)
+
       if (!detectedAmount) {
         setProofOcrStatus("not_found")
         setProofOcrError("Nominal bukti TF tidak terbaca otomatis")
@@ -904,7 +1022,11 @@ export default function DepositPage() {
       }
 
       setProofOcrAmount(detectedAmount)
-      setProofOcrStatus(isAmountMismatch(depositPaymentAmount, detectedAmount) ? "mismatch" : "matched")
+      setProofOcrStatus(
+        isAmountMismatch(depositPaymentAmount, detectedAmount) || !recipientResult.matched
+          ? "mismatch"
+          : "matched"
+      )
     } catch {
       if (proofOcrRequestRef.current !== requestId) return
       setProofOcrStatus("failed")
@@ -924,6 +1046,8 @@ export default function DepositPage() {
     proofOcrRequestRef.current += 1
     setUploadedFile(file.name || fallbackName)
     setProofOcrAmount(null)
+    setProofOcrRecipient(null)
+    setProofOcrRecipientMatched(null)
     setProofOcrStatus("reading")
     setProofOcrError(null)
     setProofMismatchReason("")
@@ -1041,7 +1165,7 @@ export default function DepositPage() {
         <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Membaca nominal bukti TF...
+            Membaca nominal dan penerima bukti TF...
           </div>
         </div>
       )
@@ -1050,17 +1174,24 @@ export default function DepositPage() {
     if (proofOcrStatus === "matched") {
       return (
         <div className="mt-3 rounded-xl border border-success/20 bg-success/10 p-3">
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-medium text-success">Nominal bukti cocok</span>
-            <span className="font-semibold text-foreground">
-              Rp {formatCurrency(proofOcrAmount || 0)}
-            </span>
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium text-success">Bukti transfer cocok</span>
+              <span className="font-semibold text-foreground">
+                Rp {formatCurrency(proofOcrAmount || 0)}
+              </span>
+            </div>
+            <p className="text-xs text-success">
+              Penerima: {REQUIRED_TRANSFER_RECIPIENT}
+            </p>
           </div>
         </div>
       )
     }
 
     if (proofOcrStatus === "mismatch") {
+      const amountMismatch = isAmountMismatch(expectedAmount, proofOcrAmount)
+      const recipientMismatch = proofOcrRecipientMatched !== true
       const proofShortage = proofOcrAmount ? expectedAmount - proofOcrAmount : 0
 
       return (
@@ -1068,29 +1199,50 @@ export default function DepositPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <div className="space-y-1 text-sm">
-              <p className="font-semibold text-foreground">Nominal bukti tidak sesuai</p>
-              <p className="text-muted-foreground">
-                Jumlah bayar Rp {formatCurrency(expectedAmount)} tetapi bukti terbaca Rp {formatCurrency(proofOcrAmount || 0)}.
-              </p>
-              {manualPaymentAmount <= 0 && proofShortage > PROOF_AMOUNT_TOLERANCE && (
+              <p className="font-semibold text-foreground">Bukti transfer perlu dicek</p>
+              {amountMismatch && (
+                <p className="text-muted-foreground">
+                  Jumlah bayar Rp {formatCurrency(expectedAmount)} tetapi bukti terbaca Rp {formatCurrency(proofOcrAmount || 0)}.
+                </p>
+              )}
+              {recipientMismatch && (
+                <>
+                  <p className="text-destructive">
+                    {proofOcrRecipient
+                      ? `Nama penerima berbeda, bukan ${REQUIRED_TRANSFER_RECIPIENT}.`
+                      : `Nama penerima tidak terbaca. Penerima harus ${REQUIRED_TRANSFER_RECIPIENT}.`}
+                  </p>
+                  {proofOcrRecipient && (
+                    <p className="text-destructive">
+                      {`OCR membaca "${proofOcrRecipient}".`}
+                    </p>
+                  )}
+                  <p className="text-destructive">
+                    Upload bukti transfer ke rekening yang benar untuk lanjut.
+                  </p>
+                </>
+              )}
+              {!recipientMismatch && manualPaymentAmount <= 0 && proofShortage > PROOF_AMOUNT_TOLERANCE && (
                 <p className="text-warning">
                   Sistem akan mencatat Rp {formatCurrency(proofOcrAmount || 0)} sebagai pembayaran sebagian. Sisa Rp {formatCurrency(proofShortage)} tetap belum lunas.
                 </p>
               )}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-foreground">Alasan tetap gunakan bukti ini</Label>
-            <Textarea
-              value={proofMismatchReason}
-              onChange={(e) => setProofMismatchReason(e.target.value)}
-              placeholder="Contoh: transfer dua kali, bukti salah kirim, atau sudah dicek manual"
-              className="min-h-20 rounded-xl bg-background"
-            />
-            {proofNeedsReason && (
-              <p className="text-xs text-warning">Alasan wajib diisi sebelum konfirmasi.</p>
-            )}
-          </div>
+          {!recipientMismatch && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Alasan tetap gunakan bukti ini</Label>
+              <Textarea
+                value={proofMismatchReason}
+                onChange={(e) => setProofMismatchReason(e.target.value)}
+                placeholder="Contoh: transfer dua kali, bukti salah kirim, atau sudah dicek manual"
+                className="min-h-20 rounded-xl bg-background"
+              />
+              {proofNeedsReason && (
+                <p className="text-xs text-warning">Alasan wajib diisi sebelum konfirmasi.</p>
+              )}
+            </div>
+          )}
         </div>
       )
     }
@@ -1100,10 +1252,21 @@ export default function DepositPage() {
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <p className="font-medium text-foreground">Nominal bukti belum bisa dicek otomatis</p>
+            <p className="font-medium text-foreground">Bukti belum bisa dicek otomatis</p>
             <p className="text-xs text-muted-foreground">
               {proofOcrError || "Silakan cek manual sebelum konfirmasi."}
             </p>
+            {proofOcrRecipientMatched === true ? (
+              <p className="mt-1 text-xs text-success">
+                Penerima terdeteksi: {REQUIRED_TRANSFER_RECIPIENT}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-destructive">
+                {proofOcrRecipient
+                  ? `Nama penerima berbeda, bukan ${REQUIRED_TRANSFER_RECIPIENT}. OCR membaca "${proofOcrRecipient}".`
+                  : `Nama penerima tidak terbaca. Penerima harus ${REQUIRED_TRANSFER_RECIPIENT}.`}
+              </p>
+            )}
           </div>
         </div>
       </div>

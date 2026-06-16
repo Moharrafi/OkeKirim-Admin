@@ -19,7 +19,19 @@ export async function GET(request: NextRequest) {
       ? Math.max(Math.trunc(requestedOffset), 0)
       : 0
     const unreadOnly = searchParams.get("unread") === "true"
-    let query = `SELECT * FROM notifications WHERE target_role = ?`
+    let query = `
+      SELECT
+        id,
+        target_role,
+        title,
+        body,
+        type,
+        data,
+        is_read,
+        DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s.000Z') AS created_at
+      FROM notifications
+      WHERE target_role = ?
+    `
     const params: any[] = [role]
 
     if (unreadOnly) {

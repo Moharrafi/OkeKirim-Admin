@@ -32,7 +32,7 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
 
     // 1. Log notification to database
     await pool.execute(
-      `INSERT INTO notifications (target_role, title, body, type, data, created_at) VALUES (?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO notifications (target_role, title, body, type, data, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       ["admin", title, body, type, JSON.stringify(data)]
     )
 

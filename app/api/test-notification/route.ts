@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     if (sentAdminCount > 0) {
       await pool.execute(
         `INSERT INTO notifications (target_role, title, body, type, data, created_at)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
+         VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
         [
           "admin",
           title,
