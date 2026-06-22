@@ -116,3 +116,106 @@ export async function notifyNewOrder(driverName: string, origin: string, destina
     data: { driver: driverName, url: "/deposit?tab=setoran" },
   })
 }
+
+/**
+ * Send push notification to a specific driver.
+ * Note: To respect privacy, driver notifications are sent directly via FCM and not logged to the public notifications table.
+ */
+export async function notifyDriver(
+  driverName: string,
+  options: { title: string; body: string; type?: string; data?: Record<string, string> }
+) {
+  const { title, body, type = "info", data = {} } = options
+
+  try {
+    await ensureFcmTokenTable()
+
+    // 1. Get all FCM tokens for this specific driver
+    const [tokenRows] = await pool.execute(
+      "SELECT token FROM fcm_tokens WHERE driver_name = ? AND token IS NOT NULL AND token != ''",
+      [driverName]
+    ) as any
+
+    if (!tokenRows || tokenRows.length === 0) {
+      return { sent: 0 }
+    }
+
+    // 2. Send push notifications using Firebase Admin
+    let sentCount = 0
+    if (admin.apps.length > 0) {
+      const uniqueTokenRows = Array.from(
+        new Map(tokenRows.map((row: any) => [row.token, row])).values()
+      ) as any[]
+
+      for (const row of uniqueTokenRows) {
+        try {
+          await admin.messaging().send({
+            token: row.token,
+            notification: { title, body },
+            data: { type, url: data.url || "/hutang", ...data },
+            android: {
+              priority: "high",
+              notification: { sound: "default", channelId: "driver_notifications" },
+            },
+            apns: {
+              headers: {
+                "apns-priority": "10",
+              },
+              payload: {
+                aps: {
+                  sound: "default",
+                },
+              },
+            },
+          })
+          sentCount++
+        } catch (err: any) {
+          // Remove invalid tokens
+          if (err?.code === "messaging/registration-token-not-registered") {
+            await pool.execute("DELETE FROM fcm_tokens WHERE token = ?", [row.token])
+          }
+          console.error(`Failed to notify driver ${driverName} token:`, err)
+        }
+      }
+    }
+
+    return { sent: sentCount }
+  } catch (error) {
+    console.error("notifyDriver error:", error)
+    return { sent: 0 }
+  }
+}
+
+/**
+ * Notify driver when a new kasbon (debt) is created.
+ */
+export async function notifyNewDebt(driverName: string, amount: number, vehicle?: string) {
+  const formattedAmount = `Rp ${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
+  const title = "Kasbon Baru Diterima"
+  const body = `Halo ${driverName}, kasbon baru sebesar ${formattedAmount} telah dicatat ${vehicle ? `untuk kendaraan ${vehicle}` : ""}.`
+
+  return notifyDriver(driverName, {
+    title,
+    body,
+    type: "new_debt",
+    data: { amount: String(amount), url: "/hutang" }
+  })
+}
+
+/**
+ * Notify driver when a debt payment (cicilan) is logged.
+ */
+export async function notifyDebtPayment(driverName: string, amount: number, remaining: number) {
+  const formattedAmount = `Rp ${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
+  const formattedRemaining = `Rp ${remaining.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
+  const title = "Pembayaran Kasbon"
+  const body = `Pembayaran cicilan kasbon sebesar ${formattedAmount} berhasil dicatat. Sisa kasbon Anda: ${formattedRemaining}.`
+
+  return notifyDriver(driverName, {
+    title,
+    body,
+    type: "debt_payment",
+    data: { amount: String(amount), remaining: String(remaining), url: "/hutang" }
+  })
+}
+

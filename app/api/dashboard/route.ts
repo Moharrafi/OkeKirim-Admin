@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 
-// Simple in-memory cache for dashboard data (TTL: 30 seconds)
-let cache: { data: unknown; timestamp: number; key: string } | null = null
+// Map-based cache to store dashboard query results for different filters concurrently (TTL: 30 seconds)
+const dashboardCache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL = 30_000 // 30 seconds
 
 function addOneMonth(dateString: string) {
@@ -31,8 +31,9 @@ export async function GET(request: NextRequest) {
   const cacheKey = `dashboard_${driverFilter || "all"}_${requestedDriverDepositMonthStart || "auto"}`
 
   // Return cached data if still fresh
-  if (cache && cache.key === cacheKey && Date.now() - cache.timestamp < CACHE_TTL) {
-    return NextResponse.json(cache.data)
+  const cached = dashboardCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return NextResponse.json(cached.data)
   }
 
   try {
@@ -51,66 +52,81 @@ export async function GET(request: NextRequest) {
     const lastMonthSamePeriodEnd = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, currentDay)
     const lastMonthSamePeriodEndStr = `${lastMonthSamePeriodEnd.getFullYear()}-${String(lastMonthSamePeriodEnd.getMonth() + 1).padStart(2, "0")}-${String(lastMonthSamePeriodEnd.getDate()).padStart(2, "0")}`
 
-    // Run queries sequentially (single connection to respect Aiven free tier limit)
-    const [monthlyRows] = await pool.execute(
-      `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare, COUNT(*) as count FROM schedules WHERE date >= ?${driverWhere}`,
-      [monthStart, ...driverParam]
-    ) as any
+    const threeDaysAgo = new Date(now)
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    const threeDaysAgoStr = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`
+
+    // Run independent queries in parallel using Promise.all
+    const [
+      [monthlyRows],
+      [lastMonthRows],
+      [pendingRows],
+      [todayRows],
+      [driverRows],
+      [debtRows],
+      [recentRows],
+      [monthlyChart],
+      [overdueRows],
+      [latestMonthRows]
+    ] = await Promise.all([
+      pool.execute(
+        `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare, COUNT(*) as count FROM schedules WHERE date >= ?${driverWhere}`,
+        [monthStart, ...driverParam]
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare FROM schedules WHERE date >= ? AND date <= ?${driverWhere}`,
+        [lastMonthStart, lastMonthSamePeriodEndStr, ...driverParam]
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(companyShare - paidCompanyAmount), 0) as total, COUNT(*) as count FROM schedules WHERE status = 'nunggak'${driverWhere}`,
+        [...driverParam]
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(companyShare), 0) as total, COUNT(*) as count FROM schedules WHERE date = ?${driverWhere}`,
+        [todayStr, ...driverParam]
+      ),
+      pool.execute(
+        "SELECT COUNT(*) as count FROM drivers WHERE status = 'aktif'"
+      ),
+      pool.execute(
+        `SELECT COALESCE(SUM(amount - paidAmount), 0) as totalDebt, COUNT(*) as count FROM debts WHERE status = 'belum_lunas'${driverWhere}`,
+        [...driverParam]
+      ),
+      pool.execute(
+        `SELECT s.*, d.vehicle as driverVehicle 
+         FROM schedules s 
+         LEFT JOIN drivers d ON s.driver = d.name
+         ${driverFilter ? "WHERE s.driver LIKE ?" : ""}
+         ORDER BY s.id DESC LIMIT 5`,
+        driverFilter ? [`%${driverFilter}%`] : []
+      ),
+      pool.execute(
+        `SELECT MONTH(date) as month, 
+                CAST(SUM(companyShare) AS UNSIGNED) as total,
+                CAST(SUM(fare) AS UNSIGNED) as totalFare,
+                COUNT(*) as tripCount
+         FROM schedules 
+         WHERE YEAR(date) = ?${driverWhere}
+         GROUP BY MONTH(date) 
+         ORDER BY month`,
+        [now.getFullYear(), ...driverParam]
+      ),
+      pool.execute(
+        `SELECT COUNT(*) as count FROM schedules WHERE status = 'nunggak' AND date < ?${driverWhere}`,
+        [threeDaysAgoStr, ...driverParam]
+      ),
+      pool.execute(
+        `SELECT DATE_FORMAT(MAX(date), '%Y-%m-01') as monthStart FROM schedules WHERE date IS NOT NULL${driverWhere}`,
+        [...driverParam]
+      )
+    ]) as any[]
+
     const currentMonthCount = Number((monthlyRows as any[])[0]?.count || 0)
-
-    const [lastMonthRows] = await pool.execute(
-      `SELECT COALESCE(SUM(companyShare), 0) as totalCompany, COALESCE(SUM(fare), 0) as totalFare FROM schedules WHERE date >= ? AND date <= ?${driverWhere}`,
-      [lastMonthStart, lastMonthSamePeriodEndStr, ...driverParam]
-    ) as any
-
-    const [pendingRows] = await pool.execute(
-      `SELECT COALESCE(SUM(companyShare - paidCompanyAmount), 0) as total, COUNT(*) as count FROM schedules WHERE status = 'nunggak'${driverWhere}`,
-      [...driverParam]
-    ) as any
-
-    const [todayRows] = await pool.execute(
-      `SELECT COALESCE(SUM(companyShare), 0) as total, COUNT(*) as count FROM schedules WHERE date = ?${driverWhere}`,
-      [todayStr, ...driverParam]
-    ) as any
-
-    const [driverRows] = await pool.execute(
-      "SELECT COUNT(*) as count FROM drivers WHERE status = 'aktif'"
-    ) as any
-
-    const [debtRows] = await pool.execute(
-      `SELECT COALESCE(SUM(amount - paidAmount), 0) as totalDebt, COUNT(*) as count FROM debts WHERE status = 'belum_lunas'${driverWhere}`,
-      [...driverParam]
-    ) as any
     const pendingDebtTotal = Number((debtRows as any[])[0]?.totalDebt || 0)
     const pendingDebtCount = Number((debtRows as any[])[0]?.count || 0)
 
-    const [recentRows] = await pool.execute(
-      `SELECT s.*, d.vehicle as driverVehicle 
-       FROM schedules s 
-       LEFT JOIN drivers d ON s.driver = d.name
-       ${driverFilter ? "WHERE s.driver LIKE ?" : ""}
-       ORDER BY s.id DESC LIMIT 5`,
-      driverFilter ? [`%${driverFilter}%`] : []
-    ) as any
-
-    const [monthlyChart] = await pool.execute(
-      `SELECT MONTH(date) as month, 
-              CAST(SUM(companyShare) AS UNSIGNED) as total,
-              CAST(SUM(fare) AS UNSIGNED) as totalFare,
-              COUNT(*) as tripCount
-       FROM schedules 
-       WHERE YEAR(date) = ?${driverWhere}
-       GROUP BY MONTH(date) 
-       ORDER BY month`,
-      [now.getFullYear(), ...driverParam]
-    ) as any
-
     let driverChartMonthStart = monthStart
     if (currentMonthCount === 0) {
-      const [latestMonthRows] = await pool.execute(
-        `SELECT DATE_FORMAT(MAX(date), '%Y-%m-01') as monthStart FROM schedules WHERE date IS NOT NULL${driverWhere}`,
-        [...driverParam]
-      ) as any
       const latestMonthStart = latestMonthRows?.[0]?.monthStart
       if (typeof latestMonthStart === "string" && latestMonthStart) {
         driverChartMonthStart = latestMonthStart
@@ -118,50 +134,45 @@ export async function GET(request: NextRequest) {
     }
     const driverChartMonthEnd = addOneMonth(driverChartMonthStart)
 
-    const [driverIncome] = await pool.execute(
-      `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips
-       FROM schedules s 
-       WHERE s.date >= ? AND s.date < ?
-       GROUP BY s.driver 
-       ORDER BY total DESC`,
-      [driverChartMonthStart, driverChartMonthEnd]
-    ).then(([rows]: any) => [rows]) as any
-
     const driverDepositMonthStart = requestedDriverDepositMonthStart || driverChartMonthStart
     const driverDepositMonthEnd = addOneMonth(driverDepositMonthStart)
 
-    const [driverDepositByMonth] = await pool.execute(
-      `SELECT s.driver,
-              CAST(COALESCE(SUM(s.fare), 0) AS UNSIGNED) as totalFare,
-              CAST(COALESCE(SUM(s.companyShare), 0) AS UNSIGNED) as total,
-              CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.fare, 0) AS SIGNED) - CAST(COALESCE(s.companyShare, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as driverShare,
-              CAST(COALESCE(SUM(COALESCE(s.paidCompanyAmount, 0)), 0) AS UNSIGNED) as paid,
-              CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.companyShare, 0) AS SIGNED) - CAST(COALESCE(s.paidCompanyAmount, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as remaining,
-              COUNT(*) as trips
-       FROM schedules s
-       WHERE s.date >= ? AND s.date < ?${scheduleDriverWhere}
-       GROUP BY s.driver
-       ORDER BY total DESC, paid DESC`,
-      [driverDepositMonthStart, driverDepositMonthEnd, ...driverParam]
-    ).then(([rows]: any) => [rows]) as any
-
-    const [orderTypeBreakdown] = await pool.execute(
-      `SELECT orderType, CAST(SUM(fare) AS UNSIGNED) as total, COUNT(*) as count
-       FROM schedules 
-       WHERE date >= ? AND date < ?${driverWhere}
-       GROUP BY orderType`,
-      [driverChartMonthStart, driverChartMonthEnd, ...driverParam]
-    ) as any
-
-    // Count orders overdue > 3 days (status nunggak and date more than 3 days ago)
-    const threeDaysAgo = new Date(now)
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    const threeDaysAgoStr = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`
-
-    const [overdueRows] = await pool.execute(
-      `SELECT COUNT(*) as count FROM schedules WHERE status = 'nunggak' AND date < ?${driverWhere}`,
-      [threeDaysAgoStr, ...driverParam]
-    ) as any
+    // Run dependent queries in parallel
+    const [
+      [driverIncome],
+      [driverDepositByMonth],
+      [orderTypeBreakdown]
+    ] = await Promise.all([
+      pool.execute(
+        `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips
+         FROM schedules s 
+         WHERE s.date >= ? AND s.date < ?
+         GROUP BY s.driver 
+         ORDER BY total DESC`,
+        [driverChartMonthStart, driverChartMonthEnd]
+      ),
+      pool.execute(
+        `SELECT s.driver,
+                CAST(COALESCE(SUM(s.fare), 0) AS UNSIGNED) as totalFare,
+                CAST(COALESCE(SUM(s.companyShare), 0) AS UNSIGNED) as total,
+                CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.fare, 0) AS SIGNED) - CAST(COALESCE(s.companyShare, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as driverShare,
+                CAST(COALESCE(SUM(COALESCE(s.paidCompanyAmount, 0)), 0) AS UNSIGNED) as paid,
+                CAST(COALESCE(SUM(GREATEST(CAST(COALESCE(s.companyShare, 0) AS SIGNED) - CAST(COALESCE(s.paidCompanyAmount, 0) AS SIGNED), 0)), 0) AS UNSIGNED) as remaining,
+                COUNT(*) as trips
+         FROM schedules s
+         WHERE s.date >= ? AND s.date < ?${scheduleDriverWhere}
+         GROUP BY s.driver
+         ORDER BY total DESC, paid DESC`,
+        [driverDepositMonthStart, driverDepositMonthEnd, ...driverParam]
+      ),
+      pool.execute(
+        `SELECT orderType, CAST(SUM(fare) AS UNSIGNED) as total, COUNT(*) as count
+         FROM schedules 
+         WHERE date >= ? AND date < ?${driverWhere}
+         GROUP BY orderType`,
+        [driverChartMonthStart, driverChartMonthEnd, ...driverParam]
+      )
+    ]) as any[]
 
     const chartData = (monthlyChart as Array<{ month: number; total: string | number; totalFare: string | number; tripCount: string | number }>).map(r => ({
       month: Number(r.month),
@@ -221,7 +232,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Update cache
-    cache = { data: responseData, timestamp: Date.now(), key: cacheKey }
+    dashboardCache.set(cacheKey, { data: responseData, timestamp: Date.now() })
 
     return NextResponse.json(responseData)
   } catch (error) {

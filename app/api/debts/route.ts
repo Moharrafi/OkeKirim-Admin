@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
+import { notifyNewDebt, notifyDebtPayment } from "@/lib/notify-admin"
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,6 +65,11 @@ export async function POST(request: NextRequest) {
       ]
     ) as any
 
+    // Trigger push notification to driver (non-blocking)
+    notifyNewDebt(driver, parseInt(String(amount)), vehicle || undefined).catch(err => {
+      console.error("FCM notifyNewDebt failed:", err)
+    })
+
     return NextResponse.json({ success: true, id: result.insertId }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
@@ -109,6 +115,12 @@ export async function PUT(request: NextRequest) {
         paid_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
       ]
     ) as any
+
+    // Trigger push notification to driver (non-blocking)
+    const remaining = Math.max(0, Number(debt.amount) - newPaidAmount)
+    notifyDebtPayment(debt.driver, paymentAmount, remaining).catch(err => {
+      console.error("FCM notifyDebtPayment failed:", err)
+    })
 
     return NextResponse.json({ success: true, paymentId: payResult.insertId })
   } catch (error) {

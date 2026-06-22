@@ -87,7 +87,10 @@ export async function GET(request: NextRequest) {
           })
           sentCount++
           details.push({ driver: driverName, pendingCount, pendingTotal, status: "sent" })
-        } catch (err) {
+        } catch (err: any) {
+          if (err?.code === "messaging/registration-token-not-registered") {
+            await pool.execute("DELETE FROM fcm_tokens WHERE token = ?", [token])
+          }
           console.error(`Failed to send arrears notification to ${driverName}:`, err)
           details.push({ driver: driverName, pendingCount, pendingTotal, status: "failed", error: String(err) })
         }
