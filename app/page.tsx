@@ -345,11 +345,11 @@ export default function DashboardPage() {
             <section>
               <SectionHeader title="Ringkasan" subtitle="Angka utama bulan ini" />
               <div
-                className="flex overflow-x-auto pb-1 snap-x snap-mandatory -mx-4 px-4 scroll-smooth no-scrollbar"
+                className="flex overflow-x-auto pb-1 snap-x snap-mandatory -mx-4 scroll-smooth no-scrollbar"
                 onScroll={handleScroll}
               >
                 {/* Slide 1: 2x2 Grid */}
-                <div className="w-full shrink-0 snap-start grid grid-cols-2 gap-2.5 pr-1.5">
+                <div className="w-full shrink-0 snap-start grid grid-cols-2 grid-rows-2 gap-2.5 px-4">
                   <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -424,7 +424,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Slide 2: 2x2 Grid (containing Hutang card and placeholders) */}
-                <div className="w-full shrink-0 snap-start grid grid-cols-2 gap-2.5 pl-1.5">
+                <div className="w-full shrink-0 snap-start grid grid-cols-2 grid-rows-2 gap-2.5 px-4">
                   <Link href="/hutang">
                     <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
                       <CardContent className="p-4">
@@ -444,10 +444,14 @@ export default function DashboardPage() {
                     </Card>
                   </Link>
 
-                  <div className="rounded-xl border border-dashed border-border/40 bg-secondary/15 flex flex-col items-center justify-center p-4 text-center">
+                  <div className="rounded-xl border border-dashed border-border/40 bg-secondary/15 flex flex-col items-center justify-center p-4 text-center h-full">
                     <Banknote className="h-5 w-5 text-muted-foreground/30 mb-1" />
                     <span className="text-[10px] text-muted-foreground/40 font-medium">Menu Hutang</span>
                   </div>
+
+                  {/* Empty spacers to align first row heights and match Slide 1 */}
+                  <div className="h-full" />
+                  <div className="h-full" />
                 </div>
               </div>
 
