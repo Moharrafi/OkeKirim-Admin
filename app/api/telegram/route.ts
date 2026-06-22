@@ -96,7 +96,10 @@ export async function POST(request: NextRequest) {
       }
 
       const routeList = items
-        .map((item, i) => `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})`)
+        .map((item, i) => {
+          const sisaStr = (item.sisa !== undefined && item.sisa > 0) ? ` (sisa: ${formatRupiah(item.sisa)})` : ""
+          return `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})${sisaStr}`
+        })
         .join("\n")
 
       message = `${ICON_INBOX} <b>SETORAN MASUK (BATCH)</b>\n` +
