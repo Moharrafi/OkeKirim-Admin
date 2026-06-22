@@ -12,6 +12,7 @@ import {
   Banknote,
   Plus,
   Trash2,
+  Pencil,
   X,
   Calendar,
   CheckCircle2,
@@ -67,6 +68,7 @@ export default function HutangPage() {
 
   // Add Debt Modal States
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null)
   const [formDriver, setFormDriver] = useState("")
   const [formVehicle, setFormVehicle] = useState("")
   const [formAmount, setFormAmount] = useState("")
@@ -155,17 +157,25 @@ export default function HutangPage() {
     const vehicle = driverObj?.vehicle || formVehicle
 
     try {
-      const res = await fetch("/api/debts", {
-        method: "POST",
+      const url = "/api/debts"
+      const method = editingDebt ? "PATCH" : "POST"
+      const bodyData: any = {
+        driver: formDriver,
+        vehicle: vehicle || null,
+        amount: parseInt(formAmount),
+        date: formDate || undefined,
+        dueDate: formDueDate || null,
+        notes: formNotes || null
+      }
+
+      if (editingDebt) {
+        bodyData.id = editingDebt.id
+      }
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          driver: formDriver,
-          vehicle: vehicle || null,
-          amount: parseInt(formAmount),
-          date: formDate || undefined,
-          dueDate: formDueDate || null,
-          notes: formNotes || null
-        })
+        body: JSON.stringify(bodyData)
       })
 
       if (res.ok) {
@@ -175,6 +185,17 @@ export default function HutangPage() {
     } catch (err) {
       console.error(err)
     }
+  }
+
+  const handleEditDebt = (debt: Debt) => {
+    setEditingDebt(debt)
+    setFormDriver(debt.driver || "")
+    setFormVehicle(debt.vehicle || "")
+    setFormAmount(debt.amount.toString())
+    setFormDate(debt.date ? debt.date.split("T")[0] : "")
+    setFormDueDate(debt.dueDate ? debt.dueDate.split("T")[0] : "")
+    setFormNotes(debt.notes || "")
+    setShowAddModal(true)
   }
 
   const handleSavePayment = async () => {
@@ -236,6 +257,7 @@ export default function HutangPage() {
 
   const resetAddForm = () => {
     setShowAddModal(false)
+    setEditingDebt(null)
     setFormDriver("")
     setFormVehicle("")
     setFormAmount("")
@@ -376,13 +398,22 @@ export default function HutangPage() {
 
                         <div className="flex items-center gap-1.5">
                           {isAdmin && (
-                            <button
-                              onClick={() => handleDeleteDebt(debt.id)}
-                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
-                              aria-label="Hapus kasbon"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleEditDebt(debt)}
+                                className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                aria-label="Edit kasbon"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDebt(debt.id)}
+                                className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
+                                aria-label="Hapus kasbon"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
                           )}
                           <span className={cn(
                             "text-[10px] font-bold px-2 py-0.5 rounded-full border",
@@ -506,7 +537,9 @@ export default function HutangPage() {
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={resetAddForm} />
             <div className="relative bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 max-h-[85vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-foreground">Tambah Kasbon Driver</h3>
+                <h3 className="text-lg font-bold text-foreground">
+                  {editingDebt ? "Edit Kasbon Driver" : "Tambah Kasbon Driver"}
+                </h3>
                 <button onClick={resetAddForm} className="p-1 rounded-full hover:bg-secondary">
                   <X className="h-4 w-4 text-muted-foreground" />
                 </button>
@@ -593,7 +626,7 @@ export default function HutangPage() {
                   onClick={handleSaveDebt}
                   disabled={!formDriver || !formAmount}
                 >
-                  Simpan
+                  {editingDebt ? "Simpan Perubahan" : "Simpan"}
                 </Button>
               </div>
             </div>

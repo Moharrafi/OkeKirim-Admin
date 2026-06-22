@@ -219,3 +219,19 @@ export async function notifyDebtPayment(driverName: string, amount: number, rema
   })
 }
 
+/**
+ * Notify driver when an existing kasbon (debt) is updated.
+ */
+export async function notifyEditDebt(driverName: string, amount: number, vehicle?: string) {
+  const formattedAmount = `Rp ${amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
+  const title = "Kasbon Diperbarui"
+  const body = `Halo ${driverName}, data kasbon Anda telah diperbarui. Jumlah pinjaman saat ini: ${formattedAmount}${vehicle ? ` untuk kendaraan ${vehicle}` : ""}.`
+
+  return notifyDriver(driverName, {
+    title,
+    body,
+    type: "edit_debt",
+    data: { amount: String(amount), url: "/hutang" }
+  })
+}
+
