@@ -404,14 +404,22 @@ export default function DepositPage() {
     ? `Nominal bukti lebih kecil. Sistem mencatat Rp ${formatCurrency(submittedDepositPaymentAmount)} sebagai cicilan dan sisa Rp ${formatCurrency(autoPartialRemainingAmount)} tetap belum lunas.`
     : "Yakin mau melanjutkan pembayaran setoran ini?"
   const proofRecipientBlocking =
+    !isAdmin &&
     Boolean(uploadedFile) &&
     proofOcrStatus !== "idle" &&
     proofOcrStatus !== "reading" &&
     proofOcrRecipientMatched !== true
   const proofNeedsReason =
-    proofOcrStatus === "mismatch" &&
-    proofOcrRecipientMatched === true &&
-    proofMismatchReason.trim().length < 3
+    (isAdmin &&
+     Boolean(uploadedFile) &&
+     proofOcrStatus !== "idle" &&
+     proofOcrStatus !== "reading" &&
+     proofOcrStatus !== "matched" &&
+     proofMismatchReason.trim().length < 3) ||
+    (!isAdmin &&
+     proofOcrStatus === "mismatch" &&
+     proofOcrRecipientMatched === true &&
+     proofMismatchReason.trim().length < 3)
   const proofCheckBlocking = proofOcrStatus === "reading" || proofNeedsReason || proofRecipientBlocking
 
   useEffect(() => {
@@ -1229,7 +1237,7 @@ export default function DepositPage() {
               )}
             </div>
           </div>
-          {!recipientMismatch && (
+          {(!recipientMismatch || isAdmin) && (
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Alasan tetap gunakan bukti ini</Label>
               <Textarea
@@ -1248,7 +1256,7 @@ export default function DepositPage() {
     }
 
     return (
-      <div className="mt-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+      <div className="mt-3 space-y-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
@@ -1269,6 +1277,20 @@ export default function DepositPage() {
             )}
           </div>
         </div>
+        {isAdmin && (
+          <div className="space-y-1.5 pt-2 border-t border-warning/20">
+            <Label className="text-xs font-medium text-foreground">Alasan tetap gunakan bukti ini</Label>
+            <Textarea
+              value={proofMismatchReason}
+              onChange={(e) => setProofMismatchReason(e.target.value)}
+              placeholder="Contoh: transfer dua kali, bukti salah kirim, atau sudah dicek manual"
+              className="min-h-20 rounded-xl bg-background"
+            />
+            {proofNeedsReason && (
+              <p className="text-xs text-warning">Alasan wajib diisi sebelum konfirmasi.</p>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -1344,19 +1366,27 @@ export default function DepositPage() {
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {selectedOrderItems.map((order) => (
                   <div key={order.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">#{order.id}</span>
-                      <span className={cn(
-                        "text-xs px-1.5 py-0.5 rounded",
-                        order.type === "online" ? "bg-primary/10 text-primary" : "bg-chart-3/10 text-chart-3"
-                      )}>
-                        {order.type === "online" ? "Online" : "Offline"}
-                      </span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">#{order.id}</span>
+                        <span className={cn(
+                          "text-xs px-1.5 py-0.5 rounded",
+                          order.type === "online" ? "bg-primary/10 text-primary" : "bg-chart-3/10 text-chart-3"
+                        )}>
+                          {order.type === "online" ? "Online" : "Offline"}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground/80 truncate">
+                        {order.driver}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {order.lokasiMuat} → {order.lokasiBongkar}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
                       <p className="text-sm font-semibold text-primary">
-                        Sisa: Rp {order.sisa.toLocaleString("id-ID")}
+                        {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
                       </p>
                     </div>
                   </div>
@@ -1609,7 +1639,9 @@ export default function DepositPage() {
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">Sisa</span>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {selectedOrder.paidAmount > 0 ? "Sisa" : "Setoran"}
+                    </span>
                     <span className="text-xl font-bold text-primary">
                       Rp {selectedOrder.sisa.toLocaleString("id-ID")}
                     </span>
@@ -1763,7 +1795,9 @@ export default function DepositPage() {
                     </div>
                   )}
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-medium">Sisa Setoran</span>
+                    <span className="text-muted-foreground font-medium">
+                      {selectedOrder.paidAmount > 0 ? "Sisa Setoran" : "Setoran"}
+                    </span>
                     <span className="text-2xl font-bold text-primary">
                       Rp {selectedOrder.sisa.toLocaleString("id-ID")}
                     </span>
@@ -2367,7 +2401,7 @@ export default function DepositPage() {
                       <div>
                         <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
                         <p className="text-sm font-bold text-primary">
-                          Sisa: Rp {order.sisa.toLocaleString("id-ID")}
+                          {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">

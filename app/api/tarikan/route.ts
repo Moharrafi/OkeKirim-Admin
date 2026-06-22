@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     let query = `
       SELECT s.*, d.vehicle as driverVehicle 
       FROM schedules s 
-      LEFT JOIN drivers d ON LOWER(TRIM(s.driver)) = LOWER(TRIM(d.name))
+      LEFT JOIN drivers d ON s.driver = d.name
     `
     let countQuery = `SELECT COUNT(*) as total FROM schedules s`
     const params: string[] = []
