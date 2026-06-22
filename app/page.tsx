@@ -45,6 +45,8 @@ interface DashboardData {
   lastMonthFare: number
   pendingTotal: number
   pendingCount: number
+  pendingDebtTotal?: number
+  pendingDebtCount?: number
   todayTotal: number
   todayCount: number
   activeDrivers: number
@@ -333,8 +335,8 @@ export default function DashboardPage() {
           <section className="mt-5 space-y-5">
             <section>
               <SectionHeader title="Ringkasan" subtitle="Angka utama bulan ini" />
-              <div className="grid grid-cols-2 gap-2.5">
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+              <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4 scroll-smooth">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-w-[155px] flex-1 flex-shrink-0 snap-align-start">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-primary/10">
@@ -353,26 +355,26 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Link href={isAdmin ? "/drivers" : "#"}>
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="p-1.5 rounded-lg bg-blue-500/10">
-                        <Users className="h-3.5 w-3.5 text-blue-500" />
+                <Link href={isAdmin ? "/drivers" : "#"} className="min-w-[155px] flex-1 flex-shrink-0 snap-align-start">
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10">
+                          <Users className="h-3.5 w-3.5 text-blue-500" />
+                        </div>
+                        {data?.monthlyCount ? (
+                          <span className="text-[10px] font-medium text-muted-foreground">{data.monthlyCount} trip</span>
+                        ) : null}
                       </div>
-                      {data?.monthlyCount ? (
-                        <span className="text-[10px] font-medium text-muted-foreground">{data.monthlyCount} trip</span>
-                      ) : null}
-                    </div>
-                    <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                      {isAdmin ? data?.activeDrivers || 0 : data?.monthlyCount || 0}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">{isAdmin ? "Driver Aktif" : "Trip Bulan Ini"}</p>
-                  </CardContent>
-                </Card>
+                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
+                        {isAdmin ? data?.activeDrivers || 0 : data?.monthlyCount || 0}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">{isAdmin ? "Driver Aktif" : "Trip Bulan Ini"}</p>
+                    </CardContent>
+                  </Card>
                 </Link>
 
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-w-[155px] flex-1 flex-shrink-0 snap-align-start">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-amber-500/10">
@@ -389,7 +391,7 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
+                <Card className="rounded-xl border-border bg-card py-0 shadow-sm min-w-[155px] flex-1 flex-shrink-0 snap-align-start">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="p-1.5 rounded-lg bg-emerald-500/10">
@@ -405,6 +407,25 @@ export default function DashboardPage() {
                     <p className="text-[10px] text-muted-foreground">Hari Ini</p>
                   </CardContent>
                 </Card>
+
+                <Link href="/hutang" className="min-w-[155px] flex-1 flex-shrink-0 snap-align-start">
+                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="p-1.5 rounded-lg bg-red-500/10">
+                          <Banknote className="h-3.5 w-3.5 text-red-500" />
+                        </div>
+                        {data?.pendingDebtCount ? (
+                          <span className="text-[10px] font-semibold text-red-500">{data.pendingDebtCount} kasbon</span>
+                        ) : null}
+                      </div>
+                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
+                        Rp {formatRupiah(data?.pendingDebtTotal || 0)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Hutang Kasbon</p>
+                    </CardContent>
+                  </Card>
+                </Link>
               </div>
             </section>
 

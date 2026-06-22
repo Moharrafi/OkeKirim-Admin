@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Wallet, MapPin, History, User } from "lucide-react"
+import { Home, Wallet, MapPin, History, User, Banknote } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 
@@ -10,6 +10,7 @@ const adminNavItems = [
   { href: "/", icon: Home, label: "Beranda" },
   { href: "/deposit", icon: Wallet, label: "Deposit" },
   { href: "/lokasi", icon: MapPin, label: "Lokasi" },
+  { href: "/hutang", icon: Banknote, label: "Hutang" },
   { href: "/history", icon: History, label: "Riwayat" },
   { href: "/profile", icon: User, label: "Profil" },
 ]
@@ -17,6 +18,7 @@ const adminNavItems = [
 const driverNavItems = [
   { href: "/", icon: Home, label: "Beranda" },
   { href: "/deposit", icon: Wallet, label: "Setoran" },
+  { href: "/hutang", icon: Banknote, label: "Hutang" },
   { href: "/history", icon: History, label: "Riwayat" },
   { href: "/profile", icon: User, label: "Profil" },
 ]

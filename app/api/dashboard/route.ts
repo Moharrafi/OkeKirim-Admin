@@ -77,6 +77,13 @@ export async function GET(request: NextRequest) {
       "SELECT COUNT(*) as count FROM drivers WHERE status = 'aktif'"
     ) as any
 
+    const [debtRows] = await pool.execute(
+      `SELECT COALESCE(SUM(amount - paidAmount), 0) as totalDebt, COUNT(*) as count FROM debts WHERE status = 'belum_lunas'${driverWhere}`,
+      [...driverParam]
+    ) as any
+    const pendingDebtTotal = Number((debtRows as any[])[0]?.totalDebt || 0)
+    const pendingDebtCount = Number((debtRows as any[])[0]?.count || 0)
+
     const [recentRows] = await pool.execute(
       `SELECT s.*, d.vehicle as driverVehicle 
        FROM schedules s 
@@ -194,6 +201,8 @@ export async function GET(request: NextRequest) {
       lastMonthFare: lastMonthFare,
       pendingTotal: Number((pendingRows as any[])[0]?.total || 0),
       pendingCount: Number((pendingRows as any[])[0]?.count || 0),
+      pendingDebtTotal,
+      pendingDebtCount,
       todayTotal: Number((todayRows as any[])[0]?.total || 0),
       todayCount: Number((todayRows as any[])[0]?.count || 0),
       activeDrivers: Number((driverRows as any[])[0]?.count || 0),
