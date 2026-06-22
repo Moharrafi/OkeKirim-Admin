@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
 
       const routeList = items
         .map((item, i) => {
-          const sisaStr = (item.sisa !== undefined && item.sisa > 0) ? ` (sisa: ${formatRupiah(item.sisa)})` : ""
+          const targetShare = item.companyShare ?? Math.round(item.fare * 0.4)
+          const sisaStr = (item.sisa !== undefined && item.sisa > 0 && item.sisa < targetShare)
+            ? ` (sisa: ${formatRupiah(item.sisa)})`
+            : ""
           return `${i + 1}. ${escapeHtml(item.route || "-")} (${formatRupiah(item.fare)})${sisaStr}`
         })
         .join("\n")
