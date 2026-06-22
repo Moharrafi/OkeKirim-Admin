@@ -5,7 +5,6 @@ const adminNavItems = [
   { href: "/", icon: {} as any, label: "Beranda" },
   { href: "/deposit", icon: {} as any, label: "Deposit" },
   { href: "/lokasi", icon: {} as any, label: "Lokasi" },
-  { href: "/hutang", icon: {} as any, label: "Hutang" },
   { href: "/history", icon: {} as any, label: "Riwayat" },
   { href: "/profile", icon: {} as any, label: "Profil" },
 ]
@@ -13,7 +12,6 @@ const adminNavItems = [
 const driverNavItems = [
   { href: "/", icon: {} as any, label: "Beranda" },
   { href: "/deposit", icon: {} as any, label: "Setoran" },
-  { href: "/hutang", icon: {} as any, label: "Hutang" },
   { href: "/history", icon: {} as any, label: "Riwayat" },
   { href: "/profile", icon: {} as any, label: "Profil" },
 ]
