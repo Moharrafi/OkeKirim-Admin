@@ -427,7 +427,7 @@ export default function DashboardPage() {
 
                     {/* Slide 2: 2x2 Grid (containing Hutang card) */}
                     <div className="w-full shrink-0 snap-start grid grid-cols-2 grid-rows-2 gap-2.5 px-4">
-                      <Link href="/hutang" className="col-span-2">
+                      <Link href="/hutang">
                         <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between">
@@ -446,7 +446,8 @@ export default function DashboardPage() {
                         </Card>
                       </Link>
 
-                      {/* Spacer row to prevent first row from stretching */}
+                      {/* Spacer columns to match standard 2x2 grid layout and card dimensions */}
+                      <div className="h-full" />
                       <div className="h-full" />
                       <div className="h-full" />
                     </div>
