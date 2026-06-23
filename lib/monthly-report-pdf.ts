@@ -110,13 +110,20 @@ export function createMonthlyDepositRecapPdf(
   const pages: string[][] = []
   let ops: string[] = []
 
+  const COLOR_BG: [number, number, number] = [0.975, 0.98, 0.985]
+  const COLOR_PRIMARY: [number, number, number] = [0.047, 0.165, 0.114]
+  const COLOR_PRIMARY_SUB: [number, number, number] = [0.68, 0.85, 0.77]
+  const COLOR_TEXT_DARK: [number, number, number] = [0.12, 0.16, 0.14]
+  const COLOR_TEXT_MUTED: [number, number, number] = [0.45, 0.5, 0.47]
+  const COLOR_BORDER: [number, number, number] = [0.88, 0.9, 0.89]
+
   const color = (rgb: [number, number, number]) => rgb.map((item) => item.toFixed(3)).join(" ")
   const pdfY = (top: number, itemHeight = 0) => height - top - itemHeight
 
   const addPage = () => {
     ops = []
     pages.push(ops)
-    ops.push(`q ${color([0.985, 0.99, 0.985])} rg 0 0 ${width} ${height} re f Q`)
+    ops.push(`q ${color(COLOR_BG)} rg 0 0 ${width} ${height} re f Q`)
   }
 
   const rect = (
@@ -127,12 +134,12 @@ export function createMonthlyDepositRecapPdf(
     fill: [number, number, number],
     stroke?: [number, number, number]
   ) => {
-    const strokePart = stroke ? `${color(stroke)} RG 0.7 w ` : ""
+    const strokePart = stroke ? `${color(stroke)} RG 0.6 w ` : ""
     ops.push(`q ${color(fill)} rg ${strokePart}${x} ${pdfY(top, rectHeight)} ${rectWidth} ${rectHeight} re ${stroke ? "B" : "f"} Q`)
   }
 
   const line = (x1: number, y1: number, x2: number, y2: number, stroke: [number, number, number]) => {
-    ops.push(`q ${color(stroke)} RG 0.8 w ${x1} ${pdfY(y1)} m ${x2} ${pdfY(y2)} l S Q`)
+    ops.push(`q ${color(stroke)} RG 0.6 w ${x1} ${pdfY(y1)} m ${x2} ${pdfY(y2)} l S Q`)
   }
 
   const estimateTextWidth = (value: string, size: number, font: "F1" | "F2") => {
@@ -152,7 +159,7 @@ export function createMonthlyDepositRecapPdf(
   ) => {
     const size = options?.size || 10
     const font = options?.font || "F1"
-    const fill = options?.fill || [0.08, 0.1, 0.09]
+    const fill = options?.fill || COLOR_TEXT_DARK
     const raw = normalizePdfText(value)
     const escaped = escapePdfText(raw)
     const estimatedWidth = estimateTextWidth(raw, size, font)
@@ -168,26 +175,27 @@ export function createMonthlyDepositRecapPdf(
   }
 
   const drawFirstPageHeader = () => {
-    const badgeWidth = 104
+    const badgeWidth = 96
     const badgeX = width - margin - badgeWidth - 24
 
-    rect(margin, 28, contentWidth, 74, [0.02, 0.42, 0.22])
-    text(margin + 22, 47, "Laporan Profit & Setoran Driver", { size: 22, font: "F2", fill: [1, 1, 1] })
-    text(margin + 22, 76, `Periode ${periodLabel} | Dibuat ${generatedAt}`, { size: 10.5, fill: [0.86, 0.96, 0.9] })
-    rect(badgeX, 51, badgeWidth, 28, [0.88, 0.96, 0.9])
-    text(badgeX + badgeWidth / 2, 60, "LAPORAN PDF", { size: 10, font: "F2", fill: [0.02, 0.34, 0.18], align: "center" })
+    rect(margin, 28, contentWidth, 74, COLOR_PRIMARY)
+    text(margin + 24, 46, "Laporan Profit & Setoran Driver", { size: 22, font: "F2", fill: [1, 1, 1] })
+    text(margin + 24, 76, `Periode ${periodLabel} | Dibuat ${generatedAt}`, { size: 10, fill: COLOR_PRIMARY_SUB })
+    rect(badgeX, 51, badgeWidth, 28, [0.1, 0.32, 0.22])
+    text(badgeX + badgeWidth / 2, 60, "LAPORAN PDF", { size: 9, font: "F2", fill: [0.85, 0.98, 0.91], align: "center" })
   }
 
   const drawSmallHeader = () => {
-    rect(margin, 28, contentWidth, 38, [0.02, 0.42, 0.22])
-    text(margin + 16, 40, "Laporan Profit & Setoran Driver", { size: 14, font: "F2", fill: [1, 1, 1] })
-    text(width - margin - 16, 42, periodLabel, { size: 10, fill: [0.86, 0.96, 0.9], align: "right" })
+    rect(margin, 28, contentWidth, 38, COLOR_PRIMARY)
+    text(margin + 16, 40, "Laporan Profit & Setoran Driver", { size: 13, font: "F2", fill: [1, 1, 1] })
+    text(width - margin - 16, 42, periodLabel, { size: 9.5, fill: COLOR_PRIMARY_SUB, align: "right" })
   }
 
   const drawProfitSummary = () => {
     const isNetPositive = profit.netProfit >= 0
-    const heroFill: [number, number, number] = isNetPositive ? [0.02, 0.42, 0.22] : [0.64, 0.12, 0.12]
-    const heroSubFill: [number, number, number] = isNetPositive ? [0.88, 0.96, 0.9] : [1, 0.9, 0.9]
+    const heroFill: [number, number, number] = isNetPositive ? [0.063, 0.22, 0.15] : [0.42, 0.08, 0.08]
+    const heroSubFill: [number, number, number] = isNetPositive ? [0.65, 0.9, 0.78] : [0.9, 0.65, 0.65]
+    const heroAccent: [number, number, number] = isNetPositive ? [0.1, 0.8, 0.45] : [0.9, 0.2, 0.2]
     const panelX = margin + 322
     const panelWidth = contentWidth - 322
     const miniGap = 8
@@ -207,42 +215,44 @@ export function createMonthlyDepositRecapPdf(
       const x = panelX + 15 + column * (miniWidth + miniGap)
       const top = 166 + row * 41
 
-      rect(x, top, miniWidth, 32, fill, [0.86, 0.9, 0.87])
-      rect(x, top, 3, 32, accent)
-      text(x + 10, top + 6, label, { size: 7.4, font: "F2", fill: [0.36, 0.4, 0.38] })
-      text(x + 10, top + 18, value, { size: 9.4, font: "F2", fill: [0.07, 0.1, 0.09] })
+      rect(x, top, miniWidth, 32, fill, COLOR_BORDER)
+      rect(x, top, 4, 32, accent)
+      text(x + 10, top + 6, label, { size: 7.4, font: "F2", fill: COLOR_TEXT_MUTED })
+      text(x + 10, top + 18, value, { size: 9.4, font: "F2", fill: COLOR_TEXT_DARK })
     }
 
-    text(margin, 116, "Ringkasan Profit Perusahaan", { size: 12.5, font: "F2", fill: [0.05, 0.18, 0.1] })
-    text(width - margin, 117, `Periode ${periodLabel}`, { size: 9.2, fill: [0.38, 0.42, 0.4], align: "right" })
+    text(margin, 116, "Ringkasan Profit Perusahaan", { size: 12.5, font: "F2", fill: COLOR_PRIMARY })
+    text(width - margin, 117, `Periode ${periodLabel}`, { size: 9.2, fill: COLOR_TEXT_MUTED, align: "right" })
 
     rect(margin, 136, 302, 112, heroFill)
-    text(margin + 20, 154, "LABA BERSIH", { size: 9.2, font: "F2", fill: heroSubFill })
-    text(margin + 20, 179, `Rp ${formatRupiah(profit.netProfit)}`, { size: 24, font: "F2", fill: [1, 1, 1] })
-    text(margin + 20, 207, "Wajib Setor - Biaya Servis", { size: 8.8, fill: heroSubFill })
-    rect(margin + 20, 218, 262, 1.2, heroSubFill)
-    text(margin + 20, 226, `Laba Kas Masuk: Rp ${formatRupiah(profit.cashProfit)}`, { size: 10.2, font: "F2", fill: [1, 1, 1] })
+    rect(margin, 136, 4, 112, heroAccent)
+    text(margin + 24, 154, "LABA BERSIH", { size: 9.2, font: "F2", fill: heroSubFill })
+    text(margin + 24, 179, `Rp ${formatRupiah(profit.netProfit)}`, { size: 24, font: "F2", fill: [1, 1, 1] })
+    text(margin + 24, 207, "Wajib Setor - Biaya Servis", { size: 8.8, fill: heroSubFill })
+    rect(margin + 24, 218, 258, 1, heroSubFill)
+    text(margin + 24, 226, `Laba Kas Masuk: Rp ${formatRupiah(profit.cashProfit)}`, { size: 10.2, font: "F2", fill: [1, 1, 1] })
 
-    rect(panelX, 136, panelWidth, 112, [1, 1, 1], [0.82, 0.88, 0.84])
-    text(panelX + 15, 150, "Komponen Bulanan", { size: 10.4, font: "F2", fill: [0.05, 0.18, 0.1] })
-    text(width - margin - 16, 150, `${profit.trips} trip`, { size: 9, font: "F2", fill: [0.38, 0.42, 0.4], align: "right" })
+    rect(panelX, 136, panelWidth, 112, [1, 1, 1], COLOR_BORDER)
+    text(panelX + 15, 150, "Komponen Bulanan", { size: 10.4, font: "F2", fill: COLOR_PRIMARY })
+    text(width - margin - 16, 150, `${profit.trips} trip`, { size: 9, font: "F2", fill: COLOR_TEXT_MUTED, align: "right" })
 
-    drawMiniMetric(0, "Total Argo", `Rp ${formatRupiah(profit.totalFare)}`, [0.94, 0.97, 1], [0.1, 0.35, 0.72])
-    drawMiniMetric(1, "Wajib Setor", `Rp ${formatRupiah(profit.total)}`, [0.94, 0.98, 0.95], [0.02, 0.42, 0.22])
-    drawMiniMetric(2, "Setoran Masuk", `Rp ${formatRupiah(profit.paid)}`, [0.93, 0.98, 0.95], [0.03, 0.48, 0.26])
-    drawMiniMetric(3, "Pendapatan Driver", `Rp ${formatRupiah(profit.driverShare)}`, [1, 0.97, 0.92], [0.72, 0.36, 0.08])
-    drawMiniMetric(4, "Biaya Servis", `Rp ${formatRupiah(profit.serviceCost)}`, [1, 0.95, 0.95], [0.76, 0.2, 0.18])
-    drawMiniMetric(5, "Sisa Setoran", `Rp ${formatRupiah(profit.remaining)}`, [1, 0.975, 0.92], [0.74, 0.4, 0.04])
+    drawMiniMetric(0, "Total Argo", `Rp ${formatRupiah(profit.totalFare)}`, [0.95, 0.97, 0.99], [0.17, 0.42, 0.69])
+    drawMiniMetric(1, "Wajib Setor", `Rp ${formatRupiah(profit.total)}`, [0.95, 0.985, 0.965], [0.05, 0.35, 0.22])
+    drawMiniMetric(2, "Setoran Masuk", `Rp ${formatRupiah(profit.paid)}`, [0.94, 0.985, 0.96], [0.08, 0.5, 0.3])
+    drawMiniMetric(3, "Pendapatan Driver", `Rp ${formatRupiah(profit.driverShare)}`, [0.995, 0.98, 0.95], [0.72, 0.36, 0.08])
+    drawMiniMetric(4, "Biaya Servis", `Rp ${formatRupiah(profit.serviceCost)}`, [0.995, 0.965, 0.965], [0.76, 0.2, 0.18])
+    drawMiniMetric(5, "Sisa Setoran", `Rp ${formatRupiah(profit.remaining)}`, [0.995, 0.975, 0.95], [0.74, 0.4, 0.04])
 
-    rect(margin, 264, contentWidth, 52, [0.96, 0.985, 0.97], [0.84, 0.89, 0.86])
-    text(margin + 14, 278, "Detail Perhitungan", { size: 9.6, font: "F2", fill: [0.05, 0.18, 0.1] })
-    text(margin + 14, 296, `Laba Bersih = Rp ${formatRupiah(profit.total)} - Rp ${formatRupiah(profit.serviceCost)} = Rp ${formatRupiah(profit.netProfit)}`, { size: 8.8, fill: [0.28, 0.34, 0.31] })
+    rect(margin, 264, contentWidth, 52, [0.96, 0.985, 0.97], COLOR_BORDER)
+    rect(margin, 264, 3, 52, COLOR_PRIMARY)
+    text(margin + 16, 278, "Detail Perhitungan", { size: 9.6, font: "F2", fill: COLOR_PRIMARY })
+    text(margin + 16, 296, `Laba Bersih = Rp ${formatRupiah(profit.total)} - Rp ${formatRupiah(profit.serviceCost)} = Rp ${formatRupiah(profit.netProfit)}`, { size: 8.8, fill: [0.28, 0.34, 0.31] })
 
-    text(completionRight - completionBarWidth, 278, "Realisasi Setoran", { size: 9.4, font: "F2", fill: [0.05, 0.18, 0.1] })
+    text(completionRight - completionBarWidth, 278, "Realisasi Setoran", { size: 9.4, font: "F2", fill: COLOR_PRIMARY })
     text(completionRight, 278, `${profit.completionRate}%`, { size: 10.6, font: "F2", fill: [0.02, 0.42, 0.22], align: "right" })
-    rect(completionRight - completionBarWidth, 292, completionBarWidth, 9, [0.86, 0.9, 0.87])
-    rect(completionRight - completionBarWidth, 292, completionBarWidth * (profit.completionRate / 100), 9, [0.02, 0.42, 0.22])
-    text(completionRight, 306, `Masuk Rp ${formatRupiah(profit.paid)} dari Rp ${formatRupiah(profit.total)}`, { size: 7.8, fill: [0.38, 0.42, 0.4], align: "right" })
+    rect(completionRight - completionBarWidth, 292, completionBarWidth, 6, [0.9, 0.92, 0.91])
+    rect(completionRight - completionBarWidth, 292, completionBarWidth * (profit.completionRate / 100), 6, [0.1, 0.7, 0.45])
+    text(completionRight, 306, `Masuk Rp ${formatRupiah(profit.paid)} dari Rp ${formatRupiah(profit.total)}`, { size: 7.8, fill: COLOR_TEXT_MUTED, align: "right" })
   }
 
   const columns = [
@@ -258,7 +268,7 @@ export function createMonthlyDepositRecapPdf(
 
   const drawTableHeader = (top: number) => {
     let x = margin
-    rect(margin, top, contentWidth, 24, [0.02, 0.42, 0.22])
+    rect(margin, top, contentWidth, 24, [0.043, 0.145, 0.102])
 
     columns.forEach((column) => {
       const labelX = column.align === "right" ? x + column.width - 8 : column.align === "center" ? x + column.width / 2 : x + 8
@@ -272,12 +282,12 @@ export function createMonthlyDepositRecapPdf(
   const drawTableRow = (top: number, values: Array<string | number>, rowIndex: number, isTotal = false) => {
     const rowHeight = isTotal ? 28 : 24
     const fill = isTotal
-      ? [0.9, 0.96, 1] as [number, number, number]
+      ? [0.91, 0.95, 0.93] as [number, number, number]
       : rowIndex % 2 === 0
         ? [1, 1, 1] as [number, number, number]
-        : [0.965, 0.98, 0.97] as [number, number, number]
+        : [0.965, 0.975, 0.97] as [number, number, number]
 
-    rect(margin, top, contentWidth, rowHeight, fill, [0.86, 0.9, 0.87])
+    rect(margin, top, contentWidth, rowHeight, fill, COLOR_BORDER)
 
     let x = margin
     values.forEach((value, index) => {
@@ -287,7 +297,7 @@ export function createMonthlyDepositRecapPdf(
       text(labelX, top + 8, display, {
         size: isTotal ? 9.2 : 8.5,
         font: isTotal ? "F2" : "F1",
-        fill: [0.08, 0.1, 0.09],
+        fill: COLOR_TEXT_DARK,
         align: column.align,
       })
       x += column.width
@@ -342,10 +352,11 @@ export function createMonthlyDepositRecapPdf(
 
   pages.forEach((pageOps, index) => {
     ops = pageOps
-    line(margin, height - 34, width - margin, height - 34, [0.82, 0.86, 0.84])
-    text(margin, height - 24, "OkeKirim - Laporan profit & setoran driver", { size: 8.5, fill: [0.38, 0.42, 0.4] })
-    text(width - margin, height - 24, `Halaman ${index + 1} dari ${pages.length}`, { size: 8.5, fill: [0.38, 0.42, 0.4], align: "right" })
+    line(margin, height - 34, width - margin, height - 34, COLOR_BORDER)
+    text(margin, height - 24, "OkeKirim - Laporan profit & setoran driver", { size: 8.5, fill: COLOR_TEXT_MUTED })
+    text(width - margin, height - 24, `Halaman ${index + 1} dari ${pages.length}`, { size: 8.5, fill: COLOR_TEXT_MUTED, align: "right" })
   })
 
   return createPdfBuffer(pages.map((page) => page.join("\n")), width, height)
 }
+
