@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
+      isCorrection,
+      messageText,
       driver,
       amount,
       route,
@@ -57,6 +59,11 @@ export async function POST(request: NextRequest) {
       sisaSetoran,
       proofMismatchReason,
     } = body
+
+    if (isCorrection && messageText) {
+      const response = await sendTextMessage(messageText)
+      return NextResponse.json({ success: true, response })
+    }
 
     if (!driver || !amount) {
       return NextResponse.json({ error: "Driver dan amount wajib" }, { status: 400 })
