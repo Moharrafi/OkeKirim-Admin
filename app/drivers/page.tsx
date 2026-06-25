@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Users, Plus, Pencil, Trash2, X, Car } from "lucide-react"
+import { Users, Plus, Pencil, Trash2, X, Car, Printer, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { fetchDrivers, type Driver } from "@/lib/okekirim-api"
@@ -24,6 +24,53 @@ export default function DriversPage() {
   const [formVehicle, setFormVehicle] = useState("")
   const [formVehicleType, setFormVehicleType] = useState("")
   const [formStatus, setFormStatus] = useState("aktif")
+
+  // Detail Modal States
+  const [showDetail, setShowDetail] = useState(false)
+  const [detailDriver, setDetailDriver] = useState<Driver | null>(null)
+  const [detailData, setDetailData] = useState<any | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  // Vehicle Input Mode State
+  const [isManualVehicle, setIsManualVehicle] = useState(false)
+
+  // Calculate idle plates (plates from inactive drivers not used by active drivers)
+  const idlePlates = useMemo(() => {
+    const activePlates = new Set(
+      drivers
+        .filter((d) => d.status === "aktif" && d.vehicle)
+        .map((d) => d.vehicle!.trim().toUpperCase())
+    )
+    const inactivePlates = new Set(
+      drivers
+        .filter((d) => d.status !== "aktif" && d.vehicle)
+        .map((d) => d.vehicle!.trim().toUpperCase())
+    )
+
+    const plateRegex = /^[A-Z]{1,2}\s*\d{1,4}\s*[A-Z]{1,3}$/i
+
+    return Array.from(inactivePlates).filter(
+      (plate) => !activePlates.has(plate) && plateRegex.test(plate)
+    )
+  }, [drivers])
+
+  const handleShowDetail = async (driver: Driver) => {
+    setDetailDriver(driver)
+    setShowDetail(true)
+    setDetailLoading(true)
+    setDetailData(null)
+    try {
+      const resp = await fetch(`/api/report/driver?name=${encodeURIComponent(driver.name)}`)
+      if (resp.ok) {
+        const result = await resp.json()
+        setDetailData(result)
+      }
+    } catch (err) {
+      console.error("Gagal mengambil rincian driver:", err)
+    } finally {
+      setDetailLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
@@ -85,6 +132,7 @@ export default function DriversPage() {
     setFormVehicle("")
     setFormVehicleType("")
     setFormStatus("aktif")
+    setIsManualVehicle(false) // Reset manual vehicle input flag
   }
 
   const startEdit = (driver: Driver) => {
@@ -93,6 +141,7 @@ export default function DriversPage() {
     setFormVehicle(driver.vehicle || "")
     setFormVehicleType(driver.vehicleType || "")
     setFormStatus(driver.status || "aktif")
+    setIsManualVehicle(true) // Always allow text edit when modifying an existing driver
     setShowForm(true)
   }
 
@@ -125,7 +174,11 @@ export default function DriversPage() {
         ) : (
           <div className="space-y-3">
             {drivers.map((driver) => (
-              <Card key={driver.id} className="border-border bg-card">
+              <Card
+                key={driver.id}
+                className="border-border bg-card cursor-pointer hover:bg-card/90 transition-colors"
+                onClick={() => handleShowDetail(driver)}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -152,13 +205,19 @@ export default function DriversPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => startEdit(driver)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEdit(driver);
+                        }}
                         className="p-2 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(driver.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(driver.id);
+                        }}
                         className="p-2 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -197,12 +256,53 @@ export default function DriversPage() {
               </div>
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Plat Kendaraan</Label>
-                <Input
-                  value={formVehicle}
-                  onChange={(e) => setFormVehicle(e.target.value)}
-                  placeholder="Contoh: B 1234 ABC"
-                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
-                />
+                {!isManualVehicle && idlePlates.length > 0 ? (
+                  <div className="mt-1">
+                    <select
+                      value={formVehicle}
+                      onChange={(e) => {
+                        if (e.target.value === "__MANUAL__") {
+                          setIsManualVehicle(true)
+                          setFormVehicle("")
+                        } else {
+                          setFormVehicle(e.target.value)
+                        }
+                      }}
+                      className="w-full h-10 rounded-xl bg-secondary border-0 px-3 text-sm text-foreground appearance-none"
+                    >
+                      <option value="">Pilih nopol...</option>
+                      {idlePlates.map((plate) => (
+                        <option key={plate} value={plate}>
+                          {plate}
+                        </option>
+                      ))}
+                      <option value="__MANUAL__" className="text-primary font-semibold">
+                        + Input Plat Baru Manual
+                      </option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="relative mt-1 flex gap-2">
+                    <Input
+                      value={formVehicle}
+                      onChange={(e) => setFormVehicle(e.target.value)}
+                      placeholder="Contoh: B 1234 ABC"
+                      className="bg-secondary border-0 h-10 rounded-xl flex-1"
+                    />
+                    {!editingDriver && idlePlates.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsManualVehicle(false)
+                          setFormVehicle("")
+                        }}
+                        className="h-10 text-xs font-bold text-primary px-3 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors"
+                      >
+                        Gunakan List
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <Label className="text-xs font-medium text-muted-foreground">Jenis Kendaraan</Label>
@@ -260,6 +360,123 @@ export default function DriversPage() {
                 disabled={!formName.trim()}
               >
                 {editingDriver ? "Simpan" : "Tambah"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Modal (Opsi B) */}
+      {showDetail && detailDriver && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/45 backdrop-blur-sm" onClick={() => setShowDetail(false)} />
+          <div className="relative bg-card border border-border rounded-2xl p-5 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-foreground">Detail Keuangan</h3>
+              <button onClick={() => setShowDetail(false)} className="p-1 rounded-full hover:bg-secondary">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Driver info card */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 border border-border">
+                <div className="p-2.5 rounded-xl bg-primary/10">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">{detailDriver.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {detailDriver.vehicle || "-"} {detailDriver.vehicleType ? `(${detailDriver.vehicleType})` : ""}
+                  </p>
+                </div>
+              </div>
+
+              {detailLoading ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                  <p className="text-xs text-muted-foreground">Memuat data keuangan...</p>
+                </div>
+              ) : detailData ? (
+                <div className="space-y-3.5">
+                  {/* Setoran Section */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Setoran Trip</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-secondary/35">
+                        <p className="text-[10px] text-muted-foreground">Wajib Setor</p>
+                        <p className="font-semibold text-foreground mt-0.5">
+                          Rp {detailData.deposits.summary.totalCompanyShare.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-secondary/35 border-l-2 border-l-amber-500">
+                        <p className="text-[10px] text-muted-foreground">Sisa Setoran</p>
+                        <p className="font-bold text-amber-500 mt-0.5">
+                          Rp {detailData.deposits.summary.totalRemaining.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Kasbon Section */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kasbon / Hutang</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-secondary/35">
+                        <p className="text-[10px] text-muted-foreground">Total Kasbon</p>
+                        <p className="font-semibold text-foreground mt-0.5">
+                          Rp {detailData.debts.summary.totalDebt.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-secondary/35 border-l-2 border-l-red-500">
+                        <p className="text-[10px] text-muted-foreground">Sisa Kasbon</p>
+                        <p className="font-bold text-red-500 mt-0.5">
+                          Rp {detailData.debts.summary.totalRemaining.toLocaleString("id-ID")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Tagihan */}
+                  <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-destructive uppercase tracking-wide text-[10px]">
+                        Total Kewajiban
+                      </span>
+                      <span className="font-extrabold text-sm text-destructive">
+                        Rp {(detailData.deposits.summary.totalRemaining + detailData.debts.summary.totalRemaining).toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-xs text-destructive">Gagal memuat data keuangan driver.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2.5 mt-6">
+              <Button
+                variant="outline"
+                className="flex-1 h-10 rounded-xl text-xs font-semibold border-border hover:bg-secondary"
+                onClick={() => {
+                  setShowDetail(false)
+                  startEdit(detailDriver)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                Edit Driver
+              </Button>
+              <Button
+                className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-xs font-semibold"
+                disabled={detailLoading || !detailData}
+                onClick={() => {
+                  window.open(`/drivers/print?driver=${encodeURIComponent(detailDriver.name)}`, "_blank")
+                }}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1" />
+                Cetak
               </Button>
             </div>
           </div>

@@ -49,7 +49,7 @@ export function MobileNav() {
   const activeIndex = navItems.findIndex(item => item.href === activeHref)
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pt-2" aria-label="Navigasi utama" role="navigation">
+    <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] pt-2 print:hidden" aria-label="Navigasi utama" role="navigation">
       <div
         className="relative grid rounded-2xl border border-border/80 bg-card/95 p-1.5 shadow-[0_8px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl"
         style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
