@@ -33,7 +33,7 @@ export default function DriversPage() {
   const refreshDrivers = useCallback(async () => {
     setLoading(true)
     try {
-      const d = await fetchDrivers()
+      const d = await fetchDrivers({ force: true })
       setDrivers(d)
     } catch {} finally {
       setLoading(false)
@@ -62,7 +62,7 @@ export default function DriversPage() {
     }
     
     // Refresh
-    const updated = await fetchDrivers()
+    const updated = await fetchDrivers({ force: true })
     setDrivers(updated)
     resetForm()
   }
@@ -75,6 +75,7 @@ export default function DriversPage() {
       body: JSON.stringify({ id }),
     })
     setDrivers(prev => prev.filter(d => d.id !== id))
+    fetchDrivers({ force: true }).catch(() => {})
   }
 
   const resetForm = () => {

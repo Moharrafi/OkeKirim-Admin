@@ -18,6 +18,7 @@ export interface Schedule {
   lastPaidAt: string | null
   paidOffAt: string | null
   created_at: string | null
+  orderProof?: string | null
 }
 
 export interface Driver {
@@ -39,13 +40,31 @@ export interface HistoryResponse {
   }
 }
 
-export async function fetchDrivers(): Promise<Driver[]> {
+let cachedDrivers: Driver[] | null = null
+
+export async function fetchDrivers(options?: { force?: boolean }): Promise<Driver[]> {
+  if (!options?.force && cachedDrivers) return cachedDrivers
+  if (!options?.force && typeof window !== "undefined") {
+    const cached = sessionStorage.getItem("api_drivers_cache")
+    if (cached) {
+      try {
+        cachedDrivers = JSON.parse(cached)
+        return cachedDrivers!
+      } catch {}
+    }
+  }
   try {
     const resp = await fetch("/api/drivers")
     if (!resp.ok) return []
     const data = await resp.json()
-    return data.drivers || []
-  } catch {
+    const drivers = data.drivers || []
+    cachedDrivers = drivers
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("api_drivers_cache", JSON.stringify(drivers))
+    }
+    return drivers
+  } catch (err) {
+    console.warn("Failed to fetch drivers:", err)
     return []
   }
 }
@@ -133,6 +152,7 @@ export async function createOrder(order: {
   orderType: string
   fare: number
   notes?: string
+  orderProof?: string
 }, options?: { signal?: AbortSignal }): Promise<{ success: boolean; id?: number; error?: string }> {
   try {
     const resp = await fetch("/api/tarikan", {

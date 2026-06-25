@@ -89,6 +89,7 @@ interface Order {
   time: string
   status: string
   isOverdue7: boolean
+  orderProof?: string | null
 }
 
 function parseCurrencyToken(token: string) {
@@ -292,6 +293,10 @@ export default function DepositPage() {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
   const [showOrderConfirm, setShowOrderConfirm] = useState(false)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
+  const [orderUploadedFile, setOrderUploadedFile] = useState<string | null>(null)
+  const [orderUploadedImage, setOrderUploadedImage] = useState<string | null>(null)
+  const [orderFileUploadError, setOrderFileUploadError] = useState<string | null>(null)
+
 
   // react-hook-form with Zod validation for order input
   const {
@@ -361,6 +366,12 @@ export default function DepositPage() {
   const [editDate, setEditDate] = useState("")
   const [payAmount, setPayAmount] = useState("")
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("")
+  const [visibleOrdersLimit, setVisibleOrdersLimit] = useState(10)
+
+  const handleLoadMoreOrders = useCallback(() => {
+    setVisibleOrdersLimit((prev) => prev + 10)
+  }, [])
+
   const proofOcrRequestRef = useRef(0)
 
   const resetProofCheck = useCallback(() => {
@@ -379,7 +390,8 @@ export default function DepositPage() {
     lokasiMuat.trim().length > 0 &&
     lokasiBongkar.trim().length > 0 &&
     argoValue >= 1000 &&
-    argoValue <= 999999999
+    argoValue <= 999999999 &&
+    (!isDriver || Boolean(orderUploadedImage))
   const manualPaymentAmount = useMemo(() => parseManualPaymentAmount(payAmount), [payAmount])
   const depositPaymentAmount = useMemo(() => {
     if (showBatchPayment) {
@@ -440,6 +452,27 @@ export default function DepositPage() {
   const [isAnimating, setIsAnimating] = useState(false)
   const animationRef = useRef<number | null>(null)
   const viewContainerRef = useRef<HTMLDivElement>(null)
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollPositionRef = useRef<number>(0)
+  const imageModalRef = useRef<HTMLDivElement>(null)
+  const imageModalImgRef = useRef<HTMLImageElement>(null)
+
+  // Cleanup sub-view states when exiting back to list
+  const cleanupSubViewStates = useCallback(() => {
+    setSelectedOrder(null)
+    setShowBatchPayment(false)
+    setShowDepositSuccess(false)
+    setUploadedFile(null)
+    setUploadedImage(null)
+    setPayAmount("")
+    setFileUploadError(null)
+    resetProofCheck()
+    // Ensure the image modal is closed
+    imageModalRef.current?.classList.remove('opacity-100', 'pointer-events-auto')
+    imageModalRef.current?.classList.add('opacity-0', 'pointer-events-none')
+    imageModalImgRef.current?.classList.remove('scale-100')
+    imageModalImgRef.current?.classList.add('scale-95')
+  }, [resetProofCheck])
 
   // Cancel any running animation
   const cancelAnimation = useCallback(() => {
@@ -447,119 +480,129 @@ export default function DepositPage() {
       cancelAnimationFrame(animationRef.current)
       animationRef.current = null
     }
-    if (viewContainerRef.current) {
-      viewContainerRef.current.getAnimations().forEach(anim => anim.cancel())
+    if (transitionTimeoutRef.current !== null) {
+      clearTimeout(transitionTimeoutRef.current)
+      transitionTimeoutRef.current = null
     }
     setIsAnimating(false)
     setAnimationClass("")
   }, [])
 
-  // Navigate to a detail/batch view with slide-in animation
+  // Navigate to a detail/batch view with fade-in animation
   const navigateToView = useCallback((target: ViewState) => {
     if (isAnimating) {
       cancelAnimation()
     }
-    // Push state so OS back button returns to list instead of leaving page
-    window.history.pushState({ view: target }, "", window.location.href)
-    // Scroll to top instantly when entering a new view (bypass smooth scroll)
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+    // Save window scroll position before hiding list view
+    scrollPositionRef.current = window.scrollY
+
+    // Push or replace history state
+    if (target === "success") {
+      window.history.replaceState({ view: target }, "", window.location.href)
+    } else {
+      window.history.pushState({ view: target }, "", window.location.href)
+    }
+    
     setViewState(target)
-    setAnimationClass("animate-slide-in-right")
+    setAnimationClass("animate-fade-in-fast")
     setIsAnimating(true)
     animationRef.current = requestAnimationFrame(() => {
       animationRef.current = null
     })
   }, [isAnimating, cancelAnimation])
 
-  // Handle OS back button (popstate)
+  // Handle OS back button (popstate) and unified exit transition
   useEffect(() => {
-    const handlePopState = () => {
-      // If we're in a sub-view, go back to list
-      if (selectedOrder) {
-        setSelectedOrder(null)
-        setUploadedFile(null)
-        setUploadedImage(null)
-        setPayAmount("")
-        setFileUploadError(null)
-        resetProofCheck()
+    const handlePopState = (event: PopStateEvent) => {
+      const targetView = event.state?.view || "list"
+
+      // Clear any running animation timeouts
+      if (transitionTimeoutRef.current !== null) {
+        clearTimeout(transitionTimeoutRef.current)
+        transitionTimeoutRef.current = null
+      }
+
+      if (viewState !== "list" && targetView === "list") {
+        // Unhide list immediately so it is visible during exit transition and has height
         setViewState("list")
-        setAnimationClass("")
-      } else if (showBatchPayment) {
-        setShowBatchPayment(false)
-        setUploadedFile(null)
-        setUploadedImage(null)
-        setPayAmount("")
-        setFileUploadError(null)
-        resetProofCheck()
-        setViewState("list")
-        setAnimationClass("")
-      } else if (showDepositSuccess) {
-        setShowDepositSuccess(false)
-        setDepositSuccessData(null)
-        setViewState("list")
-        setAnimationClass("")
+
+        // Start fade-out transition
+        setAnimationClass("animate-fade-out-fast")
+        setIsAnimating(true)
+
+        const handleEnd = () => {
+          setIsAnimating(false)
+          setAnimationClass("")
+          cleanupSubViewStates()
+          transitionTimeoutRef.current = null
+        }
+
+        // Timeout fallback
+        transitionTimeoutRef.current = setTimeout(handleEnd, 150)
+      } else {
+        // Direct transition without animation
+        setViewState(targetView)
+        if (targetView === "list") {
+          cleanupSubViewStates()
+        }
       }
     }
     window.addEventListener("popstate", handlePopState)
-    return () => window.removeEventListener("popstate", handlePopState)
-  }, [resetProofCheck, selectedOrder, showBatchPayment, showDepositSuccess])
-
-  // Navigate back with slide-out animation
-  const navigateBack = useCallback((target: ViewState, onComplete: () => void) => {
-    if (isAnimating) {
-      cancelAnimation()
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      if (transitionTimeoutRef.current !== null) {
+        clearTimeout(transitionTimeoutRef.current)
+      }
     }
-    setAnimationClass("animate-slide-out-right")
-    setIsAnimating(true)
-    
-    let handled = false
-    const handleEnd = () => {
-      if (handled) return
-      handled = true
+  }, [viewState, cleanupSubViewStates])
+
+  // Body scroll lock to prevent scroll chaining on mobile
+  useEffect(() => {
+    if (viewState !== "list") {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [viewState])
+
+  // Restore scroll position when returning to list view
+  useEffect(() => {
+    if (viewState === "list") {
+      const timer = setTimeout(() => {
+        window.scrollTo(0, scrollPositionRef.current)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [viewState])
+
+  // Handle CSS animation end callbacks on containers
+  const handleAnimationEnd = useCallback((e: React.AnimationEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
+
+    if (animationClass === "animate-fade-out-fast") {
+      if (transitionTimeoutRef.current !== null) {
+        clearTimeout(transitionTimeoutRef.current)
+        transitionTimeoutRef.current = null
+      }
       setIsAnimating(false)
       setAnimationClass("")
-      setViewState(target)
-      onComplete()
+      cleanupSubViewStates()
+    } else {
+      setIsAnimating(false)
+      setAnimationClass("")
     }
-
-    // Fallback timeout at 250ms in case animationend doesn't fire
-    const timeout = setTimeout(handleEnd, 250)
-    animationRef.current = requestAnimationFrame(() => {
-      animationRef.current = null
-    })
-
-    if (viewContainerRef.current) {
-      const container = viewContainerRef.current
-      const onAnimEnd = () => {
-        clearTimeout(timeout)
-        container.removeEventListener("animationend", onAnimEnd)
-        handleEnd()
-      }
-      container.addEventListener("animationend", onAnimEnd, { once: true })
-    }
-  }, [isAnimating, cancelAnimation])
+  }, [animationClass, cleanupSubViewStates])
 
   const closeBatchPaymentView = useCallback(() => {
-    navigateBack("list", () => {
-      setShowBatchPayment(false)
-      setUploadedFile(null)
-      setUploadedImage(null)
-      setPayAmount("")
-      setFileUploadError(null)
-      resetProofCheck()
-    })
-  }, [navigateBack, resetProofCheck])
+    window.history.back()
+  }, [])
 
   const closeSinglePaymentView = useCallback(() => {
-    navigateBack("list", () => {
-      setSelectedOrder(null)
-      setUploadedFile(null)
-      setUploadedImage(null)
-      setPayAmount("")
-      setFileUploadError(null)
-      resetProofCheck()
-    })
-  }, [navigateBack, resetProofCheck])
+    window.history.back()
+  }, [])
 
   // Fetch real data from OkeKirim API
   const [apiOrders, setApiOrders] = useState<Order[]>([])
@@ -567,20 +610,13 @@ export default function DepositPage() {
   const [apiDrivers, setApiDrivers] = useState<Driver[]>([])
   const [filterDriver, setFilterDriver] = useState<string>("")
 
+  useEffect(() => {
+    setVisibleOrdersLimit(10)
+  }, [debouncedSearchQuery, filterDriver])
+
   const handleSuccessBack = useCallback(() => {
-    setShowDepositSuccess(false)
-    setDepositSuccessData(null)
-    setSelectedOrder(null)
-    setSelectedOrders([])
-    setIsBatchMode(false)
-    setShowBatchPayment(false)
-    setUploadedFile(null)
-    setUploadedImage(null)
-    setFileUploadError(null)
-    resetProofCheck()
-    setPayAmount("")
-    setViewState("list")
-    setAnimationClass("")
+    window.history.back()
+    
     // Refresh data from server
     setLoadingOrders(true)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
@@ -603,12 +639,13 @@ export default function DepositPage() {
           time: "",
           status: "pending",
           isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
+          orderProof: s.orderProof || null,
         }))
         setApiOrders(mapped)
       })
       .catch(() => setApiOrders([]))
       .finally(() => setLoadingOrders(false))
-  }, [filterDriver, isDriver, resetProofCheck, user.name])
+  }, [filterDriver, isDriver, user.name])
 
   useEffect(() => {
     const handleAndroidBack = (event: Event) => {
@@ -684,6 +721,7 @@ export default function DepositPage() {
             time: "",
             status: "pending",
             isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
+            orderProof: s.orderProof || null,
           }))
           setApiOrders(mapped)
         })
@@ -698,13 +736,22 @@ export default function DepositPage() {
   
   // Memoize total sisa to avoid recomputing on every render
   const totalSisa = useMemo(() => filteredOrders.reduce((sum, order) => sum + order.sisa, 0), [filteredOrders])
+  // Slice filtered orders to display only a subset (Requirement: Paginate by 10)
+  const displayedOrders = useMemo(() => {
+    return filteredOrders.slice(0, visibleOrdersLimit)
+  }, [filteredOrders, visibleOrdersLimit])
+
   // Group filtered orders by date for sticky headers (Requirement 6.3)
   const groupedOrders = useMemo(() => {
     // Use rawDate directly (already in ISO format yyyy-MM-dd)
-    const groups = groupOrdersByDate(filteredOrders.map(o => ({ ...o, date: o.rawDate || o.date })) as any)
+    const groups = groupOrdersByDate(displayedOrders.map(o => ({ ...o, date: o.rawDate || o.date })) as any)
     return groups.map(g => ({ ...g, orders: g.orders as unknown as Order[] }))
-  }, [filteredOrders])
+  }, [displayedOrders])
   const activeDrivers = apiDrivers.filter((driver) => (driver.status || "").trim().toLowerCase() === "aktif")
+
+  const selectedOrderItems = useMemo(() => {
+    return orders.filter(o => selectedOrders.includes(o.id))
+  }, [orders, selectedOrders])
 
   // Pull-to-refresh state and logic (Requirement 1.5)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -750,7 +797,8 @@ export default function DepositPage() {
             time: "",
             status: "pending",
             isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
-      }))
+            orderProof: s.orderProof || null,
+          }))
       setApiOrders(mapped)
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -809,6 +857,7 @@ export default function DepositPage() {
         destination: lokasiBongkar,
         orderType: orderType,
         fare: parseInt(argo || "0"),
+        orderProof: orderUploadedImage || undefined,
       }, { signal: controller.signal })
 
       clearTimeout(timeoutId)
@@ -834,6 +883,9 @@ export default function DepositPage() {
           setFormValue("lokasiBongkar", "")
           clearErrors()
           setArgo("")
+          setOrderUploadedFile(null)
+          setOrderUploadedImage(null)
+          setOrderFileUploadError(null)
           // Reset orderType to stored default from localStorage
           setOrderType((localStorage.getItem("default_order_type") as OrderType) || "online")
           // Preserve selectedDriver and orderDate (don't reset)
@@ -1121,6 +1173,73 @@ export default function DepositPage() {
     }
   }
 
+  const processOrderProofFile = useCallback((file: File, fallbackName = "bukti-orderan.png") => {
+    const validation = fileUploadSchema.safeParse({ size: file.size, type: file.type })
+    if (!validation.success) {
+      const errorMessage = validation.error.issues[0]?.message || "File tidak valid"
+      setOrderFileUploadError(errorMessage)
+      return false
+    }
+
+    setOrderFileUploadError(null)
+    setOrderUploadedFile(file.name || fallbackName)
+
+    const reader = new FileReader()
+    reader.onerror = () => {
+      setOrderFileUploadError("Gagal membaca gambar")
+    }
+    reader.onload = (ev) => {
+      const img = new window.Image()
+      img.onerror = () => {
+        setOrderFileUploadError("Gambar tidak bisa diproses")
+      }
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        const maxSize = 800
+        let { width, height } = img
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = (height / width) * maxSize
+            width = maxSize
+          } else {
+            width = (width / height) * maxSize
+            height = maxSize
+          }
+        }
+        const outputWidth = Math.max(1, Math.round(width))
+        const outputHeight = Math.max(1, Math.round(height))
+        canvas.width = outputWidth
+        canvas.height = outputHeight
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          setOrderFileUploadError("Gambar tidak bisa diproses")
+          return
+        }
+
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, outputWidth, outputHeight)
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = "high"
+        ctx.drawImage(img, 0, 0, outputWidth, outputHeight)
+        const compressed = canvas.toDataURL("image/jpeg", 0.7)
+        setOrderUploadedImage(compressed)
+      }
+      img.src = ev.target?.result as string
+    }
+    reader.readAsDataURL(file)
+    return true
+  }, [])
+
+  const handleOrderFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const accepted = processOrderProofFile(file)
+    if (!accepted) {
+      e.target.value = ""
+    }
+  }
+
   const handleProofPaste = useCallback((e: ClipboardEvent | React.ClipboardEvent<HTMLElement>) => {
     const items = Array.from(e.clipboardData?.items || [])
     const imageItem = items.find((item) => item.kind === "file" && item.type.startsWith("image/"))
@@ -1141,7 +1260,7 @@ export default function DepositPage() {
     }
   }, [handleProofPaste, viewState])
 
-  const toggleOrderSelection = (orderId: string) => {
+  const toggleOrderSelection = useCallback((orderId: string) => {
     setSelectedOrders(prev => {
       const newSelection = prev.includes(orderId) 
         ? prev.filter(id => id !== orderId)
@@ -1155,7 +1274,7 @@ export default function DepositPage() {
       
       return newSelection
     })
-  }
+  }, [orders])
 
   const handleBatchPayment = () => {
     if (selectedOrders.length > 0) {
@@ -1295,562 +1414,176 @@ export default function DepositPage() {
     )
   }
 
+  const renderedOrderList = useMemo(() => {
+    if (orders.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+            <FileText className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <p className="text-muted-foreground">Tidak ada orderan yang perlu disetor</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-3 mt-3" style={{ contentVisibility: "auto", containIntrinsicSize: "auto 200px" }}>
+        {groupedOrders.map((group) => (
+          <div key={group.date} className="space-y-2.5">
+            {/* Sticky date header */}
+            <div className="sticky top-0 z-[5] bg-background/95 backdrop-blur-sm py-2 -mx-4 px-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {group.date}
+              </p>
+            </div>
+            {group.orders.map((order) => (
+              <Card 
+                key={order.id} 
+                className={cn(
+                  "border-border bg-card",
+                  isBatchMode && selectedOrders.includes(order.id) && "border-primary bg-primary/5",
+                  !isBatchMode && "active:scale-[0.98] cursor-pointer",
+                  order.isOverdue7 && "border-l-4 border-l-destructive"
+                )}
+                onClick={() => {
+                  if (isBatchMode) {
+                    toggleOrderSelection(order.id)
+                  } else {
+                    resetProofCheck()
+                    setSelectedOrder(order)
+                    navigateToView("detail")
+                  }
+                }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {isBatchMode && (
+                        <Checkbox
+                          checked={selectedOrders.includes(order.id)}
+                          onCheckedChange={() => toggleOrderSelection(order.id)}
+                          className="mr-1"
+                        />
+                      )}
+                      <span className="text-xs font-medium text-muted-foreground">#{order.id}</span>
+                      <span className={cn(
+                        "text-xs font-medium px-2 py-0.5 rounded-full",
+                        order.type === "online" 
+                          ? "bg-primary/10 text-primary" 
+                          : "bg-chart-3/10 text-chart-3"
+                      )}>
+                        {order.type === "online" ? "Online" : "Offline"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {order.date}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={cn(
+                      "p-2 rounded-xl",
+                      order.type === "online" ? "bg-primary/10" : "bg-chart-3/10"
+                    )}>
+                      {order.type === "online" ? (
+                        <Smartphone className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Banknote className="h-4 w-4 text-chart-3" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{order.driver}</p>
+                      <p className="text-xs text-muted-foreground">{order.vehicle}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                    <MapPin className="h-3 w-3 text-success flex-shrink-0" />
+                    <span className="truncate">{order.lokasiMuat}</span>
+                    <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                    <MapPin className="h-3 w-3 text-destructive flex-shrink-0" />
+                    <span className="truncate">{order.lokasiBongkar}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-border">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
+                      <p className="text-sm font-bold text-primary">
+                        {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {order.paidAmount > 0 && (
+                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                          Terbayar: Rp {order.paidAmount.toLocaleString("id-ID")}
+                        </span>
+                      )}
+                      {isAdmin && !isBatchMode && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingOrder(order)
+                              setEditArgo(String(order.argo))
+                              setEditOrigin(order.lokasiMuat)
+                              setEditDestination(order.lokasiBongkar)
+                              setEditDate(order.rawDate || "")
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                            aria-label="Edit orderan"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeletingOrder(order)
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
+                            aria-label="Hapus orderan"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ))}
+        {filteredOrders.length > visibleOrdersLimit && (
+          <Button
+            variant="outline"
+            className="w-full h-11 rounded-xl mt-4 border-border hover:border-primary/50 text-sm font-semibold"
+            onClick={handleLoadMoreOrders}
+          >
+            Muat Lebih Banyak
+          </Button>
+        )}
+      </div>
+    )
+  }, [groupedOrders, isBatchMode, selectedOrders, toggleOrderSelection, setSelectedOrder, navigateToView, resetProofCheck, isAdmin, editingOrder, deletingOrder, orders.length, filteredOrders.length, visibleOrdersLimit, handleLoadMoreOrders])
+
   if (!isAuthenticated) {
     return null
   }
 
-  // Success screens
-  if (showOrderSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success/10 animate-in zoom-in duration-300">
-            <CheckCircle2 className="h-10 w-10 text-success" />
-          </div>
-          <h2 className="text-xl font-bold text-foreground">Orderan Berhasil!</h2>
-          <p className="mt-2 text-muted-foreground text-sm">
-            Orderan telah berhasil dicatat
-          </p>
-          <p className="mt-1 text-2xl font-bold text-primary">
-            Rp {parseInt(argo || "0").toLocaleString("id-ID")}
-          </p>
-        </div>
-      </div>
-    )
-  }
 
-  if (showDepositSuccess) {
-    return (
-      <div className="min-h-screen">
-        <SuccessPage
-          driverName={depositSuccessData?.driverName || ""}
-          amount={depositSuccessData?.amount || 0}
-          route={depositSuccessData?.route || ""}
-          batchCount={depositSuccessData?.batchCount}
-          onBack={handleSuccessBack}
-        />
-      </div>
-    )
-  }
 
-  // Batch Payment View
-  if (showBatchPayment) {
-    const selectedOrderItems = orders.filter(o => selectedOrders.includes(o.id))
-    
-    return (
-      <SwipeBackDetector enabled={true} onSwipeBack={closeBatchPaymentView}>
-      <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
-        <MobileHeader 
-          title="Pembayaran Batch" 
-          showBack 
-          onBack={closeBatchPaymentView} 
-        />
-        
-        <div className="px-4 py-4 pb-28 space-y-4">
-          {/* Step Indicator for batch flow */}
-          <StepIndicator
-            steps={["Daftar Orderan", "Pilih Orderan", "Pembayaran Batch", "Konfirmasi"]}
-            currentStep={showConfirm ? 3 : 2}
-          />
 
-          {/* Selected Orders Summary */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-foreground">Orderan Terpilih</h3>
-                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
-                  {selectedOrders.length} orderan
-                </span>
-              </div>
-              
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {selectedOrderItems.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">#{order.id}</span>
-                        <span className={cn(
-                          "text-xs px-1.5 py-0.5 rounded",
-                          order.type === "online" ? "bg-primary/10 text-primary" : "bg-chart-3/10 text-chart-3"
-                        )}>
-                          {order.type === "online" ? "Online" : "Offline"}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-foreground/80 truncate">
-                        {order.driver}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {order.lokasiMuat} → {order.lokasiBongkar}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
-                      <p className="text-sm font-semibold text-primary">
-                        {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
 
-              <div className="mt-4 pt-3 border-t border-border">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-muted-foreground">Total Argo</span>
-                  <span className="text-sm font-medium text-foreground">
-                    Rp {batchTotal.toLocaleString("id-ID")}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">Total Sisa Setoran</span>
-                  <span className="text-xl font-bold text-primary">
-                    Rp {batchTotal.toLocaleString("id-ID")}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Bayar Sebagian Toggle - Batch */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-foreground">Bayar Sebagian</Label>
-                <button
-                  onClick={() => { setPayAmount(payAmount ? "" : "0") }}
-                  className={cn(
-                    "relative w-10 h-5 rounded-full transition-colors",
-                    payAmount !== "" ? "bg-primary" : "bg-muted"
-                  )}
-                >
-                  <span className={cn(
-                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                    payAmount !== "" && "translate-x-5"
-                  )} />
-                </button>
-              </div>
-              {payAmount !== "" && (
-                <div className="mt-3">
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">Rp</span>
-                    <Input
-                      type="number"
-                      placeholder="Masukkan jumlah..."
-                      value={payAmount === "0" ? "" : payAmount}
-                      onChange={(e) => setPayAmount(e.target.value || "0")}
-                      className="bg-secondary border-0 pl-10 h-12 rounded-xl"
-                      autoFocus
-                    />
-                  </div>
-                  {payAmount && parseInt(payAmount) > 0 && parseInt(payAmount) < batchTotal && (
-                    <p className="text-xs text-warning mt-2">
-                      ⚠️ Sisa setelah bayar: Rp {(batchTotal - parseInt(payAmount)).toLocaleString("id-ID")} — orderan terbaru yang belum lunas
-                    </p>
-                  )}
-                </div>
-              )}
-              {payAmount === "" && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Bayar penuh Rp {batchTotal.toLocaleString("id-ID")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Upload Bukti Transfer */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Upload atau paste bukti transfer untuk {selectedOrders.length} orderan sekaligus
-              </p>
-
-              {fileUploadError && (
-                <p className="text-xs text-destructive mb-3">{fileUploadError}</p>
-              )}
-              
-              {uploadedFile ? (
-                <div className="space-y-3">
-                  {uploadedImage && (
-                    <div className="rounded-xl overflow-hidden border border-border">
-                      <img src={uploadedImage} alt="Bukti transfer" className="w-full h-48 object-cover" />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-success/20">
-                        <ImageIcon className="h-5 w-5 text-success" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{uploadedFile}</p>
-                        <p className="text-xs text-success">Berhasil diupload</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
-                      className="p-1.5 rounded-full hover:bg-secondary"
-                    >
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <label
-                  tabIndex={0}
-                  className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
-                >
-                  <div className="text-center">
-                    <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
-                    <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-              )}
-              {renderProofCheckPanel(depositPaymentAmount)}
-            </CardContent>
-          </Card>
-
-          {/* Submit Button */}
-          <Button
-            className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
-            onClick={() => setShowConfirm(true)}
-          >
-            {isSubmittingDeposit ? (
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                Memproses...
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                Konfirmasi {selectedOrders.length} Setoran
-                <ChevronRight className="h-5 w-5" />
-              </div>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Confirm Dialog for batch payment */}
-      <ConfirmDialog
-        open={showConfirm}
-        title="Konfirmasi Setoran"
-        message={depositConfirmMessage}
-        amount={submittedDepositPaymentAmount}
-        orderCount={selectedOrders.length}
-        confirmText="Ya, Lanjutkan"
-        cancelText="Batal"
-        onConfirm={() => {
-          setShowConfirm(false)
-          handleSubmitDeposit()
-        }}
-        onCancel={() => setShowConfirm(false)}
-      />
-      </SwipeBackDetector>
-    )
-  }
-
-  // Single Setoran Detail View
-  if (selectedOrder) {
-    return (
-      <SwipeBackDetector enabled={true} onSwipeBack={closeSinglePaymentView}>
-      <div ref={viewContainerRef} className={cn("min-h-screen", animationClass)} onAnimationEnd={() => { setIsAnimating(false); setAnimationClass(""); }}>
-        <MobileHeader 
-          title="Konfirmasi Setoran" 
-          showBack 
-          onBack={closeSinglePaymentView} 
-        />
-        
-        <div className="px-4 py-4 pb-28 space-y-4">
-          {/* Step Indicator for deposit detail flow */}
-          <StepIndicator
-            steps={["Daftar Orderan", "Detail Setoran", "Konfirmasi"]}
-            currentStep={showConfirm ? 2 : 1}
-          />
-
-          {/* Order Detail Card */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground">#{selectedOrder.id}</span>
-                <span className={cn(
-                  "text-xs font-medium px-2 py-1 rounded-full",
-                  selectedOrder.type === "online" 
-                    ? "bg-primary/10 text-primary" 
-                    : "bg-chart-3/10 text-chart-3"
-                )}>
-                  {selectedOrder.type === "online" ? "Online" : "Offline"}
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-primary/10">
-                    <Smartphone className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{selectedOrder.driver}</p>
-                    <p className="text-xs text-muted-foreground">{selectedOrder.vehicle}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-2.5 h-2.5 rounded-full bg-success" />
-                    <div className="w-0.5 h-8 bg-border" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-destructive" />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Lokasi Muat</p>
-                      <p className="text-sm font-medium text-foreground">{selectedOrder.lokasiMuat}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Lokasi Bongkar</p>
-                      <p className="text-sm font-medium text-foreground">{selectedOrder.lokasiBongkar}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-border">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">Nilai Argo</span>
-                    <span className="text-base font-semibold text-foreground">
-                      Rp {selectedOrder.argo.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">Setoran (40%)</span>
-                    <span className="text-sm text-foreground">
-                      Rp {selectedOrder.companyShare.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  {selectedOrder.paidAmount > 0 && (
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-muted-foreground">Terbayar</span>
-                      <span className="text-sm text-success">
-                        Rp {selectedOrder.paidAmount.toLocaleString("id-ID")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {selectedOrder.paidAmount > 0 ? "Sisa" : "Setoran"}
-                    </span>
-                    <span className="text-xl font-bold text-primary">
-                      Rp {selectedOrder.sisa.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Jumlah Bayar */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-foreground">Bayar Sebagian</Label>
-                <button
-                  onClick={() => { setPayAmount(payAmount ? "" : "0") }}
-                  className={cn(
-                    "relative w-10 h-5 rounded-full transition-colors",
-                    payAmount !== "" ? "bg-primary" : "bg-muted"
-                  )}
-                >
-                  <span className={cn(
-                    "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                    payAmount !== "" && "translate-x-5"
-                  )} />
-                </button>
-              </div>
-              {payAmount !== "" && (
-                <div className="mt-3">
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">Rp</span>
-                    <Input
-                      type="number"
-                      placeholder="Masukkan jumlah..."
-                      value={payAmount === "0" ? "" : payAmount}
-                      onChange={(e) => setPayAmount(e.target.value || "0")}
-                      className="bg-secondary border-0 pl-10 h-12 rounded-xl"
-                      autoFocus
-                    />
-                  </div>
-                  {payAmount && parseInt(payAmount) > 0 && parseInt(payAmount) < selectedOrder.sisa && (
-                    <p className="text-xs text-warning mt-2">
-                      ⚠️ Sisa setelah bayar: Rp {(selectedOrder.sisa - parseInt(payAmount)).toLocaleString("id-ID")}
-                    </p>
-                  )}
-                </div>
-              )}
-              {payAmount === "" && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Bayar penuh Rp {selectedOrder.sisa.toLocaleString("id-ID")}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Upload Bukti Transfer */}
-          <Card className="border-border bg-card">
-            <CardContent className="p-4">
-              <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-3">
-                Upload atau paste bukti transfer untuk konfirmasi setoran
-              </p>
-
-              {fileUploadError && (
-                <p className="text-xs text-destructive mb-3">{fileUploadError}</p>
-              )}
-              
-              {uploadedFile ? (
-                <div className="space-y-3">
-                  {uploadedImage && (
-                    <div className="rounded-xl overflow-hidden border border-border">
-                      <img src={uploadedImage} alt="Bukti transfer" className="w-full h-48 object-cover" />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-success/20">
-                        <ImageIcon className="h-5 w-5 text-success" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{uploadedFile}</p>
-                        <p className="text-xs text-success">Berhasil diupload</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
-                      className="p-1.5 rounded-full hover:bg-secondary"
-                    >
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <label
-                  tabIndex={0}
-                  className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
-                >
-                  <div className="text-center">
-                    <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
-                    <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
-              )}
-              {renderProofCheckPanel(depositPaymentAmount)}
-            </CardContent>
-          </Card>
-
-          {/* Summary */}
-          <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-card">
-            <CardContent className="p-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Driver</span>
-                  <span className="font-medium text-foreground">{selectedOrder.driver}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Tipe Orderan</span>
-                  <span className="font-medium text-foreground">
-                    {selectedOrder.type === "online" ? "Online" : "Offline"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Bukti Transfer</span>
-                  <span className={cn(
-                    "font-medium",
-                    uploadedFile ? "text-success" : "text-warning"
-                  )}>
-                    {uploadedFile ? "Sudah diupload" : "Belum diupload"}
-                  </span>
-                </div>
-                <div className="border-t border-border pt-3 mt-3">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-muted-foreground">Nilai Argo</span>
-                    <span className="text-sm font-medium text-foreground">
-                      Rp {selectedOrder.argo.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                  {selectedOrder.paidAmount > 0 && (
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-muted-foreground">Sudah Terbayar</span>
-                      <span className="text-sm text-success">
-                        Rp {selectedOrder.paidAmount.toLocaleString("id-ID")}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-medium">
-                      {selectedOrder.paidAmount > 0 ? "Sisa Setoran" : "Setoran"}
-                    </span>
-                    <span className="text-2xl font-bold text-primary">
-                      Rp {selectedOrder.sisa.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Submit Button */}
-          <Button
-            className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
-            onClick={() => setShowConfirm(true)}
-          >
-            {isSubmittingDeposit ? (
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                Memproses...
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                Konfirmasi Setoran
-                <ChevronRight className="h-5 w-5" />
-              </div>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Confirm Dialog for single payment */}
-      <ConfirmDialog
-        open={showConfirm}
-        title="Konfirmasi Setoran"
-        message={depositConfirmMessage}
-        amount={submittedDepositPaymentAmount}
-        confirmText="Ya, Lanjutkan"
-        cancelText="Batal"
-        onConfirm={() => {
-          setShowConfirm(false)
-          handleSubmitDeposit()
-        }}
-        onCancel={() => setShowConfirm(false)}
-      />
-      </SwipeBackDetector>
-    )
-  }
 
   return (
     <div className="min-h-screen pb-24">
-      <MobileHeader title="Deposit" />
-      
-      <div className="px-4 py-4 space-y-4">
+      {/* List View Container - Set to invisible when sub-views are active to skip browser repainting, while preserving scroll height */}
+      <div className={cn(viewState !== "list" && "invisible")}>
+        <MobileHeader title="Deposit" />
+        
+        <div className="px-4 py-4 space-y-4">
         {/* Main Tab Switcher - For both Admin and Driver */}
         <div className="flex gap-2 p-1 rounded-2xl bg-secondary">
           <button
@@ -2033,6 +1766,78 @@ export default function DepositPage() {
               </CardContent>
             </Card>
 
+            {/* Upload Bukti Orderan */}
+            <Card className="border-border bg-card">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-sm font-medium text-foreground">
+                    Bukti SS / Foto Orderan {isDriver && <span className="text-destructive">*</span>}
+                  </Label>
+                  {isDriver && (
+                    <span className="text-[10px] text-destructive bg-destructive/10 px-2 py-0.5 rounded-full font-medium">
+                      Wajib
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Upload screenshot atau foto orderan yang Anda terima untuk verifikasi argo
+                </p>
+
+                {orderFileUploadError && (
+                  <p className="text-xs text-destructive mb-3">{orderFileUploadError}</p>
+                )}
+
+                {orderUploadedFile ? (
+                  <div className="space-y-3">
+                    {orderUploadedImage && (
+                      <div className="rounded-xl overflow-hidden border border-border">
+                        <img src={orderUploadedImage} alt="Bukti orderan" className="w-full h-48 object-cover" decoding="async" />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-success/20">
+                          <ImageIcon className="h-5 w-5 text-success" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{orderUploadedFile}</p>
+                          <p className="text-xs text-success">Berhasil diupload</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOrderUploadedFile(null)
+                          setOrderUploadedImage(null)
+                          setOrderFileUploadError(null)
+                        }}
+                        className="p-1.5 rounded-full hover:bg-secondary"
+                      >
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    tabIndex={0}
+                    className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
+                  >
+                    <div className="text-center">
+                      <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                      <p className="mt-2 text-sm text-muted-foreground font-medium">Ketuk untuk upload foto/screenshot</p>
+                      <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleOrderFileUpload}
+                    />
+                  </label>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Order Type */}
             <Card className="border-border bg-card">
               <CardContent className="p-4 space-y-3">
@@ -2114,6 +1919,15 @@ export default function DepositPage() {
                     <span className="text-muted-foreground">Tipe</span>
                     <span className="font-medium text-foreground">
                       {orderType === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Bukti Orderan</span>
+                    <span className={cn(
+                      "font-medium",
+                      orderUploadedFile ? "text-success" : "text-warning"
+                    )}>
+                      {orderUploadedFile ? "Sudah diupload" : "Belum diupload"}
                     </span>
                   </div>
                   <div className="border-t border-border pt-3 mt-3">
@@ -2318,143 +2132,7 @@ export default function DepositPage() {
               </div>
             )}
 
-            <div className="space-y-3 mt-3" style={{ contentVisibility: "auto", containIntrinsicSize: "auto 200px" }}>
-              {groupedOrders.map((group) => (
-                <div key={group.date} className="space-y-2.5">
-                  {/* Sticky date header */}
-                  <div className="sticky top-0 z-[5] bg-background/95 backdrop-blur-sm py-2 -mx-4 px-4">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {group.date}
-                    </p>
-                  </div>
-                  {group.orders.map((order) => (
-                <Card 
-                  key={order.id} 
-                  className={cn(
-                    "border-border bg-card",
-                    isBatchMode && selectedOrders.includes(order.id) && "border-primary bg-primary/5",
-                    !isBatchMode && "active:scale-[0.98] cursor-pointer",
-                    order.isOverdue7 && "border-l-4 border-l-destructive"
-                  )}
-                  onClick={() => {
-                    if (isBatchMode) {
-                      toggleOrderSelection(order.id)
-                    } else {
-                      resetProofCheck()
-                      setSelectedOrder(order)
-                      navigateToView("detail")
-                    }
-                  }}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        {isBatchMode && (
-                          <Checkbox
-                            checked={selectedOrders.includes(order.id)}
-                            onCheckedChange={() => toggleOrderSelection(order.id)}
-                            className="mr-1"
-                          />
-                        )}
-                        <span className="text-xs font-medium text-muted-foreground">#{order.id}</span>
-                        <span className={cn(
-                          "text-xs font-medium px-2 py-0.5 rounded-full",
-                          order.type === "online" 
-                            ? "bg-primary/10 text-primary" 
-                            : "bg-chart-3/10 text-chart-3"
-                        )}>
-                          {order.type === "online" ? "Online" : "Offline"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {order.date}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className={cn(
-                          "p-2 rounded-xl",
-                          order.type === "online" ? "bg-primary/10" : "bg-chart-3/10"
-                        )}>
-                          {order.type === "online" ? (
-                            <Smartphone className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Banknote className="h-4 w-4 text-chart-3" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{order.driver}</p>
-                          <p className="text-xs text-muted-foreground">{order.vehicle}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                      <MapPin className="h-3 w-3 text-success flex-shrink-0" />
-                      <span className="truncate">{order.lokasiMuat}</span>
-                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                      <MapPin className="h-3 w-3 text-destructive flex-shrink-0" />
-                      <span className="truncate">{order.lokasiBongkar}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
-                        <p className="text-sm font-bold text-primary">
-                          {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {order.paidAmount > 0 && (
-                          <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
-                            Terbayar: Rp {order.paidAmount.toLocaleString("id-ID")}
-                          </span>
-                        )}
-                        {isAdmin && !isBatchMode && (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingOrder(order)
-                                setEditArgo(String(order.argo))
-                                setEditOrigin(order.lokasiMuat)
-                                setEditDestination(order.lokasiBongkar)
-                                setEditDate(order.rawDate || "")
-                              }}
-                              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                              aria-label="Edit orderan"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setDeletingOrder(order)
-                              }}
-                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
-                              aria-label="Hapus orderan"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-                </div>
-              ))}
-            </div>
-
-            {orders.length === 0 && (
-              <div className="text-center py-12">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">Tidak ada orderan yang perlu disetor</p>
-              </div>
-            )}
+            {renderedOrderList}
             </>
             )}
             </div>{/* End pull-to-refresh container */}
@@ -2462,6 +2140,7 @@ export default function DepositPage() {
         )}
         </div>
       </div>
+      </div> {/* End List View Container */}
 
       {/* Edit Order Modal */}
       {editingOrder && (
@@ -2608,6 +2287,573 @@ export default function DepositPage() {
         }}
         onCancel={() => setDeletingOrder(null)}
       />
+
+      {/* Success screens overlay */}
+      {showOrderSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-background/95 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="text-center">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success/10 animate-in zoom-in duration-300">
+              <CheckCircle2 className="h-10 w-10 text-success" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Orderan Berhasil!</h2>
+            <p className="mt-2 text-muted-foreground text-sm">
+              Orderan telah berhasil dicatat
+            </p>
+            <p className="mt-1 text-2xl font-bold text-primary">
+              Rp {parseInt(argo || "0").toLocaleString("id-ID")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showDepositSuccess && (
+        <div className="fixed inset-0 z-50 bg-background overflow-y-auto animate-in fade-in duration-200">
+          <SuccessPage
+            driverName={depositSuccessData?.driverName || ""}
+            amount={depositSuccessData?.amount || 0}
+            route={depositSuccessData?.route || ""}
+            batchCount={depositSuccessData?.batchCount}
+            onBack={handleSuccessBack}
+          />
+        </div>
+      )}
+
+      {/* Batch Payment View overlay */}
+      {showBatchPayment && (
+        <SwipeBackDetector enabled={true} onSwipeBack={closeBatchPaymentView}>
+          <div ref={viewContainerRef} className={cn("fixed inset-0 z-50 bg-background overflow-y-auto will-change-transform", animationClass)} onAnimationEnd={handleAnimationEnd}>
+            <MobileHeader 
+              title="Pembayaran Batch" 
+              showBack 
+              onBack={closeBatchPaymentView} 
+            />
+            
+            <div className="px-4 py-4 pb-24 space-y-4">
+              {/* Step Indicator for batch flow */}
+              <StepIndicator
+                steps={["Daftar Orderan", "Pilih Orderan", "Pembayaran Batch", "Konfirmasi"]}
+                currentStep={showConfirm ? 3 : 2}
+              />
+
+              {/* Selected Orders Summary */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-foreground">Orderan Terpilih</h3>
+                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-full">
+                      {selectedOrders.length} orderan
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {selectedOrderItems.map((order) => (
+                      <div key={order.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">#{order.id}</span>
+                            <span className={cn(
+                              "text-xs px-1.5 py-0.5 rounded",
+                              order.type === "online" ? "bg-primary/10 text-primary" : "bg-chart-3/10 text-chart-3"
+                            )}>
+                              {order.type === "online" ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-foreground/80 truncate">
+                            {order.driver}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {order.lokasiMuat} → {order.lokasiBongkar}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">Argo: Rp {order.argo.toLocaleString("id-ID")}</p>
+                          <p className="text-sm font-semibold text-primary">
+                            {order.paidAmount > 0 ? "Sisa" : "Setoran"}: Rp {order.sisa.toLocaleString("id-ID")}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-muted-foreground">Total Argo</span>
+                      <span className="text-sm font-medium text-foreground">
+                        Rp {batchTotal.toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground">Total Sisa Setoran</span>
+                      <span className="text-xl font-bold text-primary">
+                        Rp {batchTotal.toLocaleString("id-ID")}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Bayar Sebagian Toggle - Batch */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-foreground">Bayar Sebagian</Label>
+                    <button
+                      onClick={() => { setPayAmount(payAmount ? "" : "0") }}
+                      className={cn(
+                        "relative w-10 h-5 rounded-full transition-colors",
+                        payAmount !== "" ? "bg-primary" : "bg-muted"
+                      )}
+                    >
+                      <span className={cn(
+                        "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        payAmount !== "" && "translate-x-5"
+                      )} />
+                    </button>
+                  </div>
+                  {payAmount !== "" && (
+                    <div className="mt-3">
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">Rp</span>
+                        <Input
+                          type="number"
+                          placeholder="Masukkan jumlah..."
+                          value={payAmount === "0" ? "" : payAmount}
+                          onChange={(e) => setPayAmount(e.target.value || "0")}
+                          className="bg-secondary border-0 pl-10 h-12 rounded-xl"
+                          autoFocus
+                        />
+                      </div>
+                      {payAmount && parseInt(payAmount) > 0 && parseInt(payAmount) < batchTotal && (
+                        <p className="text-xs text-warning mt-2">
+                          ⚠️ Sisa setelah bayar: Rp {(batchTotal - parseInt(payAmount)).toLocaleString("id-ID")} — orderan terbaru yang belum lunas
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {payAmount === "" && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Bayar penuh Rp {batchTotal.toLocaleString("id-ID")}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Upload Bukti Transfer */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">
+                    Upload atau paste bukti transfer untuk {selectedOrders.length} orderan sekaligus
+                  </p>
+
+                  {fileUploadError && (
+                    <p className="text-xs text-destructive mb-3">{fileUploadError}</p>
+                  )}
+                  
+                  {uploadedFile ? (
+                    <div className="space-y-3">
+                      {uploadedImage && (
+                        <div className="rounded-xl overflow-hidden border border-border">
+                          <img src={uploadedImage} alt="Bukti transfer" className="w-full h-48 object-cover" decoding="async" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-success/20">
+                            <ImageIcon className="h-5 w-5 text-success" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{uploadedFile}</p>
+                            <p className="text-xs text-success">Berhasil diupload</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
+                          className="p-1.5 rounded-full hover:bg-secondary"
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      tabIndex={0}
+                      className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
+                    >
+                      <div className="text-center">
+                        <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                        <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  )}
+                  {renderProofCheckPanel(depositPaymentAmount)}
+                </CardContent>
+              </Card>
+
+              {/* Submit Button */}
+              <Button
+                className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
+                onClick={() => setShowConfirm(true)}
+              >
+                {isSubmittingDeposit ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    Memproses...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    Konfirmasi {selectedOrders.length} Setoran
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        </SwipeBackDetector>
+      )}
+
+      {/* Single Setoran Detail View overlay */}
+      {selectedOrder && (
+        <SwipeBackDetector enabled={true} onSwipeBack={closeSinglePaymentView}>
+          <div ref={viewContainerRef} className={cn("fixed inset-0 z-50 bg-background overflow-y-auto will-change-transform", animationClass)} onAnimationEnd={handleAnimationEnd}>
+            <MobileHeader 
+              title="Konfirmasi Setoran" 
+              showBack 
+              onBack={closeSinglePaymentView} 
+            />
+            
+            <div className="px-4 py-4 pb-24 space-y-4">
+              {/* Step Indicator for deposit detail flow */}
+              <StepIndicator
+                steps={["Daftar Orderan", "Detail Setoran", "Konfirmasi"]}
+                currentStep={showConfirm ? 2 : 1}
+              />
+
+              {/* Order Detail Card */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-medium text-muted-foreground">#{selectedOrder.id}</span>
+                    <span className={cn(
+                      "text-xs font-medium px-2 py-1 rounded-full",
+                      selectedOrder.type === "online" 
+                        ? "bg-primary/10 text-primary" 
+                        : "bg-chart-3/10 text-chart-3"
+                    )}>
+                      {selectedOrder.type === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-primary/10">
+                        <Smartphone className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{selectedOrder.driver}</p>
+                        <p className="text-xs text-muted-foreground">{selectedOrder.vehicle}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-2.5 h-2.5 rounded-full bg-success" />
+                        <div className="w-0.5 h-8 bg-border" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-destructive" />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Lokasi Muat</p>
+                          <p className="text-sm font-medium text-foreground">{selectedOrder.lokasiMuat}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Lokasi Bongkar</p>
+                          <p className="text-sm font-medium text-foreground">{selectedOrder.lokasiBongkar}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Nilai Argo</span>
+                        <span className="text-base font-semibold text-foreground">
+                          Rp {selectedOrder.argo.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Setoran (40%)</span>
+                        <span className="text-sm text-foreground">
+                          Rp {selectedOrder.companyShare.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      {selectedOrder.paidAmount > 0 && (
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-muted-foreground">Terbayar</span>
+                          <span className="text-sm text-success">
+                            Rp {selectedOrder.paidAmount.toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {selectedOrder.paidAmount > 0 ? "Sisa" : "Setoran"}
+                        </span>
+                        <span className="text-xl font-bold text-primary">
+                          Rp {selectedOrder.sisa.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    </div>
+
+                    {selectedOrder.orderProof && (
+                      <div className="pt-3 mt-3 border-t border-border space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">Bukti Orderan (Screenshot):</p>
+                        <div 
+                          className="rounded-xl overflow-hidden border border-border bg-muted cursor-pointer active:opacity-90 transition-opacity"
+                          onClick={() => {
+                            if (imageModalImgRef.current && selectedOrder.orderProof) {
+                              imageModalImgRef.current.src = selectedOrder.orderProof
+                            }
+                            imageModalRef.current?.classList.remove('opacity-0', 'pointer-events-none')
+                            imageModalRef.current?.classList.add('opacity-100', 'pointer-events-auto')
+                            imageModalImgRef.current?.classList.remove('scale-95')
+                            imageModalImgRef.current?.classList.add('scale-100')
+                          }}
+                        >
+                          <img src={selectedOrder.orderProof} alt="Bukti orderan" className="w-full h-32 object-cover" decoding="async" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Jumlah Bayar */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-foreground">Bayar Sebagian</Label>
+                    <button
+                      onClick={() => { setPayAmount(payAmount ? "" : "0") }}
+                      className={cn(
+                        "relative w-10 h-5 rounded-full transition-colors",
+                        payAmount !== "" ? "bg-primary" : "bg-muted"
+                      )}
+                    >
+                      <span className={cn(
+                        "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        payAmount !== "" && "translate-x-5"
+                      )} />
+                    </button>
+                  </div>
+                  {payAmount !== "" && (
+                    <div className="mt-3">
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">Rp</span>
+                        <Input
+                          type="number"
+                          placeholder="Masukkan jumlah..."
+                          value={payAmount === "0" ? "" : payAmount}
+                          onChange={(e) => setPayAmount(e.target.value || "0")}
+                          className="bg-secondary border-0 pl-10 h-12 rounded-xl"
+                          autoFocus
+                        />
+                      </div>
+                      {payAmount && parseInt(payAmount) > 0 && parseInt(payAmount) < selectedOrder.sisa && (
+                        <p className="text-xs text-warning mt-2">
+                          ⚠️ Sisa setelah bayar: Rp {(selectedOrder.sisa - parseInt(payAmount)).toLocaleString("id-ID")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {payAmount === "" && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Bayar penuh Rp {selectedOrder.sisa.toLocaleString("id-ID")}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Upload Bukti Transfer */}
+              <Card className="border-border bg-card">
+                <CardContent className="p-4">
+                  <Label className="text-sm font-medium text-foreground">Upload Bukti Transfer</Label>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3">
+                    Upload atau paste bukti transfer untuk konfirmasi setoran
+                  </p>
+
+                  {fileUploadError && (
+                    <p className="text-xs text-destructive mb-3">{fileUploadError}</p>
+                  )}
+                  
+                  {uploadedFile ? (
+                    <div className="space-y-3">
+                      {uploadedImage && (
+                        <div className="rounded-xl overflow-hidden border border-border">
+                          <img src={uploadedImage} alt="Bukti transfer" className="w-full h-48 object-cover" decoding="async" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-success/20">
+                            <ImageIcon className="h-5 w-5 text-success" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{uploadedFile}</p>
+                            <p className="text-xs text-success">Berhasil diupload</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => { setUploadedFile(null); setUploadedImage(null); setFileUploadError(null); resetProofCheck() }}
+                          className="p-1.5 rounded-full hover:bg-secondary"
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      tabIndex={0}
+                      className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
+                    >
+                      <div className="text-center">
+                        <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                        <p className="mt-2 text-sm text-muted-foreground">Ketuk upload / paste gambar</p>
+                        <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  )}
+                  {renderProofCheckPanel(depositPaymentAmount)}
+                </CardContent>
+              </Card>
+
+              {/* Summary */}
+              <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-card">
+                <CardContent className="p-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Driver</span>
+                      <span className="font-medium text-foreground">{selectedOrder.driver}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Tipe Orderan</span>
+                      <span className="font-medium text-foreground">
+                        {selectedOrder.type === "online" ? "Online" : "Offline"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Bukti Transfer</span>
+                      <span className={cn(
+                        "font-medium",
+                        uploadedFile ? "text-success" : "text-warning"
+                      )}>
+                        {uploadedFile ? "Sudah diupload" : "Belum diupload"}
+                      </span>
+                    </div>
+                    <div className="border-t border-border pt-3 mt-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm text-muted-foreground">Nilai Argo</span>
+                        <span className="text-sm font-medium text-foreground">
+                          Rp {selectedOrder.argo.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      {selectedOrder.paidAmount > 0 && (
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-muted-foreground">Sudah Terbayar</span>
+                          <span className="text-sm text-success">
+                            Rp {selectedOrder.paidAmount.toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground font-medium">
+                          {selectedOrder.paidAmount > 0 ? "Sisa Setoran" : "Setoran"}
+                        </span>
+                        <span className="text-2xl font-bold text-primary">
+                          Rp {selectedOrder.sisa.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Submit Button */}
+              <Button
+                className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!uploadedFile || isSubmittingDeposit || proofCheckBlocking}
+                onClick={() => setShowConfirm(true)}
+              >
+                {isSubmittingDeposit ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    Memproses...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    Konfirmasi Setoran
+                    <ChevronRight className="h-5 w-5" />
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        </SwipeBackDetector>
+      )}
+
+      {/* Full screen image viewer modal - pre-rendered for DOM-ref instant show */}
+      <div 
+        ref={imageModalRef}
+        className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 transition-opacity duration-150 ease-out opacity-0 pointer-events-none will-change-[opacity]"
+        onClick={() => {
+          imageModalRef.current?.classList.remove('opacity-100', 'pointer-events-auto')
+          imageModalRef.current?.classList.add('opacity-0', 'pointer-events-none')
+          imageModalImgRef.current?.classList.remove('scale-100')
+          imageModalImgRef.current?.classList.add('scale-95')
+          if (imageModalImgRef.current) {
+            imageModalImgRef.current.removeAttribute('src')
+          }
+        }}
+      >
+        <button 
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            imageModalRef.current?.classList.remove('opacity-100', 'pointer-events-auto')
+            imageModalRef.current?.classList.add('opacity-0', 'pointer-events-none')
+            imageModalImgRef.current?.classList.remove('scale-100')
+            imageModalImgRef.current?.classList.add('scale-95')
+            if (imageModalImgRef.current) {
+              imageModalImgRef.current.removeAttribute('src')
+            }
+          }}
+          className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        {selectedOrder?.orderProof && (
+          <img 
+            ref={imageModalImgRef}
+            src={undefined} 
+            alt="Bukti Orderan Full" 
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-150 ease-out scale-95 will-change-transform" 
+            decoding="async"
+          />
+        )}
+      </div>
     </div>
   )
 }

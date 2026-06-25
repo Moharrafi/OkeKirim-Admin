@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -188,6 +188,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { isAdmin, user, isAuthenticated } = useUser()
   const [data, setData] = useState<DashboardData | null>(null)
+  const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeSlide, setActiveSlide] = useState(0)
 
@@ -207,7 +208,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
+    const servicesCacheKey = `dashboard_services_admin`
     const cached = sessionStorage.getItem(cacheKey)
+    const cachedServices = sessionStorage.getItem(servicesCacheKey)
+
+    let cachedDataParsed: any = null
+    let cachedServicesParsed: any[] = []
 
     if (cached) {
       try {
@@ -215,11 +221,28 @@ export default function DashboardPage() {
         const isFresh = typeof timestamp === "number" && Date.now() - timestamp < DASHBOARD_CACHE_TTL
         const hasExpectedShape = cachedData && Array.isArray(cachedData.monthlyChart) && Array.isArray(cachedData.driverIncome)
         if (isFresh && hasExpectedShape) {
-          setData(cachedData)
-          setLoading(false)
-          return
+          cachedDataParsed = cachedData
         }
       } catch {}
+    }
+
+    if (isAdmin && cachedServices) {
+      try {
+        const { data: cachedServs, timestamp } = JSON.parse(cachedServices)
+        const isFresh = typeof timestamp === "number" && Date.now() - timestamp < DASHBOARD_CACHE_TTL
+        if (isFresh && Array.isArray(cachedServs)) {
+          cachedServicesParsed = cachedServs
+        }
+      } catch {}
+    }
+
+    if (cachedDataParsed && (!isAdmin || cachedServicesParsed.length > 0)) {
+      setData(cachedDataParsed)
+      if (isAdmin) {
+        setServices(cachedServicesParsed)
+      }
+      setLoading(false)
+      return
     }
 
     const params = new URLSearchParams()
@@ -227,11 +250,24 @@ export default function DashboardPage() {
       params.set("driver", user.name)
     }
 
-    fetch(`/api/dashboard?${params.toString()}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d)
-        sessionStorage.setItem(cacheKey, JSON.stringify({ data: d, timestamp: Date.now() }))
+    setLoading(true)
+    const promises: Promise<any>[] = [
+      fetch(`/api/dashboard?${params.toString()}`).then((r) => r.json())
+    ]
+
+    if (isAdmin) {
+      promises.push(fetch("/api/services").then((r) => r.json()))
+    }
+
+    Promise.all(promises)
+      .then(([dashData, servData]) => {
+        setData(dashData)
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data: dashData, timestamp: Date.now() }))
+        
+        if (isAdmin && servData && Array.isArray(servData.services)) {
+          setServices(servData.services)
+          sessionStorage.setItem(servicesCacheKey, JSON.stringify({ data: servData.services, timestamp: Date.now() }))
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -239,9 +275,38 @@ export default function DashboardPage() {
 
   if (!isAuthenticated) return null
 
-  const primaryAmount = isAdmin ? data?.monthlyCompanyShare || 0 : data?.monthlyDriverShare || 0
-  const previousAmount = isAdmin ? data?.lastMonthCompanyShare || 0 : data?.lastMonthDriverShare || 0
+  // Total service cost calculation (current month vs last month)
+  const serviceStats = useMemo(() => {
+    if (!isAdmin || services.length === 0) return { currentMonth: 0, lastMonth: 0 }
+    
+    const now = new Date()
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const lastMonthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`
+
+    let currentMonthTotal = 0
+    let lastMonthTotal = 0
+
+    services.forEach(s => {
+      if (!s.date) return
+      if (s.date.startsWith(currentMonthStr)) {
+        currentMonthTotal += Number(s.cost || 0)
+      } else if (s.date.startsWith(lastMonthStr)) {
+        lastMonthTotal += Number(s.cost || 0)
+      }
+    })
+
+    return {
+      currentMonth: currentMonthTotal,
+      lastMonth: lastMonthTotal
+    }
+  }, [isAdmin, services])
+
+  const primaryAmount = isAdmin ? (data?.monthlyCompanyShare || 0) - serviceStats.currentMonth : data?.monthlyDriverShare || 0
+  const previousAmount = isAdmin ? (data?.lastMonthCompanyShare || 0) - serviceStats.lastMonth : data?.lastMonthDriverShare || 0
   const trend = data ? getTrend(primaryAmount, previousAmount) : null
+  const grossTrend = data ? getTrend(data.monthlyCompanyShare || 0, data.lastMonthCompanyShare || 0) : null
 
   const quickActions = isAdmin
     ? [
@@ -258,11 +323,28 @@ export default function DashboardPage() {
   const handleRefresh = async () => {
     const params = new URLSearchParams()
     if (!isAdmin && user.name) params.set("driver", user.name)
-    const res = await fetch(`/api/dashboard?${params.toString()}`)
-    const d = await res.json()
-    setData(d)
-    const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
-    sessionStorage.setItem(cacheKey, JSON.stringify({ data: d, timestamp: Date.now() }))
+    
+    const promises: Promise<any>[] = [
+      fetch(`/api/dashboard?${params.toString()}`).then((r) => r.json())
+    ]
+    if (isAdmin) {
+      promises.push(fetch("/api/services").then((r) => r.json()))
+    }
+
+    try {
+      const [d, servData] = await Promise.all(promises)
+      setData(d)
+      const cacheKey = `dashboard_${isAdmin ? "admin" : user.name}`
+      sessionStorage.setItem(cacheKey, JSON.stringify({ data: d, timestamp: Date.now() }))
+
+      if (isAdmin && servData && Array.isArray(servData.services)) {
+        setServices(servData.services)
+        const servicesCacheKey = `dashboard_services_admin`
+        sessionStorage.setItem(servicesCacheKey, JSON.stringify({ data: servData.services, timestamp: Date.now() }))
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   return (
@@ -277,7 +359,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-primary">
-                    {isAdmin ? "Pendapatan perusahaan bulan ini" : "Pendapatan bulan ini"}
+                    {isAdmin ? "Laba bersih perusahaan bulan ini" : "Pendapatan bulan ini"}
                   </p>
                   <p className="mt-2 text-[2rem] font-bold leading-tight tracking-tight text-foreground">
                     {loading ? "..." : `Rp ${formatRupiah(primaryAmount)}`}
@@ -358,9 +440,9 @@ export default function DashboardPage() {
                             <div className="p-1.5 rounded-lg bg-primary/10">
                               <Wallet className="h-3.5 w-3.5 text-primary" />
                             </div>
-                            {trend && (
-                              <span className={cn("text-[10px] font-bold", trend.isUp ? "text-success" : "text-destructive")}>
-                                {trend.isUp ? "↑" : "↓"}{Math.abs(trend.percent)}%
+                            {grossTrend && (
+                              <span className={cn("text-[10px] font-bold", grossTrend.isUp ? "text-success" : "text-destructive")}>
+                                {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
                               </span>
                             )}
                           </div>
@@ -468,9 +550,9 @@ export default function DashboardPage() {
                         <div className="p-1.5 rounded-lg bg-primary/10">
                           <Wallet className="h-3.5 w-3.5 text-primary" />
                         </div>
-                        {trend && (
-                          <span className={cn("text-[10px] font-bold", trend.isUp ? "text-success" : "text-destructive")}>
-                            {trend.isUp ? "↑" : "↓"}{Math.abs(trend.percent)}%
+                        {grossTrend && (
+                          <span className={cn("text-[10px] font-bold", grossTrend.isUp ? "text-success" : "text-destructive")}>
+                            {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
                           </span>
                         )}
                       </div>

@@ -14,26 +14,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const body = await request.json()
-    const { driver, vehicle, date, origin, destination, rit, orderType, fare, notes } = body
+    const { driver, vehicle, date, origin, destination, rit, orderType, fare, notes, orderProof } = body
 
     const companyShare = Math.round((fare || 0) * 0.4)
 
-    await pool.execute(
-      `UPDATE schedules SET driver=?, vehicle=?, date=?, origin=?, destination=?, rit=?, orderType=?, fare=?, companyShare=?, notes=? WHERE id=?`,
-      [
-        driver || null,
-        vehicle || null,
-        date || null,
-        origin || null,
-        destination || null,
-        rit || null,
-        orderType || "online",
-        fare || 0,
-        companyShare,
-        notes || null,
-        scheduleId,
-      ]
-    )
+    const hasOrderProof = orderProof !== undefined
+    const query = hasOrderProof
+      ? `UPDATE schedules SET driver=?, vehicle=?, date=?, origin=?, destination=?, rit=?, orderType=?, fare=?, companyShare=?, notes=?, orderProof=? WHERE id=?`
+      : `UPDATE schedules SET driver=?, vehicle=?, date=?, origin=?, destination=?, rit=?, orderType=?, fare=?, companyShare=?, notes=? WHERE id=?`
+
+    const params = [
+      driver || null,
+      vehicle || null,
+      date || null,
+      origin || null,
+      destination || null,
+      rit || null,
+      orderType || "online",
+      fare || 0,
+      companyShare,
+      notes || null,
+    ]
+    if (hasOrderProof) {
+      params.push(orderProof || null)
+    }
+    params.push(scheduleId)
+
+    await pool.execute(query, params)
 
     return NextResponse.json({ success: true, id: scheduleId })
   } catch (error) {

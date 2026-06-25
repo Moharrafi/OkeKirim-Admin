@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
@@ -54,6 +54,7 @@ type HistoryTransaction = {
   type: string
   method: string
   status: string
+  orderProof?: string | null
 }
 
 function addDaysToDateString(dateString: string, days: number) {
@@ -93,6 +94,7 @@ function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): H
     type: s.orderType === "offline" ? "offline" : "online",
     method: status === "success" ? (s.payment_notes || s.paymentNotes || "Lunas") : (s.payment_notes || s.paymentNotes || "Belum Setor"),
     status,
+    orderProof: s.orderProof || null,
   }
 }
 
@@ -118,6 +120,53 @@ export default function HistoryPage() {
   const [loadingMoreApi, setLoadingMoreApi] = useState(false)
   const [hasMoreTransactions, setHasMoreTransactions] = useState(false)
   const [nextChunkTo, setNextChunkTo] = useState<string | null>(null)
+  const historyImageModalRef = useRef<HTMLDivElement>(null)
+  const historyImageModalImgRef = useRef<HTMLImageElement>(null)
+
+  const handleOpenDetail = useCallback((tx: HistoryTransaction) => {
+    window.history.pushState({ view: "detail" }, "", window.location.href)
+    setSelectedTx(tx)
+  }, [])
+
+  const handleCloseDetail = useCallback(() => {
+    if (window.history.state?.view === "detail") {
+      window.history.back()
+    } else {
+      setSelectedTx(null)
+    }
+    if (historyImageModalRef.current) {
+      historyImageModalRef.current.classList.remove('opacity-100', 'pointer-events-auto')
+      historyImageModalRef.current.classList.add('opacity-0', 'pointer-events-none')
+    }
+    if (historyImageModalImgRef.current) {
+      historyImageModalImgRef.current.classList.remove('scale-100')
+      historyImageModalImgRef.current.classList.add('scale-95')
+    }
+  }, [])
+
+  // Sync popstate with selectedTx modal visibility
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const targetView = event.state?.view || "list"
+      if (targetView === "list") {
+        setSelectedTx(null)
+      }
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
+
+  // Body scroll lock when detail view is open
+  useEffect(() => {
+    if (selectedTx !== null) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [selectedTx])
 
   useEffect(() => {
     fetchDrivers().then(setApiDrivers).catch(() => {})
@@ -243,7 +292,7 @@ export default function HistoryPage() {
                   return (
                     <button
                       key={tx.id}
-                      onClick={() => setSelectedTx(tx)}
+                      onClick={() => handleOpenDetail(tx)}
                       className="w-full flex items-center justify-between p-3 text-left active:bg-secondary/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
@@ -437,7 +486,7 @@ export default function HistoryPage() {
       {selectedTx && (
         <div 
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] animate-fade-in"
-          onClick={() => setSelectedTx(null)}
+          onClick={handleCloseDetail}
         >
           <div 
             className="fixed inset-x-0 bottom-0 z-50 bg-card border-t border-border rounded-t-3xl max-h-[85vh] overflow-y-auto will-change-transform"
@@ -448,7 +497,7 @@ export default function HistoryPage() {
             <div className="p-4 pt-2 pb-24">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-foreground">Detail Transaksi</h2>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedTx(null)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCloseDetail}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -511,11 +560,31 @@ export default function HistoryPage() {
                 </div>
               </div>
 
+              {selectedTx.orderProof && (
+                <div className="pt-3 mt-4 border-t border-border space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">Bukti Orderan (Screenshot):</p>
+                  <div 
+                    className="rounded-xl overflow-hidden border border-border bg-muted cursor-pointer active:opacity-90 transition-opacity"
+                    onClick={() => {
+                      if (historyImageModalImgRef.current && selectedTx.orderProof) {
+                        historyImageModalImgRef.current.src = selectedTx.orderProof
+                      }
+                      historyImageModalRef.current?.classList.remove('opacity-0', 'pointer-events-none')
+                      historyImageModalRef.current?.classList.add('opacity-100', 'pointer-events-auto')
+                      historyImageModalImgRef.current?.classList.remove('scale-95')
+                      historyImageModalImgRef.current?.classList.add('scale-100')
+                    }}
+                  >
+                    <img src={selectedTx.orderProof} alt="Bukti orderan" className="w-full h-32 object-cover" decoding="async" />
+                  </div>
+                </div>
+              )}
+
               {selectedTx.status === "success" && isDriver && (
                 <Button 
                   className="w-full mt-6 h-12 rounded-xl bg-primary text-primary-foreground"
                   onClick={() => {
-                    setSelectedTx(null)
+                    handleCloseDetail()
                     router.push("/deposit?tab=setoran")
                   }}
                 >
@@ -532,6 +601,46 @@ export default function HistoryPage() {
           </div>
         </div>
       )}
+      {/* Full screen image viewer modal - pre-rendered for DOM-ref instant show */}
+      <div 
+        ref={historyImageModalRef}
+        className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 transition-opacity duration-150 ease-out opacity-0 pointer-events-none will-change-[opacity]"
+        onClick={() => {
+          historyImageModalRef.current?.classList.remove('opacity-100', 'pointer-events-auto')
+          historyImageModalRef.current?.classList.add('opacity-0', 'pointer-events-none')
+          historyImageModalImgRef.current?.classList.remove('scale-100')
+          historyImageModalImgRef.current?.classList.add('scale-95')
+          if (historyImageModalImgRef.current) {
+            historyImageModalImgRef.current.removeAttribute('src')
+          }
+        }}
+      >
+        <button 
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            historyImageModalRef.current?.classList.remove('opacity-100', 'pointer-events-auto')
+            historyImageModalRef.current?.classList.add('opacity-0', 'pointer-events-none')
+            historyImageModalImgRef.current?.classList.remove('scale-100')
+            historyImageModalImgRef.current?.classList.add('scale-95')
+            if (historyImageModalImgRef.current) {
+              historyImageModalImgRef.current.removeAttribute('src')
+            }
+          }}
+          className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        {selectedTx?.orderProof && (
+          <img 
+            ref={historyImageModalImgRef}
+            src={undefined} 
+            alt="Bukti Orderan Full" 
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-150 ease-out scale-95 will-change-transform" 
+            decoding="async"
+          />
+        )}
+      </div>
     </div>
     </PullToRefresh>
   )

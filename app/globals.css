@@ -151,7 +151,7 @@
 
 /* Smooth scrolling */
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto !important;
 }
 
 /* Hide number input spinners */
@@ -203,23 +203,23 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Slide animations for tab/page transitions */
 @keyframes slideInRight {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from { transform: translate3d(100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 
 @keyframes slideOutRight {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
 }
 
 @keyframes slideInLeft {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
 }
 
 @keyframes slideOutLeft {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
 }
 
 /* Stagger fade-in for list items */
@@ -293,23 +293,37 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Tailwind v4 custom animation utility classes */
 @utility animate-slide-in-right {
-  animation: slideInRight 250ms ease-out;
+  animation: slideInRight 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
 @utility animate-slide-out-right {
-  animation: slideOutRight 200ms ease-in;
+  animation: slideOutRight 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
 @utility animate-slide-in-left {
-  animation: slideInLeft 200ms ease-in-out;
+  animation: slideInLeft 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
 @utility animate-slide-out-left {
-  animation: slideOutLeft 200ms ease-in-out;
+  animation: slideOutLeft 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
 @utility animate-fade-in {
   animation: fadeIn 300ms ease-out;
+}
+
+@utility animate-fade-in-fast {
+  animation: fadeIn 150ms ease-out forwards;
+  will-change: opacity;
+}
+
+@utility animate-fade-out-fast {
+  animation: fadeOut 120ms ease-in forwards;
+  will-change: opacity;
 }
 
 @utility animate-stagger-fade-in {

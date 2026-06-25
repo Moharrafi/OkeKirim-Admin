@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { driver, vehicle, date, origin, destination, rit, orderType, fare, notes } = body
+    const { driver, vehicle, date, origin, destination, rit, orderType, fare, notes, orderProof } = body
 
     if (!driver || !fare) {
       return NextResponse.json({ error: "Driver dan fare wajib diisi" }, { status: 400 })
@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
     const companyShare = Math.round((fare || 0) * 0.4)
 
     const [result] = await pool.execute(
-      `INSERT INTO schedules (driver, vehicle, date, origin, destination, rit, orderType, fare, status, companyShare, paidCompanyAmount, notes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nunggak', ?, 0, ?, NOW())`,
+      `INSERT INTO schedules (driver, vehicle, date, origin, destination, rit, orderType, fare, status, companyShare, paidCompanyAmount, notes, orderProof, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'nunggak', ?, 0, ?, ?, NOW())`,
       [
         driver,
         vehicle || null,
@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
         fare,
         companyShare,
         notes || null,
+        orderProof || null,
       ]
     )
 

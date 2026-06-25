@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Coins,
   Download,
+  AlertTriangle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
@@ -498,6 +499,7 @@ export default function AnalysisPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [services, setServices] = useState<ServiceLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"trends" | "shares" | "orders" | "admin">("trends")
   const [selectedDepositMonth, setSelectedDepositMonth] = useState("")
 
@@ -509,6 +511,7 @@ export default function AnalysisPage() {
 
   const fetchData = useCallback(async (depositMonth?: string) => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams()
       if (!isAdmin && user.name) {
@@ -521,6 +524,13 @@ export default function AnalysisPage() {
       // Fetch dashboard data
       const dashRes = await fetch(`/api/dashboard?${params.toString()}`)
       const dashData = await dashRes.json()
+      
+      if (!dashRes.ok || dashData.error) {
+        setError(dashData.error || "Gagal memuat data analisis")
+        setData(null)
+        return
+      }
+
       setData(dashData)
       if (!depositMonth && typeof dashData.driverDepositMonth === "string") {
         setSelectedDepositMonth(dashData.driverDepositMonth.slice(0, 7))
@@ -530,10 +540,16 @@ export default function AnalysisPage() {
       if (isAdmin) {
         const servRes = await fetch("/api/services")
         const servData = await servRes.json()
-        setServices(servData.services || [])
+        if (!servRes.ok || servData.error) {
+          console.warn("Failed to fetch service logs:", servData.error)
+        } else {
+          setServices(servData.services || [])
+        }
       }
-    } catch (error) {
-      console.error("Failed to fetch analysis data:", error)
+    } catch (err) {
+      console.error("Failed to fetch analysis data:", err)
+      setError(String(err))
+      setData(null)
     } finally {
       setLoading(false)
     }
@@ -613,7 +629,7 @@ export default function AnalysisPage() {
 
   // Monthly trends chart data
   const monthlyChartData = useMemo(() => {
-    if (!data) return []
+    if (!data || !Array.isArray(data.monthlyChart)) return []
     return data.monthlyChart.map(d => {
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
       const monthName = monthNames[d.month - 1]
@@ -665,6 +681,7 @@ export default function AnalysisPage() {
     if (!data) return []
 
     const rows = data.driverDepositByMonth || data.driverIncome || []
+    if (!Array.isArray(rows)) return []
     return rows.map((row) => {
       const total = Number(row.total || 0)
       const totalFare = "totalFare" in row && row.totalFare
@@ -766,6 +783,21 @@ export default function AnalysisPage() {
     return idx >= 0 ? idx : 0
   }, [tabs, activeTab])
 
+  // Order breakdown chart data
+  const orderTypeData = useMemo(() => {
+    if (!data || !Array.isArray(data.orderTypeBreakdown)) return []
+    return data.orderTypeBreakdown.map((ot, idx) => ({
+      name: ot.type,
+      value: ot.total,
+      count: ot.count,
+      color: idx === 0 ? "var(--primary)" : "oklch(0.65 0.18 85)",
+    }))
+  }, [data])
+
+  const totalOrderTypeFare = useMemo(() => {
+    return orderTypeData.reduce((s, x) => s + x.value, 0)
+  }, [orderTypeData])
+
   const handleRefresh = async () => {
     await fetchData(selectedDepositMonth || undefined)
   }
@@ -810,6 +842,26 @@ export default function AnalysisPage() {
     URL.revokeObjectURL(url)
   }, [depositProfitSummary, driverDepositRows, driverDepositSummary, selectedDepositMonth, selectedDepositMonthLabel])
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <MobileHeader title="Analisis Performa" showBack onBack={() => router.push("/")} />
+        <div className="flex flex-col items-center justify-center py-24 px-4 text-center space-y-4">
+          <div className="p-3 bg-destructive/15 text-destructive rounded-full">
+            <AlertTriangle className="h-8 w-8" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-foreground">Gagal Memuat Analisis</h3>
+            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+          </div>
+          <Button onClick={() => fetchData(selectedDepositMonth || undefined)} className="h-10 rounded-xl">
+            Coba Lagi
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (!isAuthenticated || !data || !finances) {
     return (
       <div className="min-h-screen bg-background">
@@ -821,16 +873,6 @@ export default function AnalysisPage() {
       </div>
     )
   }
-
-  // Order breakdown chart data
-  const orderTypeData = data.orderTypeBreakdown.map((ot, idx) => ({
-    name: ot.type,
-    value: ot.total,
-    count: ot.count,
-    color: idx === 0 ? "var(--primary)" : "oklch(0.65 0.18 85)",
-  }))
-
-  const totalOrderTypeFare = orderTypeData.reduce((s, x) => s + x.value, 0)
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
