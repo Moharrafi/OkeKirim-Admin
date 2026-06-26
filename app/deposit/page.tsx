@@ -975,7 +975,7 @@ export default function DepositPage() {
         const companyShare = order?.companyShare || Math.round(fare * 0.4)
 
         // Calculate sisa setoran after this payment (ALL pending orders for this driver)
-        const driverOrders = orders.filter(o => o.driver.toLowerCase() === driverName.toLowerCase())
+        const driverOrders = orders.filter(o => o.driver.trim().toLowerCase() === driverName.trim().toLowerCase())
         const currentDriverSisa = driverOrders.reduce((sum, o) => sum + o.sisa, 0)
         const sisaAfterPayment = currentDriverSisa - totalAmount
 

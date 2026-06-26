@@ -40,7 +40,7 @@ function DriverRankingCard({
   // Find current driver's position
   const sortedDrivers = [...driverIncome].sort((a, b) => b.total - a.total)
   const currentIndex = sortedDrivers.findIndex(
-    d => d.driver.toLowerCase() === currentDriver.toLowerCase()
+    d => d.driver.trim().toLowerCase() === currentDriver.trim().toLowerCase()
   )
   const currentData = currentIndex >= 0 ? sortedDrivers[currentIndex] : null
   const rank = currentIndex + 1
@@ -152,7 +152,7 @@ function DriverRankingCard({
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Leaderboard</p>
           <div className="space-y-1.5">
             {sortedDrivers.map((d, i) => {
-              const isMe = d.driver.toLowerCase() === currentDriver.toLowerCase()
+              const isMe = d.driver.trim().toLowerCase() === currentDriver.trim().toLowerCase()
               return (
                 <div key={d.driver} className={cn(
                   "flex items-center justify-between py-1 px-2 rounded-lg",
