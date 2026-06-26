@@ -23,7 +23,34 @@ export async function GET() {
       password_hash: r.has_password ? true : null,
       has_password: undefined,
     }))
-    return NextResponse.json({ drivers })
+
+    // Fetch all unique vehicles historically used in schedules and drivers
+    let vehicles: string[] = []
+    try {
+      const [driverVehicles] = await pool.execute(
+        "SELECT DISTINCT vehicle FROM drivers WHERE vehicle IS NOT NULL AND vehicle != ''"
+      ) as any[]
+      
+      const [scheduleVehicles] = await pool.execute(
+        "SELECT DISTINCT vehicle FROM schedules WHERE vehicle IS NOT NULL AND vehicle != ''"
+      ) as any[]
+
+      const allVehiclesSet = new Set<string>()
+      driverVehicles.forEach((r: any) => {
+        if (r.vehicle) allVehiclesSet.add(r.vehicle.trim().toUpperCase())
+      })
+      scheduleVehicles.forEach((r: any) => {
+        if (r.vehicle) allVehiclesSet.add(r.vehicle.trim().toUpperCase())
+      })
+      
+      vehicles = Array.from(allVehiclesSet)
+    } catch (e) {
+      console.warn("Failed to fetch historical vehicles list:", e)
+      // Fallback to current drivers vehicles
+      vehicles = drivers.map((d: any) => d.vehicle ? d.vehicle.trim().toUpperCase() : "").filter(Boolean)
+    }
+
+    return NextResponse.json({ drivers, vehicles })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

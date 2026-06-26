@@ -33,26 +33,33 @@ export default function DriversPage() {
 
   // Vehicle Input Mode State
   const [isManualVehicle, setIsManualVehicle] = useState(false)
+  const [allVehicles, setAllVehicles] = useState<string[]>([])
 
-  // Calculate idle plates (plates from inactive drivers not used by active drivers)
+  // Calculate idle plates (plates from all historical vehicles that are not used by active drivers)
   const idlePlates = useMemo(() => {
     const activePlates = new Set(
       drivers
         .filter((d) => d.status === "aktif" && d.vehicle)
         .map((d) => d.vehicle!.trim().toUpperCase())
     )
-    const inactivePlates = new Set(
-      drivers
-        .filter((d) => d.status !== "aktif" && d.vehicle)
-        .map((d) => d.vehicle!.trim().toUpperCase())
-    )
 
     const plateRegex = /^[A-Z]{1,2}\s*\d{1,4}\s*[A-Z]{1,3}$/i
 
-    return Array.from(inactivePlates).filter(
+    // Use allVehicles list from DB instead of just inactive drivers
+    const plates = allVehicles.filter(
       (plate) => !activePlates.has(plate) && plateRegex.test(plate)
     )
-  }, [drivers])
+
+    // If editing a driver, also include their current vehicle value in the dropdown options
+    if (editingDriver && editingDriver.vehicle) {
+      const currentPlate = editingDriver.vehicle.trim().toUpperCase()
+      if (!plates.includes(currentPlate)) {
+        plates.unshift(currentPlate)
+      }
+    }
+
+    return plates
+  }, [drivers, allVehicles, editingDriver])
 
   const handleShowDetail = async (driver: Driver) => {
     setDetailDriver(driver)
@@ -80,9 +87,15 @@ export default function DriversPage() {
   const refreshDrivers = useCallback(async () => {
     setLoading(true)
     try {
-      const d = await fetchDrivers({ force: true })
-      setDrivers(d)
-    } catch {} finally {
+      const resp = await fetch("/api/drivers")
+      if (resp.ok) {
+        const data = await resp.json()
+        setDrivers(data.drivers || [])
+        setAllVehicles(data.vehicles || [])
+      }
+    } catch (err) {
+      console.warn("Gagal memuat data driver:", err)
+    } finally {
       setLoading(false)
     }
   }, [])
@@ -109,8 +122,7 @@ export default function DriversPage() {
     }
     
     // Refresh
-    const updated = await fetchDrivers({ force: true })
-    setDrivers(updated)
+    await refreshDrivers()
     resetForm()
   }
 
@@ -122,7 +134,7 @@ export default function DriversPage() {
       body: JSON.stringify({ id }),
     })
     setDrivers(prev => prev.filter(d => d.id !== id))
-    fetchDrivers({ force: true }).catch(() => {})
+    refreshDrivers().catch(() => {})
   }
 
   const resetForm = () => {
@@ -141,7 +153,7 @@ export default function DriversPage() {
     setFormVehicle(driver.vehicle || "")
     setFormVehicleType(driver.vehicleType || "")
     setFormStatus(driver.status || "aktif")
-    setIsManualVehicle(true) // Always allow text edit when modifying an existing driver
+    setIsManualVehicle(false) // Start with dropdown when editing too
     setShowForm(true)
   }
 
@@ -289,12 +301,12 @@ export default function DriversPage() {
                       placeholder="Contoh: B 1234 ABC"
                       className="bg-secondary border-0 h-10 rounded-xl flex-1"
                     />
-                    {!editingDriver && idlePlates.length > 0 && (
+                    {idlePlates.length > 0 && (
                       <button
                         type="button"
                         onClick={() => {
                           setIsManualVehicle(false)
-                          setFormVehicle("")
+                          setFormVehicle(editingDriver?.vehicle || "")
                         }}
                         className="h-10 text-xs font-bold text-primary px-3 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors"
                       >
