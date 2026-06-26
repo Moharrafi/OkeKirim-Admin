@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Users, Plus, Pencil, Trash2, X, Car, Printer, Loader2 } from "lucide-react"
+import { Users, Plus, Pencil, Trash2, X, Car, Printer, Loader2, Key } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { fetchDrivers, type Driver } from "@/lib/okekirim-api"
@@ -135,6 +135,27 @@ export default function DriversPage() {
     })
     setDrivers(prev => prev.filter(d => d.id !== id))
     refreshDrivers().catch(() => {})
+  }
+
+  const handleResetPassword = async (driverId: number, driverName: string) => {
+    if (!confirm(`Reset password untuk driver ${driverName}? Driver harus mendaftar ulang untuk membuat password baru.`)) return
+    try {
+      const resp = await fetch("/api/drivers/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: driverId }),
+      })
+      if (resp.ok) {
+        alert(`Password untuk ${driverName} berhasil di-reset. Driver sekarang bisa mendaftar ulang.`)
+        refreshDrivers().catch(() => {})
+        setShowDetail(false)
+      } else {
+        const errorData = await resp.json()
+        alert(`Gagal me-reset password: ${errorData.error || "kesalahan server"}`)
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan koneksi.")
+    }
   }
 
   const resetForm = () => {
@@ -489,6 +510,16 @@ export default function DriversPage() {
               >
                 <Printer className="h-3.5 w-3.5 mr-1" />
                 Cetak
+              </Button>
+            </div>
+            <div className="mt-2 flex gap-2.5">
+              <Button
+                variant="outline"
+                className="w-full h-10 rounded-xl text-xs font-semibold border-destructive/20 text-destructive hover:bg-destructive/10 bg-destructive/5"
+                onClick={() => handleResetPassword(detailDriver.id, detailDriver.name)}
+              >
+                <Key className="h-3.5 w-3.5 mr-1" />
+                Reset Password
               </Button>
             </div>
           </div>
