@@ -1699,10 +1699,9 @@ export default function DepositPage() {
               <CardContent className="p-4 space-y-4">
                 {/* Route connector visual */}
                 <div className="relative pl-6 space-y-4">
-                  <div className="absolute left-[11px] top-6 bottom-6 w-0.5 border-l-2 border-dashed border-border pointer-events-none" />
-
                   <div className="relative">
-                    <div className="absolute -left-[20px] top-[41px] h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-card shadow-xs" />
+                    <div className="absolute -left-[20px] top-[38px] h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-card shadow-xs z-10" />
+                    <div className="absolute -left-[13px] top-[45px] bottom-[-8px] w-0.5 border-l-2 border-dashed border-border pointer-events-none" />
                     <FormField
                       label="Lokasi Muat (Asal)"
                       error={errors.lokasiMuat?.message}
@@ -1732,7 +1731,8 @@ export default function DepositPage() {
                   </div>
 
                   <div className="relative">
-                    <div className="absolute -left-[20px] top-[41px] h-3.5 w-3.5 rounded-full bg-rose-500 border-2 border-card shadow-xs" />
+                    <div className="absolute -left-[20px] top-[38px] h-3.5 w-3.5 rounded-full bg-rose-500 border-2 border-card shadow-xs z-10" />
+                    <div className="absolute -left-[13px] top-[-8px] bottom-[calc(100%-45px)] w-0.5 border-l-2 border-dashed border-border pointer-events-none" />
                     <FormField
                       label="Lokasi Bongkar (Tujuan)"
                       error={errors.lokasiBongkar?.message}
