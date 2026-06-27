@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { useUser } from "@/lib/user-context"
+import { cn } from "@/lib/utils"
 
 interface OverdueOrder {
   id: number
@@ -24,6 +25,7 @@ interface MobileHeaderProps {
   showBack?: boolean
   onBack?: () => void
   overdueCount?: number
+  variant?: "default" | "dark"
 }
 
 const NOTIFICATION_PAGE_SIZE = 10
@@ -135,7 +137,13 @@ function getNotificationIconConfig(order: OverdueOrder) {
   }
 }
 
-export function MobileHeader({ title, showGreeting = false, showBack = false, onBack }: MobileHeaderProps) {
+export function MobileHeader({
+  title,
+  showGreeting = false,
+  showBack = false,
+  onBack,
+  variant = "default",
+}: MobileHeaderProps) {
   const { user, isAdmin } = useUser()
   const [showNotifications, setShowNotifications] = useState(false)
   const [overdueOrders, setOverdueOrders] = useState<OverdueOrder[]>([])
@@ -283,18 +291,26 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
   
   return (
     <>
-      <header className="safe-area-top sticky top-0 z-40 border-b border-border/60 bg-background/95 backdrop-blur-xl" role="banner">
+      <header 
+        className={cn(
+          "safe-area-top sticky top-0 z-40 backdrop-blur-xl transition-colors", 
+          variant === "dark" 
+            ? "bg-slate-950 dark:bg-indigo-950/80 border-none text-white" 
+            : "border-b border-border/60 bg-background/95 text-foreground"
+        )}
+        role="banner"
+      >
         <div className="flex min-h-[60px] items-center justify-between px-4 py-2.5">
           {showGreeting ? (
             <div className="flex items-center gap-3">
-              <Avatar className="h-11 w-11 border border-primary/20 bg-primary/10">
-                <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              <Avatar className={cn("h-11 w-11 border", variant === "dark" ? "border-white/10 bg-white/5" : "border-primary/20 bg-primary/10")}>
+                <AvatarFallback className={cn("font-semibold", variant === "dark" ? "bg-white/5 text-indigo-300" : "bg-primary/10 text-primary")}>
                   {user.name.split(" ").map(n => n[0]).join("")}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground">Selamat datang</p>
-                <p className="text-base font-semibold leading-tight text-foreground">{user.name}</p>
+                <p className={cn("text-[11px] font-medium", variant === "dark" ? "text-slate-300" : "text-muted-foreground")}>Selamat datang</p>
+                <p className={cn("text-base font-semibold leading-tight", variant === "dark" ? "text-white" : "text-foreground")}>{user.name}</p>
               </div>
             </div>
           ) : showBack ? (
@@ -302,35 +318,40 @@ export function MobileHeader({ title, showGreeting = false, showBack = false, on
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className="-ml-2 h-10 w-10 rounded-lg text-foreground"
+                className={cn("-ml-2 h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-white hover:bg-white/10" : "text-foreground")}
                 onClick={onBack}
                 aria-label="Kembali"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
-              <h1 className="text-lg font-bold text-foreground">{title}</h1>
+              <h1 className={cn("text-lg font-bold", variant === "dark" ? "text-white" : "text-foreground")}>{title}</h1>
             </div>
           ) : (
-            <h1 className="text-lg font-bold text-foreground">{title}</h1>
+            <h1 className={cn("text-lg font-bold", variant === "dark" ? "text-white" : "text-foreground")}>{title}</h1>
           )}
           <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
               size="icon" 
-              className="relative h-10 w-10 rounded-lg text-muted-foreground" 
+              className={cn("relative h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-muted-foreground")} 
               aria-label="Notifikasi"
               onClick={handleBellClick}
             >
               <Bell className="h-5 w-5" aria-hidden="true" />
               {hasUnread && (
                 <span
-                  className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background"
+                  className={cn("absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2", variant === "dark" ? "ring-slate-950 dark:ring-indigo-950" : "ring-background")}
                   aria-label="Ada notifikasi baru"
                 />
               )}
             </Button>
             <Link href="/profile" aria-label="Pengaturan">
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg text-muted-foreground" aria-label="Pengaturan">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={cn("h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-muted-foreground")} 
+                aria-label="Pengaturan"
+              >
                 <Settings className="h-5 w-5" aria-hidden="true" />
               </Button>
             </Link>

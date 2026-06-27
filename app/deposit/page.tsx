@@ -34,6 +34,7 @@ import {
   Search,
   AlertTriangle,
   Loader2,
+  Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isOverdue, groupOrdersByDate, filterOrders } from "@/lib/utils/orders"
@@ -280,6 +281,7 @@ export default function DepositPage() {
   }, [isAuthenticated, router])
 
   // Input Orderan States
+  const [formStep, setFormStep] = useState(1)
   const [selectedDriver, setSelectedDriver] = useState("")
   const [argo, setArgo] = useState("")
   const [orderType, setOrderType] = useState<OrderType>(() => {
@@ -878,6 +880,8 @@ export default function DepositPage() {
         setShowOrderSuccess(true)
         setTimeout(() => {
           setShowOrderSuccess(false)
+          // Reset formStep back to 1
+          setFormStep(1)
           // Clear location and argo fields
           setFormValue("lokasiMuat", "")
           setFormValue("lokasiBongkar", "")
@@ -1615,21 +1619,27 @@ export default function DepositPage() {
         {/* Tab Content Container with slide animation */}
         <div
           ref={tabContentRef}
-          className={cn("overflow-hidden space-y-4", tabAnimationClass)}
+          className={cn("overflow-hidden space-y-3", tabAnimationClass)}
         >
 
         {/* Input Orderan Tab - For both Admin and Driver */}
         {mainTab === "orderan" && (
           <>
-            {/* Driver Selection - Only for Admin */}
-            {isAdmin ? (
-              <Card className="border-border bg-card">
-                <CardContent className="p-4 space-y-4">
+            {/* Binder 1: Pengirim & Waktu */}
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+              <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Supir & Tanggal Trip
+                </h3>
+              </div>
+              <CardContent className="p-4 space-y-4">
+                {isAdmin ? (
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-foreground">Pilih Driver</Label>
+                    <Label className="text-xs font-bold text-foreground">Driver Terjadwal</Label>
                     <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                      <SelectTrigger className="bg-secondary border-0 h-12 w-full rounded-xl">
-                        <SelectValue placeholder="Pilih driver..." />
+                      <SelectTrigger className="bg-secondary/40 border border-border h-11 w-full rounded-xl">
+                        <SelectValue placeholder="Pilih supir..." />
                       </SelectTrigger>
                       <SelectContent className="min-w-[16rem]">
                         {activeDrivers.map((driver) => (
@@ -1639,7 +1649,7 @@ export default function DepositPage() {
                             className="py-2 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground data-[state=checked]:[&_.driver-sub]:text-primary-foreground/85 data-[state=checked]:[&_.driver-sep]:text-primary-foreground/60 data-[highlighted]:[&_.driver-sub]:text-primary-foreground/85 data-[highlighted]:[&_.driver-sep]:text-primary-foreground/60"
                           >
                             <div className="flex min-w-0 items-center gap-2">
-                              <span className="max-w-[6.5rem] truncate font-semibold">{driver.name}</span>
+                              <span className="max-w-[7.5rem] truncate font-semibold">{driver.name}</span>
                               <span className="driver-sep text-muted-foreground">-</span>
                               <span className="driver-sub max-w-[7rem] truncate text-muted-foreground">{driver.vehicle || "-"}</span>
                             </div>
@@ -1648,294 +1658,278 @@ export default function DepositPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-border bg-card">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-primary/10">
-                      <Smartphone className="h-5 w-5 text-primary" />
+                ) : (
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-secondary/30 border border-border/50">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-sm">
+                        {user.name.split(" ").map(n => n[0]).join("")}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground leading-tight">{user.name}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">B 1234 ABC • Fuso Heavy</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">B 1234 ABC</p>
-                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2.5 py-0.5 rounded-full">Driver Aktif</span>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
 
-            {/* Date Input */}
-            <Card className="border-border bg-card">
-              <CardContent className="p-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Tanggal</Label>
+                  <Label className="text-xs font-bold text-foreground">Tanggal Pelaksanaan</Label>
                   <div className="relative">
-                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                     <Input
                       type="date"
                       value={orderDate}
                       onChange={(e) => setOrderDate(e.target.value)}
-                      className="bg-secondary border-0 pl-10 h-12 rounded-xl"
+                      className="bg-secondary/40 border border-border pl-10 h-11 rounded-xl text-sm"
                     />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Location Input */}
-            <Card className="border-border bg-card">
+            {/* Binder 2: Rute & Keuangan */}
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+              <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  Rute & Keuangan Trip
+                </h3>
+              </div>
               <CardContent className="p-4 space-y-4">
-                <FormField
-                  label="Lokasi Muat"
-                  error={errors.lokasiMuat?.message}
-                  touched={touchedFields.lokasiMuat}
-                >
-                  <LocationAutocomplete
-                    value={lokasiMuat}
-                    onChange={(val) => {
-                      setFormValue("lokasiMuat", val)
-                      if (errors.lokasiMuat) {
-                        setTimeout(() => clearErrors("lokasiMuat"), 500)
-                      }
-                    }}
-                    onSelect={(val) => {
-                      setFormValue("lokasiMuat", val)
-                      if (errors.lokasiMuat) {
-                        setTimeout(() => clearErrors("lokasiMuat"), 500)
-                      }
-                      trigger("lokasiMuat")
-                    }}
-                    placeholder="Masukkan lokasi muat..."
-                    history={locationHistory}
-                    icon={<MapPin className="h-4 w-4 text-success" />}
-                    error={touchedFields.lokasiMuat ? errors.lokasiMuat?.message : undefined}
-                  />
-                </FormField>
+                {/* Route connector visual */}
+                <div className="relative pl-6 space-y-4">
+                  <div className="absolute left-[11px] top-6 bottom-6 w-0.5 border-l-2 border-dashed border-border pointer-events-none" />
 
-                <FormField
-                  label="Lokasi Bongkar"
-                  error={errors.lokasiBongkar?.message}
-                  touched={touchedFields.lokasiBongkar}
-                >
-                  <LocationAutocomplete
-                    value={lokasiBongkar}
-                    onChange={(val) => {
-                      setFormValue("lokasiBongkar", val)
-                      if (errors.lokasiBongkar) {
-                        setTimeout(() => clearErrors("lokasiBongkar"), 500)
-                      }
-                    }}
-                    onSelect={(val) => {
-                      setFormValue("lokasiBongkar", val)
-                      if (errors.lokasiBongkar) {
-                        setTimeout(() => clearErrors("lokasiBongkar"), 500)
-                      }
-                      trigger("lokasiBongkar")
-                    }}
-                    placeholder="Masukkan lokasi bongkar..."
-                    history={locationHistory}
-                    icon={<MapPin className="h-4 w-4 text-destructive" />}
-                    error={touchedFields.lokasiBongkar ? errors.lokasiBongkar?.message : undefined}
-                  />
-                </FormField>
-              </CardContent>
-            </Card>
-
-            {/* Argo Input */}
-            <Card className="border-border bg-card">
-              <CardContent className="p-4 space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Nilai Argo</Label>
-                  <CurrencyInput
-                    value={argo ? parseInt(argo) : 0}
-                    onChange={(value) => setArgo(value > 0 ? String(value) : "")}
-                    min={1000}
-                    max={999999999}
-                    placeholder="0"
-                    error={
-                      argo && parseInt(argo) > 0 && (parseInt(argo) < 1000 || parseInt(argo) > 999999999)
-                        ? parseInt(argo) < 1000
-                          ? "Nilai argo tidak valid (minimum Rp 1.000)"
-                          : "Nilai argo tidak valid (maksimum Rp 999.999.999)"
-                        : undefined
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Upload Bukti Orderan */}
-            <Card className="border-border bg-card">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <Label className="text-sm font-medium text-foreground">
-                    Bukti SS / Foto Orderan {isDriver && <span className="text-destructive">*</span>}
-                  </Label>
-                  {isDriver && (
-                    <span className="text-[10px] text-destructive bg-destructive/10 px-2 py-0.5 rounded-full font-medium">
-                      Wajib
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Upload screenshot atau foto orderan yang Anda terima untuk verifikasi argo
-                </p>
-
-                {orderFileUploadError && (
-                  <p className="text-xs text-destructive mb-3">{orderFileUploadError}</p>
-                )}
-
-                {orderUploadedFile ? (
-                  <div className="space-y-3">
-                    {orderUploadedImage && (
-                      <div className="rounded-xl overflow-hidden border border-border">
-                        <img src={orderUploadedImage} alt="Bukti orderan" className="w-full h-48 object-cover" decoding="async" />
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-success/10 border border-success/20">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-success/20">
-                          <ImageIcon className="h-5 w-5 text-success" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{orderUploadedFile}</p>
-                          <p className="text-xs text-success">Berhasil diupload</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOrderUploadedFile(null)
-                          setOrderUploadedImage(null)
-                          setOrderFileUploadError(null)
+                  <div className="relative">
+                    <div className="absolute -left-[20px] top-[41px] h-3.5 w-3.5 rounded-full bg-emerald-500 border-2 border-card shadow-xs" />
+                    <FormField
+                      label="Lokasi Muat (Asal)"
+                      error={errors.lokasiMuat?.message}
+                      touched={touchedFields.lokasiMuat}
+                    >
+                      <LocationAutocomplete
+                        value={lokasiMuat}
+                        onChange={(val) => {
+                          setFormValue("lokasiMuat", val)
+                          if (errors.lokasiMuat) {
+                            setTimeout(() => clearErrors("lokasiMuat"), 500)
+                          }
                         }}
-                        className="p-1.5 rounded-full hover:bg-secondary"
+                        onSelect={(val) => {
+                          setFormValue("lokasiMuat", val)
+                          if (errors.lokasiMuat) {
+                            setTimeout(() => clearErrors("lokasiMuat"), 500)
+                          }
+                          trigger("lokasiMuat")
+                        }}
+                        placeholder="Ketik lokasi muat..."
+                        history={locationHistory}
+                        icon={<MapPin className="h-4 w-4 text-emerald-500" />}
+                        error={touchedFields.lokasiMuat ? errors.lokasiMuat?.message : undefined}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute -left-[20px] top-[41px] h-3.5 w-3.5 rounded-full bg-rose-500 border-2 border-card shadow-xs" />
+                    <FormField
+                      label="Lokasi Bongkar (Tujuan)"
+                      error={errors.lokasiBongkar?.message}
+                      touched={touchedFields.lokasiBongkar}
+                    >
+                      <LocationAutocomplete
+                        value={lokasiBongkar}
+                        onChange={(val) => {
+                          setFormValue("lokasiBongkar", val)
+                          if (errors.lokasiBongkar) {
+                            setTimeout(() => clearErrors("lokasiBongkar"), 500)
+                          }
+                        }}
+                        onSelect={(val) => {
+                          setFormValue("lokasiBongkar", val)
+                          if (errors.lokasiBongkar) {
+                            setTimeout(() => clearErrors("lokasiBongkar"), 500)
+                          }
+                          trigger("lokasiBongkar")
+                        }}
+                        placeholder="Ketik lokasi bongkar..."
+                        history={locationHistory}
+                        icon={<MapPin className="h-4 w-4 text-rose-500" />}
+                        error={touchedFields.lokasiBongkar ? errors.lokasiBongkar?.message : undefined}
+                      />
+                    </FormField>
+                  </div>
+                </div>
+
+                <div className="border-t border-border/40 my-2 pt-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-foreground">Nilai Argo</Label>
+                    <CurrencyInput
+                      value={argo ? parseInt(argo) : 0}
+                      onChange={(value) => setArgo(value > 0 ? String(value) : "")}
+                      min={1000}
+                      max={999999999}
+                      placeholder="0"
+                      error={
+                        argo && parseInt(argo) > 0 && (parseInt(argo) < 1000 || parseInt(argo) > 999999999)
+                          ? parseInt(argo) < 1000
+                            ? "Nilai argo tidak valid (minimum Rp 1.000)"
+                            : "Nilai argo tidak valid (maksimum Rp 999.999.999)"
+                          : undefined
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-foreground">Tipe Orderan</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => { setOrderType("online"); localStorage.setItem("default_order_type", "online") }}
+                        className={cn(
+                          "flex items-center justify-center gap-2 p-3 rounded-xl transition-all border text-xs font-bold",
+                          orderType === "online"
+                            ? "bg-primary/10 border-primary text-primary"
+                            : "bg-secondary/40 border-border text-muted-foreground hover:bg-secondary"
+                        )}
                       >
-                        <X className="h-4 w-4 text-muted-foreground" />
+                        <Smartphone className="h-4 w-4" />
+                        Online (App)
+                      </button>
+                      <button
+                        onClick={() => { setOrderType("offline"); localStorage.setItem("default_order_type", "offline") }}
+                        className={cn(
+                          "flex items-center justify-center gap-2 p-3 rounded-xl transition-all border text-xs font-bold",
+                          orderType === "offline"
+                            ? "bg-amber-500/10 border-amber-600 text-amber-700 dark:text-amber-400"
+                            : "bg-secondary/40 border-border text-muted-foreground hover:bg-secondary"
+                        )}
+                      >
+                        <Banknote className="h-4 w-4" />
+                        Offline (Kas)
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <label
-                    tabIndex={0}
-                    className="w-full flex items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/50 p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors cursor-pointer"
-                  >
-                    <div className="text-center">
-                      <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="mt-2 text-sm text-muted-foreground font-medium">Ketuk untuk upload foto/screenshot</p>
-                      <p className="text-xs text-muted-foreground">JPG, PNG (max 5MB)</p>
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleOrderFileUpload}
-                    />
-                  </label>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Order Type */}
-            <Card className="border-border bg-card">
-              <CardContent className="p-4 space-y-3">
-                <Label className="text-sm font-medium text-foreground">Tipe Orderan</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => { setOrderType("online"); localStorage.setItem("default_order_type", "online") }}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-xl transition-all",
-                      orderType === "online"
-                        ? "bg-primary/10 border-2 border-primary"
-                        : "bg-secondary border-2 border-transparent"
-                    )}
-                  >
-                    <Smartphone
-                      className={cn(
-                        "h-6 w-6",
-                        orderType === "online" ? "text-primary" : "text-muted-foreground"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        orderType === "online" ? "text-primary" : "text-muted-foreground"
-                      )}
-                    >
-                      Online
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => { setOrderType("offline"); localStorage.setItem("default_order_type", "offline") }}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-xl transition-all",
-                      orderType === "offline"
-                        ? "bg-chart-3/10 border-2 border-chart-3"
-                        : "bg-secondary border-2 border-transparent"
-                    )}
-                  >
-                    <Banknote
-                      className={cn(
-                        "h-6 w-6",
-                        orderType === "offline" ? "text-chart-3" : "text-muted-foreground"
-                      )}
-                    />
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        orderType === "offline" ? "text-chart-3" : "text-muted-foreground"
-                      )}
-                    >
-                      Offline
-                    </span>
-                  </button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Summary */}
-            <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-card">
-              <CardContent className="p-4">
+            {/* Binder 3: Bukti & Slip Rincian */}
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+              <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Upload className="h-4 w-4 text-primary" />
+                  Verifikasi Bukti Lampiran
+                </h3>
+              </div>
+              <CardContent className="p-4 space-y-4">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Driver</span>
-                    <span className="font-medium text-foreground">
-                      {isAdmin 
-                        ? (selectedDriver ? activeDrivers.find((d) => String(d.id) === selectedDriver)?.name : "-")
-                        : user.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Rute</span>
-                    <span className="font-medium text-foreground text-right max-w-[200px] truncate">
-                      {lokasiMuat && lokasiBongkar 
-                        ? `${lokasiMuat} - ${lokasiBongkar}`
-                        : "-"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tipe</span>
-                    <span className="font-medium text-foreground">
-                      {orderType === "online" ? "Online" : "Offline"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Bukti Orderan</span>
-                    <span className={cn(
-                      "font-medium",
-                      orderUploadedFile ? "text-success" : "text-warning"
-                    )}>
-                      {orderUploadedFile ? "Sudah diupload" : "Belum diupload"}
-                    </span>
-                  </div>
-                  <div className="border-t border-border pt-3 mt-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Nilai Argo</span>
-                      <span className="text-2xl font-bold text-primary">
-                        Rp {argo ? parseInt(argo).toLocaleString("id-ID") : "0"}
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs font-bold text-foreground">
+                      Foto Bukti / Screenshot {isDriver && <span className="text-rose-500">*</span>}
+                    </Label>
+                    {isDriver && (
+                      <span className="text-[9px] text-rose-600 bg-rose-500/15 px-2 py-0.5 rounded-full font-extrabold uppercase">
+                        Wajib
                       </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Unggah screenshot atau foto orderan sebagai bukti verifikasi nilai argo.
+                  </p>
+
+                  {orderFileUploadError && (
+                    <p className="text-xs text-rose-500 font-semibold mb-2">{orderFileUploadError}</p>
+                  )}
+
+                  {orderUploadedFile ? (
+                    <div className="space-y-3">
+                      {orderUploadedImage && (
+                        <div className="rounded-xl overflow-hidden border border-border bg-secondary/20 flex items-center justify-center p-2">
+                          <img src={orderUploadedImage} alt="Bukti orderan" className="max-h-40 object-contain w-full" decoding="async" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="p-1.5 rounded-lg bg-emerald-500/20 shrink-0">
+                            <ImageIcon className="h-4 w-4 text-emerald-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-foreground truncate">{orderUploadedFile}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold">Berhasil diunggah</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderUploadedFile(null)
+                            setOrderUploadedImage(null)
+                            setOrderFileUploadError(null)
+                          }}
+                          className="p-1.5 rounded-full hover:bg-secondary shrink-0"
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      tabIndex={0}
+                      className="w-full flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/30 p-5 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-colors cursor-pointer"
+                    >
+                      <div className="text-center">
+                        <Upload className="mx-auto h-6 w-6 text-muted-foreground/60" />
+                        <p className="mt-1.5 text-xs text-foreground font-bold">Pilih File Foto / Screenshot</p>
+                        <p className="text-[10px] text-muted-foreground">JPG, PNG (Maks 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleOrderFileUpload}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Slip Rincian Invoice */}
+                <div className="border-t border-dashed border-border/80 pt-4 mt-2">
+                  <div className="bg-secondary/30 rounded-xl p-4 border border-border/40 relative overflow-hidden">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-1 pointer-events-none">
+                      {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="h-2 w-2 rounded-full bg-card" />
+                      ))}
+                    </div>
+
+                    <div className="space-y-2 mt-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Driver</span>
+                        <span className="font-semibold text-foreground">
+                          {isAdmin 
+                            ? (selectedDriver ? activeDrivers.find((d) => String(d.id) === selectedDriver)?.name : "-")
+                            : user.name}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Tipe Orderan</span>
+                        <span className="font-semibold text-foreground">
+                          {orderType === "online" ? "Online (App)" : "Offline (Manual)"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Rute Tarikan</span>
+                        <span className="font-semibold text-foreground text-right truncate max-w-[160px]">
+                          {lokasiMuat && lokasiBongkar 
+                            ? `${lokasiMuat} → ${lokasiBongkar}`
+                            : "-"}
+                        </span>
+                      </div>
+                      <div className="border-t border-border/50 pt-2.5 mt-2 flex justify-between items-baseline">
+                        <span className="text-xs font-bold text-foreground">Wajib Setor (40%)</span>
+                        <span className="text-base font-extrabold text-primary">
+                          Rp {argo ? Math.round(parseInt(argo) * 0.4).toLocaleString("id-ID") : "0"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1944,19 +1938,19 @@ export default function DepositPage() {
 
             {/* Submit Button */}
             <Button
-              className="w-full h-14 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-13 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/15 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
               disabled={(isAdmin && !selectedDriver) || !isOrderFormValid || isSubmittingOrder}
               onClick={() => setShowOrderConfirm(true)}
             >
               {isSubmittingOrder ? (
                 <div className="flex items-center gap-2">
-                  <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                  <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                   Memproses...
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  Simpan Orderan
-                  <ChevronRight className="h-5 w-5" />
+                  Simpan Transaksi Trip
+                  <ChevronRight className="h-4 w-4" />
                 </div>
               )}
             </Button>
@@ -2159,7 +2153,7 @@ export default function DepositPage() {
                 <Input
                   value={editOrigin}
                   onChange={(e) => setEditOrigin(e.target.value)}
-                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
+                  className="bg-secondary/40 border border-border h-10 rounded-xl mt-1"
                 />
               </div>
               <div>
@@ -2167,7 +2161,7 @@ export default function DepositPage() {
                 <Input
                   value={editDestination}
                   onChange={(e) => setEditDestination(e.target.value)}
-                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
+                  className="bg-secondary/40 border border-border h-10 rounded-xl mt-1"
                 />
               </div>
               <div>
@@ -2176,7 +2170,7 @@ export default function DepositPage() {
                   type="number"
                   value={editArgo}
                   onChange={(e) => setEditArgo(e.target.value)}
-                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
+                  className="bg-secondary/40 border border-border h-10 rounded-xl mt-1"
                 />
               </div>
               <div>
@@ -2185,7 +2179,7 @@ export default function DepositPage() {
                   type="date"
                   value={editDate}
                   onChange={(e) => setEditDate(e.target.value)}
-                  className="bg-secondary border-0 h-10 rounded-xl mt-1"
+                  className="bg-secondary/40 border border-border h-10 rounded-xl mt-1"
                 />
               </div>
             </div>
@@ -2419,7 +2413,7 @@ export default function DepositPage() {
                           placeholder="Masukkan jumlah..."
                           value={payAmount === "0" ? "" : payAmount}
                           onChange={(e) => setPayAmount(e.target.value || "0")}
-                          className="bg-secondary border-0 pl-10 h-12 rounded-xl"
+                          className="bg-secondary/40 border border-border pl-10 h-12 rounded-xl"
                           autoFocus
                         />
                       </div>
@@ -2662,7 +2656,7 @@ export default function DepositPage() {
                           placeholder="Masukkan jumlah..."
                           value={payAmount === "0" ? "" : payAmount}
                           onChange={(e) => setPayAmount(e.target.value || "0")}
-                          className="bg-secondary border-0 pl-10 h-12 rounded-xl"
+                          className="bg-secondary/40 border border-border pl-10 h-12 rounded-xl"
                           autoFocus
                         />
                       </div>

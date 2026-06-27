@@ -5,73 +5,73 @@
 
 /* Light Mode (Default) */
 :root {
-  --background: oklch(0.96 0.002 260);
-  --foreground: oklch(0.15 0.01 260);
+  --background: oklch(0.975 0.004 272);
+  --foreground: oklch(0.18 0.012 272);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.01 260);
+  --card-foreground: oklch(0.18 0.012 272);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 260);
-  --primary: oklch(0.45 0.18 165);
+  --popover-foreground: oklch(0.18 0.012 272);
+  --primary: oklch(0.52 0.22 272);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.94 0.01 260);
-  --secondary-foreground: oklch(0.15 0.01 260);
-  --muted: oklch(0.94 0.005 260);
-  --muted-foreground: oklch(0.45 0 0);
-  --accent: oklch(0.45 0.18 165);
+  --secondary: oklch(0.945 0.008 272);
+  --secondary-foreground: oklch(0.18 0.012 272);
+  --muted: oklch(0.945 0.008 272);
+  --muted-foreground: oklch(0.48 0.01 272);
+  --accent: oklch(0.52 0.22 272);
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.85 0.005 260);
-  --input: oklch(0.82 0.01 260);
-  --ring: oklch(0.45 0.18 165);
-  --chart-1: oklch(0.45 0.18 165);
+  --border: oklch(0.80 0.015 272); /* Higher contrast border (similar to Slate-300) */
+  --input: oklch(0.70 0.015 272);  /* Highly visible input outline */
+  --ring: oklch(0.52 0.22 272);
+  --chart-1: oklch(0.52 0.22 272);
   --chart-2: oklch(0.55 0.18 250);
   --chart-3: oklch(0.65 0.18 85);
   --chart-4: oklch(0.55 0.22 330);
   --chart-5: oklch(0.6 0.2 40);
   --radius: 1rem;
-  --success: oklch(0.45 0.18 145);
+  --success: oklch(0.55 0.16 150);
   --success-foreground: oklch(1 0 0);
-  --warning: oklch(0.7 0.18 85);
-  --warning-foreground: oklch(0.15 0.01 260);
+  --warning: oklch(0.69 0.12 70); /* Elegant amber/ochre warning instead of bright yellow */
+  --warning-foreground: oklch(1 0 0);
   --overlay: oklch(0 0 0 / 0.5);
   --toast-bg: oklch(1 0 0);
-  --toast-foreground: oklch(0.15 0.01 260);
+  --toast-foreground: oklch(0.18 0.012 272);
 }
 
 /* Dark Mode */
 .dark {
-  --background: oklch(0.14 0.005 260);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.19 0.005 260);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.19 0.005 260);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.72 0.19 165);
-  --primary-foreground: oklch(0.08 0.01 260);
-  --secondary: oklch(0.24 0.005 260);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.27 0.005 260);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.72 0.19 165);
-  --accent-foreground: oklch(0.08 0.01 260);
+  --background: oklch(0.14 0.006 272);
+  --foreground: oklch(0.97 0.004 272);
+  --card: oklch(0.18 0.006 272);
+  --card-foreground: oklch(0.97 0.004 272);
+  --popover: oklch(0.18 0.006 272);
+  --popover-foreground: oklch(0.97 0.004 272);
+  --primary: oklch(0.68 0.18 272);
+  --primary-foreground: oklch(0.08 0.008 272);
+  --secondary: oklch(0.24 0.006 272);
+  --secondary-foreground: oklch(0.97 0.004 272);
+  --muted: oklch(0.27 0.006 272);
+  --muted-foreground: oklch(0.68 0.004 272);
+  --accent: oklch(0.68 0.18 272);
+  --accent-foreground: oklch(0.08 0.008 272);
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.35 0.005 260);
-  --input: oklch(0.24 0.005 260);
-  --ring: oklch(0.72 0.19 165);
-  --chart-1: oklch(0.72 0.19 165);
+  --border: oklch(0.38 0.01 272); /* Clear border contrast in dark mode */
+  --input: oklch(0.45 0.01 272);  /* Clear input outlines in dark mode */
+  --ring: oklch(0.68 0.18 272);
+  --chart-1: oklch(0.68 0.18 272);
   --chart-2: oklch(0.65 0.15 250);
   --chart-3: oklch(0.78 0.16 85);
   --chart-4: oklch(0.65 0.2 330);
   --chart-5: oklch(0.7 0.18 40);
   --success: oklch(0.72 0.2 145);
-  --success-foreground: oklch(0.08 0.01 260);
-  --warning: oklch(0.8 0.16 85);
-  --warning-foreground: oklch(0.15 0.01 260);
+  --success-foreground: oklch(0.08 0.008 272);
+  --warning: oklch(0.72 0.11 75); /* Sophisticated amber warning for dark mode */
+  --warning-foreground: oklch(0.08 0.008 272);
   --overlay: oklch(0 0 0 / 0.7);
-  --toast-bg: oklch(0.22 0.005 260);
-  --toast-foreground: oklch(0.96 0 0);
+  --toast-bg: oklch(0.22 0.006 272);
+  --toast-foreground: oklch(0.97 0.004 272);
 }
 
 @theme inline {

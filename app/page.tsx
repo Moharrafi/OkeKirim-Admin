@@ -79,19 +79,19 @@ const toneClass: Record<Tone, { icon: string; soft: string; text: string }> = {
     text: "text-primary",
   },
   blue: {
-    icon: "bg-chart-2 text-white",
-    soft: "bg-chart-2/10",
-    text: "text-chart-2",
+    icon: "bg-blue-500 text-white dark:bg-blue-600",
+    soft: "bg-blue-500/10",
+    text: "text-blue-600 dark:text-blue-400",
   },
   amber: {
-    icon: "bg-chart-3 text-white",
-    soft: "bg-chart-3/10",
-    text: "text-chart-3",
+    icon: "bg-amber-500 text-white dark:bg-amber-600",
+    soft: "bg-amber-500/10",
+    text: "text-amber-600 dark:text-amber-400",
   },
   green: {
-    icon: "bg-success text-white",
-    soft: "bg-success/10",
-    text: "text-success",
+    icon: "bg-emerald-500 text-white dark:bg-emerald-600",
+    soft: "bg-emerald-500/10",
+    text: "text-emerald-600 dark:text-emerald-400",
   },
 }
 
@@ -105,13 +105,15 @@ function getTrend(current: number, previous: number) {
   return { percent, isUp: current >= previous }
 }
 
-function ActionTile({
+function QuickActionTile({
   label,
+  sublabel,
   href,
   icon: Icon,
   tone,
 }: {
   label: string
+  sublabel: string
   href: string
   icon: LucideIcon
   tone: Tone
@@ -119,61 +121,19 @@ function ActionTile({
   return (
     <Link
       href={href}
-      className="flex min-h-[86px] min-w-0 flex-col items-center justify-center gap-2 rounded-2xl bg-secondary/45 px-2 py-3 text-center transition-transform active:scale-[0.98]"
+      className="flex-1 flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl bg-card border border-border/40 hover:bg-slate-50 dark:hover:bg-slate-900 active:scale-95 transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)]"
     >
-      <div className={cn("flex h-11 w-11 items-center justify-center rounded-full shadow-sm", toneClass[tone].icon)}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
+      <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl shadow-xs border border-border/30", toneClass[tone].soft)}>
+        <Icon className={cn("h-5 w-5", toneClass[tone].text)} aria-hidden="true" />
       </div>
-      <p className="text-[13px] font-semibold leading-none text-foreground">{label}</p>
+      <div className="text-center">
+        <p className="text-[11px] font-extrabold text-foreground leading-tight">{label}</p>
+        <p className="text-[8px] text-muted-foreground font-medium mt-0.5 leading-none">{sublabel}</p>
+      </div>
     </Link>
   )
 }
 
-function SummaryRow({
-  label,
-  value,
-  helper,
-  icon: Icon,
-  tone,
-  meta,
-  href,
-}: {
-  label: string
-  value: string
-  helper: string
-  icon: LucideIcon
-  tone: Tone
-  meta?: string
-  href?: string
-}) {
-  const content = (
-    <div className="grid min-h-[72px] grid-cols-[auto,1fr] gap-3 rounded-2xl px-3 py-3.5 transition-colors active:bg-secondary/70">
-      <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", toneClass[tone].soft)}>
-        <Icon className={cn("h-4 w-4", toneClass[tone].text)} aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="min-w-0 text-base font-semibold leading-tight text-foreground">{label}</p>
-          <p className="shrink-0 text-xl font-bold leading-tight tracking-tight text-foreground">{value}</p>
-        </div>
-        <div className="mt-1 flex items-start justify-between gap-3">
-          <p className="min-w-0 text-sm leading-tight text-muted-foreground">{helper}</p>
-          {meta && <p className="shrink-0 text-right text-xs font-medium leading-tight text-muted-foreground">{meta}</p>}
-        </div>
-      </div>
-    </div>
-  )
-
-  if (href) {
-    return (
-      <Link href={href} className="block">
-        {content}
-      </Link>
-    )
-  }
-
-  return content
-}
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -191,6 +151,7 @@ export default function DashboardPage() {
   const [services, setServices] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeSlide, setActiveSlide] = useState(0)
+  const [statsTab, setStatsTab] = useState<"monthly" | "daily">("monthly")
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget
@@ -303,21 +264,24 @@ export default function DashboardPage() {
     }
   }, [isAdmin, services])
 
-  const primaryAmount = isAdmin ? (data?.monthlyCompanyShare || 0) - serviceStats.currentMonth : data?.monthlyDriverShare || 0
+  const monthlyAmount = isAdmin ? (data?.monthlyCompanyShare || 0) - serviceStats.currentMonth : data?.monthlyDriverShare || 0
   const previousAmount = isAdmin ? (data?.lastMonthCompanyShare || 0) - serviceStats.lastMonth : data?.lastMonthDriverShare || 0
-  const trend = data ? getTrend(primaryAmount, previousAmount) : null
+  const trend = data ? getTrend(monthlyAmount, previousAmount) : null
   const grossTrend = data ? getTrend(data.monthlyCompanyShare || 0, data.lastMonthCompanyShare || 0) : null
+
+  const activeAmount = statsTab === "monthly" ? monthlyAmount : (data?.todayTotal || 0)
+  const activeTripsCount = statsTab === "monthly" ? (data?.monthlyCount || 0) : (data?.todayCount || 0)
 
   const quickActions = isAdmin
     ? [
-        { label: "Orderan", href: "/deposit", icon: Wallet, tone: "primary" as const },
-        { label: "Lokasi", href: "/lokasi", icon: Car, tone: "blue" as const },
-        { label: "Service", href: "/service", icon: Wrench, tone: "amber" as const },
+        { label: "Orderan", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
+        { label: "Lokasi", sublabel: "Peta Armada", href: "/lokasi", icon: Car, tone: "blue" as const },
+        { label: "Service", sublabel: "Servis Truk", href: "/service", icon: Wrench, tone: "amber" as const },
       ]
     : [
-        { label: "Setor", href: "/deposit", icon: Wallet, tone: "primary" as const },
-        { label: "Riwayat", href: "/history", icon: TrendingUp, tone: "blue" as const },
-        { label: "Profil", href: "/profile", icon: Users, tone: "amber" as const },
+        { label: "Setor", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
+        { label: "Riwayat", sublabel: "Catatan Trip", href: "/history", icon: TrendingUp, tone: "blue" as const },
+        { label: "Profil", sublabel: "Data Driver", href: "/profile", icon: Users, tone: "amber" as const },
       ]
 
   const handleRefresh = async () => {
@@ -350,71 +314,138 @@ export default function DashboardPage() {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen pb-28">
-      <MobileHeader showGreeting overdueCount={data?.overdueCount || 0} />
+      <MobileHeader title="Beranda" overdueCount={data?.overdueCount || 0} variant="dark" />
 
-      <main className="px-4 py-4">
-        <section className="space-y-3">
-          <Card className="rounded-2xl border-primary/20 bg-primary/10 dark:bg-primary/15 py-0 shadow-sm">
-            <CardContent className="p-5 pb-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-primary">
-                    {isAdmin ? "Laba bersih perusahaan bulan ini" : "Pendapatan bulan ini"}
-                  </p>
-                  <p className="mt-2 text-[2rem] font-bold leading-tight tracking-tight text-foreground">
-                    {loading ? "..." : `Rp ${formatRupiah(primaryAmount)}`}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    {trend ? (
-                      <>
-                        {trend.isUp ? (
-                          <ArrowUpRight className="h-3.5 w-3.5 text-success" />
-                        ) : (
-                          <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
-                        )}
-                        <span className={cn("text-xs font-semibold", trend.isUp ? "text-success" : "text-destructive")}>
-                          {trend.isUp ? "+" : ""}
-                          {trend.percent}%
-                        </span>
-                        <span className="text-xs text-muted-foreground">dari bulan lalu</span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">{loading ? "Memuat data..." : "Data bulan ini"}</span>
-                    )}
-                  </div>
+      <main className="px-4 py-4 space-y-5">
+        {/* Immersive Dark Fintech Header Panel */}
+        <div className="relative bg-slate-950 text-white dark:bg-indigo-950/80 pb-20 pt-5 px-4 -mx-4 -mt-4 rounded-b-[32px] shadow-lg overflow-hidden border-b border-white/5">
+          {/* Radial color glows for deep luxury finish */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_60%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.1),transparent_50%)] pointer-events-none" />
+          {/* Decorative mesh vector grids */}
+          <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+
+          {/* Sapaan & Profil Row inside the Dark Panel */}
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-indigo-300 font-extrabold text-sm border border-white/20 shadow-inner">
+                  {user.name.split(" ").map(n => n[0]).join("")}
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
-                  <Wallet className="h-6 w-6 text-primary" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-slate-950 dark:border-indigo-950 animate-pulse" />
+              </div>
+              <div className="min-w-0">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-300 tracking-wider">
+                  {isAdmin ? "ADMIN CONSOLE" : "DRIVE ACTIVE"}
+                </span>
+                <h2 className="text-sm font-extrabold text-white leading-none mt-1 truncate">
+                  Halo, {user.name.split(" ")[0]}!
+                </h2>
+                <p className="text-[10px] text-slate-300 mt-1 leading-none font-semibold opacity-85">
+                  {isAdmin ? "Sistem Setoran OkeKirim" : "B 1234 ABC • Hino Ranger"}
+                </p>
+              </div>
+            </div>
+            <Link href="/profile" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 border border-white/10 text-slate-300 hover:text-white transition-colors active:scale-95">
+              <Users className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Futuristic Glassmorphic Wallet Card */}
+        <div className="relative -mt-16 mx-0 z-10 px-0">
+          <div className="relative rounded-3xl bg-slate-900/70 dark:bg-slate-950/50 backdrop-blur-xl text-white shadow-2xl p-5 overflow-hidden border border-white/10 before:absolute before:inset-0 before:pointer-events-none before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_50%)]">
+            
+            {/* Header Switcher Row inside E-Wallet Card */}
+            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
+              <span className="text-[10px] font-extrabold tracking-wider text-slate-300 uppercase">
+                {statsTab === "monthly" 
+                  ? (isAdmin ? "Laba Bersih Perusahaan" : "Total Pendapatan Supir")
+                  : (isAdmin ? "Setoran Hari Ini" : "Pendapatan Hari Ini")}
+              </span>
+              <div className="flex rounded-full bg-white/5 p-0.5 border border-white/10">
+                <button
+                  onClick={() => setStatsTab("monthly")}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-[9px] font-extrabold transition-all",
+                    statsTab === "monthly" 
+                      ? "bg-indigo-600 text-white shadow-sm" 
+                      : "text-slate-300 hover:text-white"
+                  )}
+                >
+                  Bulan Ini
+                </button>
+                <button
+                  onClick={() => setStatsTab("daily")}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-[9px] font-extrabold transition-all",
+                    statsTab === "daily" 
+                      ? "bg-indigo-600 text-white shadow-sm" 
+                      : "text-slate-300 hover:text-white"
+                  )}
+                >
+                  Hari Ini
+                </button>
+              </div>
+            </div>
+
+            {/* Balance Amount Info */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xs font-bold text-slate-400">IDR</span>
+                  <p className="text-3xl font-black leading-none tracking-tight text-white">
+                    {loading ? "..." : formatRupiah(activeAmount)}
+                  </p>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5">
+                  {statsTab === "monthly" && trend ? (
+                    <>
+                      <div className={cn("flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold", trend.isUp ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300")}>
+                        {trend.isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                        <span>{trend.isUp ? "+" : ""}{trend.percent}%</span>
+                      </div>
+                      <span className="text-[10px] text-slate-300/70 font-medium">vs bulan lalu</span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-slate-300/70 font-medium">
+                      {loading ? "Memuat..." : statsTab === "daily" ? "Akumulasi hari ini" : "Data berjalan bulan ini"}
+                    </span>
+                  )}
                 </div>
               </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-3 py-1.5">
-                  <span className="text-xs font-medium text-primary/70">Trip</span>
-                  <span className="text-xs font-bold text-primary">{loading ? "..." : data?.monthlyCount || 0}</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-3 py-1.5">
-                  <span className="text-xs font-medium text-blue-500/70">{isAdmin ? "Driver" : "Argo"}</span>
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                    {loading
-                      ? "..."
-                      : isAdmin
-                        ? `${data?.activeDrivers || 0} aktif`
-                        : `Rp ${formatRupiah(data?.monthlyFare || 0)}`}
-                  </span>
-                </div>
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 border border-white/10 shadow-inner">
+                <Wallet className="h-5 w-5 text-indigo-300" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card className="rounded-[22px] border-border bg-card py-0 shadow-sm">
-            <CardContent className="grid grid-cols-3 gap-2 p-2.5">
-              {quickActions.map((action) => (
-                <ActionTile key={action.href} {...action} />
-              ))}
-            </CardContent>
-          </Card>
-        </section>
+            {/* Small metrics info row */}
+            <div className="mt-5 flex gap-4 text-[10px] text-slate-300/80 border-t border-white/5 pt-3">
+              <div>
+                <span className="opacity-75">Trip: </span>
+                <strong className="text-white font-bold">{loading ? "..." : activeTripsCount}</strong>
+              </div>
+              <div className="h-3 w-px bg-white/10" />
+              <div>
+                <span className="opacity-75">{isAdmin ? "Driver Aktif: " : "Argo Berjalan: "}</span>
+                <strong className="text-white font-bold">
+                  {loading
+                    ? "..."
+                    : isAdmin
+                      ? `${data?.activeDrivers || 0} supir`
+                      : `Rp ${formatRupiah(data?.monthlyFare || 0)}`}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Dock-style Quick Actions Hub */}
+        <div className="flex gap-3 justify-between items-stretch">
+          {quickActions.map((action) => (
+            <QuickActionTile key={action.href} {...action} />
+          ))}
+        </div>
 
         {loading && (
           <div className="mt-4">
@@ -424,199 +455,186 @@ export default function DashboardPage() {
 
         {!loading && (
           <section className="mt-5 space-y-5">
+            {/* 1. Ringkasan (Consolidated into 2x2 Grid of Cards - Compact & Minimalist) */}
             <section>
               <SectionHeader title="Ringkasan" subtitle="Angka utama bulan ini" />
-              {isAdmin ? (
-                <>
-                  <div
-                    className="flex overflow-x-auto pb-1 snap-x snap-mandatory -mx-4 scroll-smooth no-scrollbar"
-                    onScroll={handleScroll}
-                  >
-                    {/* Slide 1: 2x2 Grid */}
-                    <div className="w-full shrink-0 snap-start grid grid-cols-2 grid-rows-2 gap-2.5 px-4">
-                      <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="p-1.5 rounded-lg bg-primary/10">
-                              <Wallet className="h-3.5 w-3.5 text-primary" />
-                            </div>
-                            {grossTrend && (
-                              <span className={cn("text-[10px] font-bold", grossTrend.isUp ? "text-success" : "text-destructive")}>
-                                {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
-                              </span>
-                            )}
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                {isAdmin ? (
+                  <>
+                    {/* Card 1: Perusahaan */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <Wallet className="h-3.5 w-3.5" />
                           </div>
-                          <p className="text-base font-bold text-foreground mt-2 tracking-tight">
+                          {grossTrend && (
+                            <span className={cn("text-[9px] font-extrabold px-1.5 py-0.5 rounded-full", grossTrend.isUp ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400")}>
+                              {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Perusahaan (40%)</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
                             Rp {formatRupiah(data?.monthlyCompanyShare || 0)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">Perusahaan (40%)</p>
-                        </CardContent>
-                      </Card>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                      <Link href="/drivers">
-                        <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="p-1.5 rounded-lg bg-blue-500/10">
-                                <Users className="h-3.5 w-3.5 text-blue-500" />
-                              </div>
-                              {data?.monthlyCount ? (
-                                <span className="text-[10px] font-medium text-muted-foreground">{data.monthlyCount} trip</span>
-                              ) : null}
+                    {/* Card 2: Driver Aktif */}
+                    <Link href="/drivers" className="block">
+                      <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] active:scale-[0.98] transition-all">
+                        <CardContent className="p-3 flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                              <Users className="h-3.5 w-3.5" />
                             </div>
-                            <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                              {data?.activeDrivers || 0}
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          </div>
+                          <div className="mt-2.5">
+                            <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Driver Aktif</p>
+                            <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                              {data?.activeDrivers || 0} supir
                             </p>
-                            <p className="text-[10px] text-muted-foreground">Driver Aktif</p>
-                          </CardContent>
-                        </Card>
-                      </Link>
-
-                      <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="p-1.5 rounded-lg bg-amber-500/10">
-                              <Clock className="h-3.5 w-3.5 text-amber-500" />
-                            </div>
-                            {data?.pendingTotal ? (
-                              <span className="text-[10px] font-semibold text-amber-500">Rp {formatRupiah(data.pendingTotal)}</span>
-                            ) : null}
                           </div>
-                          <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                            {data?.pendingCount || 0}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">Belum Disetor</p>
                         </CardContent>
                       </Card>
+                    </Link>
 
-                      <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-                            </div>
-                            {data?.todayCount ? (
-                              <span className="text-[10px] font-semibold text-emerald-500">+{data.todayCount} trip</span>
-                            ) : null}
+                    {/* Card 3: Belum Disetor */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Clock className="h-3.5 w-3.5" />
                           </div>
-                          <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                            Rp {formatRupiah(data?.todayTotal || 0)}
+                          {data?.pendingCount ? (
+                            <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                              {data.pendingCount} trip
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Belum Disetor</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                            Rp {formatRupiah(data?.pendingTotal || 0)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground">Hari Ini</p>
-                        </CardContent>
-                      </Card>
-                    </div>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                    {/* Slide 2: 2x2 Grid (containing Hutang card) */}
-                    <div className="w-full shrink-0 snap-start grid grid-cols-2 grid-rows-2 gap-2.5 px-4">
-                      <Link href="/hutang">
-                        <Card className="rounded-xl border-border bg-card py-0 shadow-sm h-full">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="p-1.5 rounded-lg bg-red-500/10">
-                                <Banknote className="h-3.5 w-3.5 text-red-500" />
-                              </div>
-                              {data?.pendingDebtCount ? (
-                                <span className="text-[10px] font-semibold text-red-500">{data.pendingDebtCount} kasbon</span>
-                              ) : null}
+                    {/* Card 4: Hutang Kasbon */}
+                    <Link href="/hutang" className="block">
+                      <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] active:scale-[0.98] transition-all">
+                        <CardContent className="p-3 flex flex-col justify-between">
+                          <div className="flex items-center justify-between">
+                            <div className="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400">
+                              <Banknote className="h-3.5 w-3.5" />
                             </div>
-                            <p className="text-base font-bold text-foreground mt-2 tracking-tight">
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          </div>
+                          <div className="mt-2.5">
+                            <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Kasbon Supir</p>
+                            <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
                               Rp {formatRupiah(data?.pendingDebtTotal || 0)}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">Hutang Kasbon</p>
-                          </CardContent>
-                        </Card>
-                      </Link>
-
-                      {/* Spacer columns to match standard 2x2 grid layout and card dimensions */}
-                      <div className="h-full" />
-                      <div className="h-full" />
-                      <div className="h-full" />
-                    </div>
-                  </div>
-
-                  {/* Dot Indicators */}
-                  <div className="mt-2.5 flex justify-center gap-1.5">
-                    <span className={cn("h-1.5 rounded-full transition-all duration-300", activeSlide === 0 ? "bg-primary w-3.5" : "bg-muted-foreground/30 w-1.5")} />
-                    <span className={cn("h-1.5 rounded-full transition-all duration-300", activeSlide === 1 ? "bg-primary w-3.5" : "bg-muted-foreground/30 w-1.5")} />
-                  </div>
-                </>
-              ) : (
-                /* Driver View: Static 2x2 Grid without slide mechanism */
-                <div className="grid grid-cols-2 gap-2.5">
-                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="p-1.5 rounded-lg bg-primary/10">
-                          <Wallet className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    {/* Card 1: Wajib Setor */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                            <Wallet className="h-3.5 w-3.5" />
+                          </div>
+                          {grossTrend && (
+                            <span className={cn("text-[9px] font-extrabold px-1.5 py-0.5 rounded-full", grossTrend.isUp ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-600")}>
+                              {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
+                            </span>
+                          )}
                         </div>
-                        {grossTrend && (
-                          <span className={cn("text-[10px] font-bold", grossTrend.isUp ? "text-success" : "text-destructive")}>
-                            {grossTrend.isUp ? "↑" : "↓"}{Math.abs(grossTrend.percent)}%
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                        Rp {formatRupiah(data?.monthlyCompanyShare || 0)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">Wajib Setor</p>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="p-1.5 rounded-lg bg-blue-500/10">
-                          <Users className="h-3.5 w-3.5 text-blue-500" />
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Wajib Setor</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                            Rp {formatRupiah(data?.monthlyCompanyShare || 0)}
+                          </p>
                         </div>
-                        {data?.monthlyCount ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">{data.monthlyCount} trip</span>
-                        ) : null}
-                      </div>
-                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                        {data?.monthlyCount || 0}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">Trip Bulan Ini</p>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
 
-                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="p-1.5 rounded-lg bg-amber-500/10">
-                          <Clock className="h-3.5 w-3.5 text-amber-500" />
+                    {/* Card 2: Trip Bulan Ini */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
                         </div>
-                        {data?.pendingTotal ? (
-                          <span className="text-[10px] font-semibold text-amber-500">Rp {formatRupiah(data.pendingTotal)}</span>
-                        ) : null}
-                      </div>
-                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                        {data?.pendingCount || 0}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">Hutang Setoran</p>
-                    </CardContent>
-                  </Card>
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Trip Bulan Ini</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                            {data?.monthlyCount || 0} trip
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                  <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                          <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                    {/* Card 3: Hutang Setoran */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                            <Clock className="h-3.5 w-3.5" />
+                          </div>
+                          {data?.pendingCount ? (
+                            <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                              {data.pendingCount} order
+                            </span>
+                          ) : null}
                         </div>
-                        {data?.todayCount ? (
-                          <span className="text-[10px] font-semibold text-emerald-500">+{data.todayCount} trip</span>
-                        ) : null}
-                      </div>
-                      <p className="text-base font-bold text-foreground mt-2 tracking-tight">
-                        Rp {formatRupiah(data?.todayTotal || 0)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">Hari Ini</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Hutang Setoran</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                            Rp {formatRupiah(data?.pendingTotal || 0)}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Card 4: Hari Ini */}
+                    <Card className="rounded-xl border border-border/70 bg-card shadow-[0_2px_8px_rgba(0,0,0,0.01)] transition-all active:scale-[0.98]">
+                      <CardContent className="p-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                          </div>
+                          {data?.todayCount ? (
+                            <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                              +{data.todayCount} trip
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-2.5">
+                          <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">Hari Ini</p>
+                          <p className="text-sm font-extrabold text-foreground mt-0.5 truncate">
+                            Rp {formatRupiah(data?.todayTotal || 0)}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </div>
             </section>
 
+            {/* 2. Grafik Analisis */}
             {data && (
               <DashboardCharts
                 monthlyChart={data.monthlyChart}
@@ -629,6 +647,7 @@ export default function DashboardPage() {
               />
             )}
 
+            {/* 3. Transaksi Terbaru (Placed at the bottom!) */}
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -641,35 +660,45 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <Card className="rounded-xl border-border bg-card py-0 shadow-sm">
-                <CardContent className="divide-y divide-border p-0">
+              <Card className="rounded-2xl border border-border/70 bg-card py-0 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
+                <CardContent className="divide-y divide-border/60 p-0">
                   {data?.recentTransactions && data.recentTransactions.length > 0 ? (
                     data.recentTransactions.slice(0, 5).map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between gap-3 p-3.5">
+                      <div key={tx.id} className="flex items-center justify-between gap-3 p-3.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
                         <div className="flex min-w-0 items-center gap-3">
                           <div
                             className={cn(
-                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                              tx.orderType === "online" ? "bg-primary/10" : "bg-chart-3/10"
+                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/20",
+                              tx.orderType === "online" ? "bg-primary/10 text-primary" : "bg-emerald-500/10 text-emerald-500"
                             )}
                           >
                             {tx.orderType === "online" ? (
-                              <Smartphone className="h-4 w-4 text-primary" />
+                              <Smartphone className="h-4 w-4" />
                             ) : (
-                              <Banknote className="h-4 w-4 text-chart-3" />
+                              <Banknote className="h-4 w-4" />
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{tx.driver}</p>
-                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                              {tx.origin} - {tx.destination}
+                            <p className="truncate text-xs font-extrabold text-foreground leading-tight">{tx.driver}</p>
+                            <p className="mt-1 truncate text-[10px] text-muted-foreground font-semibold flex items-center gap-1 leading-none">
+                              <span>{tx.origin}</span>
+                              <span className="text-[9px] text-muted-foreground/60">→</span>
+                              <span>{tx.destination}</span>
                             </p>
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-sm font-bold tracking-tight text-foreground">Rp {formatRupiah(tx.companyShare)}</p>
-                          <p className={cn("mt-0.5 text-[11px] font-semibold", tx.status === "lunas" ? "text-success" : "text-warning")}>
-                            {tx.status === "lunas" ? "Lunas" : "Nunggak"}
+                          <p className="text-xs font-black tracking-tight text-foreground">Rp {formatRupiah(tx.companyShare)}</p>
+                          <p className="mt-1 flex items-center justify-end">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold",
+                              tx.status === "lunas" 
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
+                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            )}>
+                              <span className={cn("h-1 w-1 rounded-full", tx.status === "lunas" ? "bg-emerald-500" : "bg-amber-500")} />
+                              {tx.status === "lunas" ? "Lunas" : "Nunggak"}
+                            </span>
                           </p>
                         </div>
                       </div>
