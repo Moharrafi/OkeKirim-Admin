@@ -1,6 +1,6 @@
 "use client"
 
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { useEffect, useState } from "react"
@@ -29,20 +29,41 @@ interface VehicleMapProps {
   onFitComplete?: () => void
 }
 
-function createIcon(color: string) {
-  const svgIcon = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48">
-      <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
-      <circle cx="12" cy="12" r="6" fill="#fff"/>
-      <path d="M9 12l1.5-3h3L15 12l-1.5 3h-3L9 12z" fill="${color}"/>
-    </svg>
+function createIcon(color: string, plate: string) {
+  const html = `
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; width: 120px; height: 70px;">
+      <!-- Label Nopol di atas penunjuk marker -->
+      <div style="
+        background-color: white; 
+        color: #1e293b; 
+        font-weight: bold; 
+        font-family: monospace;
+        font-size: 10px; 
+        padding: 1px 5px; 
+        border-radius: 4px; 
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        white-space: nowrap;
+        margin-bottom: 2px;
+        line-height: 1.2;
+      ">
+        ${plate}
+      </div>
+      
+      <!-- Penunjuk Marker SVG -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48" style="display: block;">
+        <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="6" fill="#fff"/>
+        <path d="M9 12l1.5-3h3L15 12l-1.5 3h-3L9 12z" fill="${color}"/>
+      </svg>
+    </div>
   `
   return L.divIcon({
-    html: svgIcon,
-    className: "",
-    iconSize: [32, 48],
-    iconAnchor: [16, 48],
-    popupAnchor: [0, -48],
+    html: html,
+    className: "custom-div-icon",
+    iconSize: [120, 70],
+    iconAnchor: [60, 70],
+    popupAnchor: [0, -70],
   })
 }
 
@@ -83,13 +104,6 @@ function FlyToVehicle({ vehicle }: { vehicle: Vehicle | null }) {
   return null
 }
 
-// Custom CSS to hide default Leaflet tooltip border and arrow for a cleaner premium look
-const customTooltipStyles = `
-  .leaflet-tooltip-top:before {
-    border-top-color: transparent !important;
-  }
-`
-
 function FitBounds({ vehicles }: { vehicles: Vehicle[] }) {
   const map = useMap()
   const [hasFitted, setHasFitted] = useState(false)
@@ -105,19 +119,6 @@ function FitBounds({ vehicles }: { vehicles: Vehicle[] }) {
     map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 })
     setHasFitted(true)
   }, [vehicles, map, hasFitted])
-  return null
-}
-
-// Insert custom style rules into document head for leaflet tooltips
-function TooltipStyleLoader() {
-  useEffect(() => {
-    const styleId = "leaflet-custom-tooltip-style"
-    if (document.getElementById(styleId)) return
-    const styleEl = document.createElement("style")
-    styleEl.id = styleId
-    styleEl.innerHTML = customTooltipStyles
-    document.head.appendChild(styleEl)
-  }, [])
   return null
 }
 
@@ -166,7 +167,6 @@ export default function VehicleMap({ vehicles, selectedVehicle, onMarkerClick, e
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
-      <TooltipStyleLoader />
       <FitBounds vehicles={vehicles} />
       <FitAllVehicles vehicles={vehicles} fitAll={fitAll} onFitComplete={onFitComplete} />
       <FlyToVehicle vehicle={selectedData} />
@@ -175,19 +175,11 @@ export default function VehicleMap({ vehicles, selectedVehicle, onMarkerClick, e
         <Marker
           key={vehicle.id}
           position={[vehicle.lat, vehicle.lng]}
-          icon={createIcon(getMarkerColor(vehicle.status))}
+          icon={createIcon(getMarkerColor(vehicle.status), vehicle.plate)}
           eventHandlers={{
             click: () => onMarkerClick(vehicle.id),
           }}
         >
-          <Tooltip
-            permanent
-            direction="top"
-            offset={[0, -48]}
-            className="!bg-white !text-slate-800 !font-bold !px-2 !py-0.5 !rounded-md !shadow-md !border !border-slate-200 !text-xs !whitespace-nowrap !font-mono"
-          >
-            {vehicle.plate}
-          </Tooltip>
           <Popup>
             <div className="min-w-[160px]">
               <p className="font-semibold text-sm">{vehicle.driver}</p>
