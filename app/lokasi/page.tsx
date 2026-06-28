@@ -415,11 +415,11 @@ export default function LokasiPage() {
                                 : "rgb(148 163 184)",
                         }}
                       >
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                          {vehicle.driver
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold uppercase">
+                          {(() => {
+                            const match = (vehicle.driver || "").trim().match(/[A-Za-z]+$/)
+                            return match ? match[0] : (vehicle.driver || "").substring(0, 3)
+                          })()}
                         </AvatarFallback>
                       </Avatar>
                       {vehicle.status === "active" && (
