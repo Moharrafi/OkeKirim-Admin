@@ -126,7 +126,7 @@ function LoginContent() {
           localStorage.setItem("driverEmail", data.driver.email || "")
           router.push("/")
         } else if (data.needsRegistration) {
-          setError("Silakan daftar terlebih dahulu")
+          setError("Password telah di-reset oleh Admin, silakan registrasi password baru kembali.")
         } else {
           setError(data.message || "Password salah")
         }

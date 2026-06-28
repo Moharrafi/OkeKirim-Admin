@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import pool from "@/lib/db"
 
 // Increase Vercel serverless function timeout to 30 seconds
 export const maxDuration = 30
@@ -134,15 +135,23 @@ async function mapWithConcurrency<T, R>(
   return results
 }
 
-function normalizeVehicle(v: GlonassVehicle, pos: { lat: number; lng: number; speed: number; timestamp: string } | null) {
+function normalizeVehicle(
+  v: GlonassVehicle,
+  pos: { lat: number; lng: number; speed: number; timestamp: string } | null,
+  driverMap: Map<string, { name: string; phone: string }>
+) {
   const numId = v.vehicleId
-  const name = v.number || v.Name || v.name || "Unknown"
   const plate = v.number || v.StateNumber || v.GarageNumber || ""
   const vid = v.id || v.Id || String(numId)
 
+  const cleanPlate = plate.replace(/\s+/g, "").toUpperCase()
+  const driverInfo = driverMap.get(cleanPlate)
+  const name = driverInfo ? driverInfo.name : (v.number || v.Name || v.name || "Unknown")
+  const phone = driverInfo ? driverInfo.phone : ""
+
   if (!numId || !pos || pos.lat === 0 || pos.lng === 0) {
     return {
-      id: vid, name, plate,
+      id: vid, name, plate, phone,
       lat: 0, lng: 0, speed: 0, course: 0,
       lastUpdate: "", status: "offline",
       address: "Tidak ada sinyal GPS",
@@ -155,7 +164,7 @@ function normalizeVehicle(v: GlonassVehicle, pos: { lat: number; lng: number; sp
   if (diffMs > 5 * 60 * 1000) status = "offline"
 
   return {
-    id: vid, name, plate,
+    id: vid, name, plate, phone,
     lat: pos.lat, lng: pos.lng,
     speed: Math.round(pos.speed), course: 0,
     lastUpdate: pos.timestamp, status,
@@ -263,9 +272,21 @@ async function buildGpsResponse() {
       }
     }
 
+    // Query active drivers to match their vehicles (plates) and phone numbers
+    const [driverRows] = await pool.execute(
+      "SELECT name, phone, vehicle FROM drivers WHERE status = 'aktif'"
+    )
+    const driverMap = new Map<string, { name: string; phone: string }>()
+    for (const row of driverRows as any[]) {
+      if (row.vehicle) {
+        const cleanPlate = row.vehicle.replace(/\s+/g, "").toUpperCase()
+        driverMap.set(cleanPlate, { name: row.name, phone: row.phone || "" })
+      }
+    }
+
     const results = await mapWithConcurrency(vehicles, 1, async (v) => {
       const numId = v.vehicleId
-      if (!numId) return normalizeVehicle(v, null)
+      if (!numId) return normalizeVehicle(v, null, driverMap)
 
       let pos = await getLastPosition(token, numId)
 
@@ -273,7 +294,7 @@ async function buildGpsResponse() {
         pos = await getLastPositionExtended(token, numId)
       }
 
-      return normalizeVehicle(v, pos)
+      return normalizeVehicle(v, pos, driverMap)
     })
 
     return {

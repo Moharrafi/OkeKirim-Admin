@@ -17,6 +17,7 @@ const pool =
     connectionLimit: 4,
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
+    timezone: "Z",
   })
 
 if (process.env.NODE_ENV !== "production") {

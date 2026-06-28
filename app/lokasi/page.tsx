@@ -23,10 +23,12 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
+  MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { useDebounce } from "@/hooks/use-debounce"
+import { toast } from "sonner"
 
 const VehicleMap = dynamic(() => import("@/components/vehicle-map"), {
   ssr: false,
@@ -53,6 +55,7 @@ interface Vehicle {
   lastUpdate: string
   lat: number
   lng: number
+  phone?: string
 }
 
 function formatLastUpdate(isoString: string): string {
@@ -114,6 +117,7 @@ export default function LokasiPage() {
   const [lastFetch, setLastFetch] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [fitAllMarkers, setFitAllMarkers] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
   useEffect(() => {
     const isAuth = localStorage.getItem("isAuthenticated")
@@ -151,7 +155,7 @@ export default function LokasiPage() {
       }
 
       const mapped: Vehicle[] = (data.vehicles || [])
-        .map((v: { id: string; name: string; plate: string; status: string; speed: number; lat: number; lng: number; lastUpdate: string; address?: string }) => ({
+        .map((v: { id: string; name: string; plate: string; status: string; speed: number; lat: number; lng: number; lastUpdate: string; address?: string; phone?: string }) => ({
           id: v.id,
           driver: v.name,
           plate: v.plate || "-",
@@ -164,6 +168,7 @@ export default function LokasiPage() {
           lastUpdate: formatLastUpdate(v.lastUpdate),
           lat: v.lat,
           lng: v.lng,
+          phone: v.phone || "",
         }))
 
       setVehicles(mapped)
@@ -196,6 +201,17 @@ export default function LokasiPage() {
   useEffect(() => {
     fetchVehicles()
   }, [fetchVehicles])
+
+  // Auto-refresh interval (every 30 seconds)
+  useEffect(() => {
+    if (!autoRefresh) return
+
+    const interval = setInterval(() => {
+      fetchVehicles(true, false) // background refresh
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [autoRefresh, fetchVehicles])
 
   const handleMarkerClick = (vehicleId: string) => {
     // Klik dari map: hanya zoom ke marker, tidak munculkan popup detail
@@ -257,20 +273,37 @@ export default function LokasiPage() {
               {error
                 ? "GPS Offline"
                 : lastFetch
-                  ? `GlonassSoft • Update ${lastFetch.toLocaleTimeString("id-ID")}`
+                  ? `GlonassSoft • ${lastFetch.toLocaleTimeString("id-ID")}`
                   : "Menghubungkan..."}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => fetchVehicles(true, true)}
-            disabled={refreshing}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={cn(
+                "flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all pointer-events-auto",
+                autoRefresh
+                  ? "bg-emerald-500/5 text-emerald-600 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-900/30"
+                  : "bg-muted text-muted-foreground border-transparent"
+              )}
+            >
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                autoRefresh ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+              )} />
+              Auto Refresh
+            </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => fetchVehicles(true, true)}
+              disabled={refreshing}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Loading State */}
@@ -596,23 +629,53 @@ export default function LokasiPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" className="h-11 rounded-xl border-border text-xs sm:text-sm px-2">
-                  <Phone className="h-4 w-4 mr-1 shrink-0" />
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-xl border-emerald-200 dark:border-emerald-900 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm px-2 gap-1.5"
+                  onClick={() => {
+                    if (selectedVehicleData?.phone) {
+                      const cleanPhone = selectedVehicleData.phone.replace(/[^0-9]/g, "")
+                      const formatted = cleanPhone.startsWith("0") 
+                        ? "62" + cleanPhone.substring(1) 
+                        : cleanPhone.startsWith("62") 
+                          ? cleanPhone 
+                          : "62" + cleanPhone
+                      window.open(`https://wa.me/${formatted}`, "_blank")
+                    } else {
+                      toast.error("Nomor telepon supir tidak terdaftar")
+                    }
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4 shrink-0" />
+                  <span className="truncate">WhatsApp</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 rounded-xl border-border text-xs sm:text-sm px-2 gap-1.5"
+                  onClick={() => {
+                    if (selectedVehicleData?.phone) {
+                      window.open(`tel:${selectedVehicleData.phone}`)
+                    } else {
+                      toast.error("Nomor telepon supir tidak terdaftar")
+                    }
+                  }}
+                >
+                  <Phone className="h-4 w-4 shrink-0" />
                   <span className="truncate">Telepon</span>
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-11 rounded-xl border-border text-xs sm:text-sm px-2"
+                  className="h-11 rounded-xl border-border text-xs sm:text-sm px-2 gap-1.5"
                   onClick={() => {
                     router.push(`/lokasi/history?id=${selectedVehicleData.id}&name=${encodeURIComponent(selectedVehicleData.driver)}`)
                   }}
                 >
-                  <Clock className="h-4 w-4 mr-1 shrink-0" />
-                  <span className="truncate">History</span>
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Riwayat Jalur</span>
                 </Button>
                 <Button
-                  className="h-11 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm px-2"
+                  className="h-11 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm px-2 gap-1.5"
                   onClick={() => {
                     if (selectedVehicleData && selectedVehicleData.lat !== 0) {
                       window.open(
@@ -622,7 +685,7 @@ export default function LokasiPage() {
                     }
                   }}
                 >
-                  <Navigation className="h-4 w-4 mr-1 shrink-0" />
+                  <Navigation className="h-4 w-4 shrink-0" />
                   <span className="truncate">Navigasi</span>
                 </Button>
               </div>

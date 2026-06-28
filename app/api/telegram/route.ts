@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       batchItems,
       sisaSetoran,
       proofMismatchReason,
+      orderSisa,
     } = body
 
     if (isCorrection && messageText) {
@@ -126,10 +127,17 @@ export async function POST(request: NextRequest) {
       const infoRows: Array<[string, string]> = [
         ["Setoran", formatRupiah(amount)],
         ["Argo", formatRupiah(displayFare)],
+      ]
+
+      if (orderSisa !== undefined && Number(orderSisa) > 0) {
+        infoRows.push(["Sisa", formatRupiah(orderSisa)])
+      }
+
+      infoRows.push(
         ["Rute", escapeHtml(route || "-")],
         ["Tipe", orderType === "offline" ? "Offline" : "Online"],
-        ["Tanggal", waktu],
-      ]
+        ["Tanggal", waktu]
+      )
 
       if (sisaSetoran !== undefined && sisaSetoran > 0) {
         infoRows.push(["Sisa Total Setoran", formatRupiah(sisaSetoran)])

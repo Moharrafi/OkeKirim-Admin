@@ -96,12 +96,13 @@ export async function PUT(request: NextRequest) {
     const newPaidAmount = Number(debt.paidAmount || 0) + paymentAmount
     const isLunas = newPaidAmount >= Number(debt.amount)
     const status = isLunas ? "lunas" : "belum_lunas"
-    const paidOffAt = isLunas ? new Date() : null
+    const nowUtc = new Date().toISOString().slice(0, 19).replace("T", " ")
+    const paidOffAt = isLunas ? nowUtc : null
 
     // Update debt
     await pool.execute(
-      "UPDATE debts SET paidAmount = ?, status = ?, lastPaidAt = NOW(), paidOffAt = ? WHERE id = ?",
-      [newPaidAmount, status, paidOffAt, debt_id]
+      "UPDATE debts SET paidAmount = ?, status = ?, lastPaidAt = ?, paidOffAt = ? WHERE id = ?",
+      [newPaidAmount, status, nowUtc, paidOffAt, debt_id]
     )
 
     // Insert payment log
@@ -112,7 +113,7 @@ export async function PUT(request: NextRequest) {
         debt.driver,
         paymentAmount,
         notes || null,
-        paid_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
+        paid_at || nowUtc
       ]
     ) as any
 

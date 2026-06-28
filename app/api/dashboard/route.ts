@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import pool from "@/lib/db"
 
 // Map-based cache to store dashboard query results for different filters concurrently (TTL: 30 seconds)
-const dashboardCache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_TTL = 30_000 // 30 seconds
+export const dashboardCache = new Map<string, { data: any; timestamp: number }>()
+export const CACHE_TTL = 30_000 // 30 seconds
+
+export function clearDashboardCache() {
+  dashboardCache.clear()
+}
 
 function addOneMonth(dateString: string) {
   const [year, month] = dateString.split("-").map(Number)
@@ -40,6 +44,9 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
     const todayStr = now.toISOString().split("T")[0]
+
+    const jakartaDate = new Date(now.getTime() + 7 * 60 * 60 * 1000)
+    const jakartaTodayStr = jakartaDate.toISOString().split("T")[0]
 
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const lastMonthStart = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}-01`
@@ -82,8 +89,10 @@ export async function GET(request: NextRequest) {
         [...driverParam]
       ),
       pool.execute(
-        `SELECT COALESCE(SUM(companyShare), 0) as total, COUNT(*) as count FROM schedules WHERE date = ?${driverWhere}`,
-        [todayStr, ...driverParam]
+        `SELECT COALESCE(SUM(paidCompanyAmount), 0) as total, COUNT(*) as count 
+         FROM schedules 
+         WHERE DATE(DATE_ADD(lastPaidAt, INTERVAL 7 HOUR)) = ?${driverWhere}`,
+        [jakartaTodayStr, ...driverParam]
       ),
       pool.execute(
         "SELECT COUNT(*) as count FROM drivers WHERE status = 'aktif'"

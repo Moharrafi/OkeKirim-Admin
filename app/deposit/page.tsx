@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   Loader2,
   Users,
+  MessageSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isOverdue, groupOrdersByDate, filterOrders } from "@/lib/utils/orders"
@@ -119,15 +120,86 @@ function parseCurrencyToken(token: string) {
   return digits ? Number(digits) : 0
 }
 
+function detectBankType(text: string): "bca" | "mandiri" | "bri" | "bni" | "dana" | "ovo" | "generic" {
+  const t = text.toUpperCase()
+  if (t.includes("BCA") || t.includes("M-TRANSFER") || t.includes("MYBCA")) return "bca"
+  if (t.includes("MANDIRI") || t.includes("LIVIN")) return "mandiri"
+  if (t.includes("BRIMO") || t.includes("BRI ") || t.includes("BANK RAKYAT")) return "bri"
+  if (t.includes("BNI ") || t.includes("BNIDIRECT") || t.includes("BNI MOBILE")) return "bni"
+  if (t.includes("DANA")) return "dana"
+  if (t.includes("OVO")) return "ovo"
+  return "generic"
+}
+
 function extractTransferAmount(text: string) {
   const normalized = text.replace(/[Oo]/g, "0")
-  const matches = Array.from(normalized.matchAll(/(?:RP|IDR)\s*[:.]?\s*([0-9][0-9.,\s]{2,})/gi))
-  const amounts = matches
-    .map((match) => parseCurrencyToken(match[1] || ""))
-    .filter((amount) => amount >= 1000 && amount <= 999999999)
+  const bank = detectBankType(normalized)
+  
+  let matchRegexes: RegExp[] = []
+  
+  if (bank === "bca") {
+    matchRegexes = [
+      /(?:JUMLAH|NOMINAL|TRANSFER|TOTAL)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else if (bank === "mandiri") {
+    matchRegexes = [
+      /(?:JUMLAH\s*TRANSFER|TOTAL|JUMLAH|NOMINAL)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else if (bank === "bri") {
+    matchRegexes = [
+      /(?:NOMINAL\s*TRANSFER|NOMINAL|JUMLAH|TOTAL)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else if (bank === "bni") {
+    matchRegexes = [
+      /(?:NOMINAL|TOTAL|JUMLAH|TRANSFER)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else if (bank === "dana") {
+    matchRegexes = [
+      /(?:TOTAL\s*BAYAR|JUMLAH\s*KIRIM|KIRIM\s*SALDO|TOTAL)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else if (bank === "ovo") {
+    matchRegexes = [
+      /(?:TOTAL\s*TRANSAKSI|TOTAL|JUMLAH)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  } else {
+    matchRegexes = [
+      /(?:JUMLAH|NOMINAL|TOTAL|TRANSFER|BAYAR)\s*[:.-]?\s*(?:RP|IDR)?\s*([0-9][0-9.,\s]{2,})/gi,
+      /(?:RP|IDR)\s*[:.-]?\s*([0-9][0-9.,\s]{2,})/gi
+    ]
+  }
 
-  if (amounts.length === 0) return null
-  return Math.max(...amounts)
+  const candidates: number[] = []
+  for (const regex of matchRegexes) {
+    const matches = Array.from(normalized.matchAll(regex))
+    for (const m of matches) {
+      if (m[1]) {
+        const val = parseCurrencyToken(m[1])
+        if (val >= 1000 && val <= 999999999) {
+          candidates.push(val)
+        }
+      }
+    }
+  }
+
+  // Fallback scan for raw formatted numbers in typical currency range
+  if (candidates.length === 0) {
+    const rawNumbers = Array.from(normalized.matchAll(/\b([0-9][0-9.,\s]{3,})\b/g))
+    for (const rn of rawNumbers) {
+      const val = parseCurrencyToken(rn[1])
+      if (val >= 10000 && val <= 10000000) {
+        candidates.push(val)
+      }
+    }
+  }
+
+  if (candidates.length === 0) return null
+  return Math.max(...candidates)
 }
 
 function isAmountMismatch(expected: number, detected: number | null) {
@@ -144,24 +216,28 @@ export function normalizeRecipientText(value: string) {
     .replace(/0/g, "O")
     .replace(/5/g, "S")
     .replace(/8/g, "B")
-    // Common OCR letter/word confusions for target recipient "GITA VEBBY ILLAHY"
-    .replace(/\bCITE\b/g, "GITA")
-    .replace(/\bCLTE\b/g, "GITA")
-    .replace(/\bCITA\b/g, "GITA")
-    .replace(/\bCLTA\b/g, "GITA")
-    .replace(/\bITA\b/g, "GITA")
-    .replace(/\bGTTA\b/g, "GITA")
-    .replace(/\bGLTA\b/g, "GITA")
-    .replace(/\bVEBY\b/g, "VEBBY")
-    .replace(/\bLIAHY\b/g, "ILLAHY")
-    .replace(/\bILAHY\b/g, "ILLAHY")
-    .replace(/\bILLAHI\b/g, "ILLAHY")
-    .replace(/\bILAHI\b/g, "ILLAHY")
-    .replace(/\bLLAHY\b/g, "ILLAHY")
-    .replace(/\bILIAHY\b/g, "ILLAHY")
-    .replace(/\bILIAHI\b/g, "ILLAHY")
-    .replace(/\bILYAHY\b/g, "ILLAHY")
-    .replace(/\bILYAHI\b/g, "ILLAHY")
+    // Substring spelling corrections for OCR errors matching "GITA VEBBY ILLAHY"
+    .replace(/G1TA/g, "GITA")
+    .replace(/GLTA/g, "GITA")
+    .replace(/CITA/g, "GITA")
+    .replace(/CITE/g, "GITA")
+    .replace(/CLTE/g, "GITA")
+    .replace(/CLTA/g, "GITA")
+    .replace(/GTTA/g, "GITA")
+    .replace(/VEBY/g, "VEBBY")
+    .replace(/VE8BY/g, "VEBBY")
+    .replace(/VEB8Y/g, "VEBBY")
+    .replace(/WEBY/g, "VEBBY")
+    .replace(/WEBBY/g, "VEBBY")
+    .replace(/ILLAHI/g, "ILLAHY")
+    .replace(/ILAHI/g, "ILLAHY")
+    .replace(/ILAHY/g, "ILLAHY")
+    .replace(/LLAHY/g, "ILLAHY")
+    .replace(/ILIAHY/g, "ILLAHY")
+    .replace(/ILIAHI/g, "ILLAHY")
+    .replace(/ILYAHY/g, "ILLAHY")
+    .replace(/ILYAHI/g, "ILLAHY")
+    .replace(/LIAHY/g, "ILLAHY")
     .replace(/[^A-Z]/g, "")
 }
 
@@ -439,6 +515,8 @@ export default function DepositPage() {
   }, [])
 
   const proofOcrRequestRef = useRef(0)
+  const isSubmittingOrderRef = useRef(false)
+  const isSubmittingDepositRef = useRef(false)
 
   const resetProofCheck = useCallback(() => {
     proofOcrRequestRef.current += 1
@@ -907,9 +985,145 @@ export default function DepositPage() {
     }
   }, [pullDistance, handleRefresh])
 
+  // Background Sync for Offline Submissions
+  useEffect(() => {
+    let syncInProgress = false
+
+    const runSync = async () => {
+      if (syncInProgress || typeof window === "undefined" || !navigator.onLine) return
+      const raw = localStorage.getItem("okekirim_pending_submissions")
+      if (!raw) return
+      
+      let submissions: any[] = []
+      try {
+        submissions = JSON.parse(raw)
+      } catch {
+        return
+      }
+      
+      if (submissions.length === 0) return
+      
+      syncInProgress = true
+      showSuccessToast(`Menyinkronkan ${submissions.length} transaksi offline...`)
+      
+      const remaining: any[] = []
+      for (const sub of submissions) {
+        try {
+          if (sub.type === "order") {
+            const resp = await fetch("/api/tarikan", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(sub.data)
+            })
+            if (!resp.ok) throw new Error("Sync order failed")
+          } else if (sub.type === "deposit") {
+            // 1. Pay
+            const payResp = await fetch("/api/tarikan/pay", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ids: sub.data.ids,
+                paymentNotes: sub.data.paymentNotes,
+                amount: sub.data.amount
+              })
+            })
+            if (!payResp.ok) throw new Error("Sync payment failed")
+            
+            // 2. Telegram
+            if (sub.data.telegram) {
+              await fetch("/api/telegram", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(sub.data.telegram)
+              }).catch(() => {})
+            }
+          }
+        } catch (err) {
+          console.warn("Failed to sync offline submission:", sub.id, err)
+          remaining.push(sub)
+        }
+      }
+      
+      localStorage.setItem("okekirim_pending_submissions", JSON.stringify(remaining))
+      syncInProgress = false
+
+      if (remaining.length === 0) {
+        showSuccessToast("Semua transaksi offline berhasil disinkronkan!")
+        void handleRefresh()
+      } else {
+        showErrorToast(`Gagal menyinkronkan ${remaining.length} transaksi offline`)
+      }
+    }
+
+    window.addEventListener("online", runSync)
+    runSync()
+    
+    return () => {
+      window.removeEventListener("online", runSync)
+    }
+  }, [handleRefresh])
+
   const handleSubmitOrder = async () => {
+    if (isSubmittingOrderRef.current) return
+    isSubmittingOrderRef.current = true
     setIsSubmittingOrder(true)
     
+    // Intercept if offline
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      try {
+        const driverData = activeDrivers.find(d => String(d.id) === selectedDriver)
+        const pendingSub = {
+          id: Math.random().toString(36).substring(7),
+          type: "order" as const,
+          data: {
+            driver: driverData?.name || user.name,
+            vehicle: driverData?.vehicle || undefined,
+            date: orderDate,
+            origin: lokasiMuat,
+            destination: lokasiBongkar,
+            orderType: orderType,
+            fare: parseInt(argo || "0"),
+            orderProof: orderUploadedImage || undefined,
+          },
+          timestamp: Date.now()
+        }
+        
+        const existing = localStorage.getItem("okekirim_pending_submissions")
+        const list = existing ? JSON.parse(existing) : []
+        list.push(pendingSub)
+        localStorage.setItem("okekirim_pending_submissions", JSON.stringify(list))
+
+        if (lokasiMuat.trim()) {
+          saveLocationToHistory(user.id, lokasiMuat)
+        }
+        if (lokasiBongkar.trim()) {
+          saveLocationToHistory(user.id, lokasiBongkar)
+        }
+        setLocationHistory(loadLocationHistory(user.id))
+
+        showSuccessToast("Koneksi terputus. Orderan disimpan secara offline!")
+        setShowOrderSuccess(true)
+        setTimeout(() => {
+          setShowOrderSuccess(false)
+          setFormStep(1)
+          setFormValue("lokasiMuat", "")
+          setFormValue("lokasiBongkar", "")
+          clearErrors()
+          setArgo("")
+          setOrderUploadedFile(null)
+          setOrderUploadedImage(null)
+          setOrderFileUploadError(null)
+          setOrderType((localStorage.getItem("default_order_type") as OrderType) || "online")
+        }, 2000)
+      } catch (err) {
+        showErrorToast("Gagal menyimpan data offline")
+      } finally {
+        isSubmittingOrderRef.current = false
+        setIsSubmittingOrder(false)
+      }
+      return
+    }
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
@@ -927,7 +1141,6 @@ export default function DepositPage() {
       }, { signal: controller.signal })
 
       clearTimeout(timeoutId)
-      setIsSubmittingOrder(false)
 
       if (result.success) {
         // Save locations to history for autocomplete (Requirement 5.1)
@@ -965,13 +1178,15 @@ export default function DepositPage() {
       }
     } catch (err) {
       clearTimeout(timeoutId)
-      setIsSubmittingOrder(false)
 
       if (err instanceof DOMException && err.name === "AbortError") {
         showTimeoutToast(() => handleSubmitOrder())
       } else {
         showErrorToast("Koneksi terputus, coba lagi", () => handleSubmitOrder())
       }
+    } finally {
+      isSubmittingOrderRef.current = false
+      setIsSubmittingOrder(false)
     }
   }
 
@@ -989,10 +1204,9 @@ export default function DepositPage() {
       return
     }
 
+    if (isSubmittingDepositRef.current) return
+    isSubmittingDepositRef.current = true
     setIsSubmittingDeposit(true)
-    
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     // Determine which orders to mark as paid
     const orderIds = showBatchPayment
@@ -1004,6 +1218,135 @@ export default function DepositPage() {
         ? [parseInt(selectedOrder.driverId)]
         : []
 
+    // Intercept if offline
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      try {
+        const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
+        const totalAmount = submittedDepositPaymentAmount
+        const driverName = order?.driver || user.name
+        const route = order ? `${order.lokasiMuat} → ${order.lokasiBongkar}` : "-"
+        const type = order?.type || "online"
+        const fare = order?.argo || 0
+        const companyShare = order?.companyShare || Math.round(fare * 0.4)
+
+        const driverOrders = orders.filter(o => o.driver.trim().toLowerCase() === driverName.trim().toLowerCase())
+        const currentDriverSisa = driverOrders.reduce((sum, o) => sum + o.sisa, 0)
+        const sisaAfterPayment = currentDriverSisa - totalAmount
+
+        const batchItems = showBatchPayment
+          ? selectedOrders.map(id => {
+              const o = orders.find(ord => ord.id === id)
+              return o ? { route: `${o.lokasiMuat} → ${o.lokasiBongkar}`, fare: o.argo, companyShare: o.companyShare, type: o.type } : null
+            }).filter(Boolean)
+          : undefined
+
+        batchItems?.forEach((item, index) => {
+          const ord = orders.find(o => o.id === selectedOrders[index])
+          if (ord) {
+            const telegramItem = item as { sisa?: number }
+            telegramItem.sisa = Math.max(ord.sisa, 0)
+          }
+        })
+
+        const orderSisa = !showBatchPayment && order ? Math.max((order.sisa || 0) - totalAmount, 0) : undefined
+
+        const amountToRecord = submittedDepositPaymentAmount
+        const shouldSendExplicitAmount = manualPaymentAmount > 0 || autoPartialFromProof
+        const explicitAmount = shouldSendExplicitAmount ? amountToRecord : undefined
+
+        const actualSisa = showBatchPayment ? batchTotal : (selectedOrder?.sisa || 0)
+        let paymentNotes = "Lunas"
+        if (amountToRecord > 0 && amountToRecord < actualSisa) {
+          paymentNotes = `Cicil Rp ${amountToRecord.toLocaleString("id-ID")}`
+        }
+
+        const pendingSub = {
+          id: Math.random().toString(36).substring(7),
+          type: "deposit" as const,
+          data: {
+            ids: orderIds,
+            paymentNotes,
+            amount: explicitAmount,
+            telegram: {
+              driver: driverName,
+              amount: totalAmount,
+              route: route,
+              orderType: type,
+              fare: fare,
+              companyShare,
+              imageBase64: uploadedImage || undefined,
+              batchItems: batchItems,
+              sisaSetoran: sisaAfterPayment > 0 ? sisaAfterPayment : undefined,
+              proofDetectedAmount: proofOcrAmount || undefined,
+              proofMismatchReason: proofOcrStatus === "mismatch" ? proofMismatchReason.trim() : undefined,
+              orderSisa: orderSisa,
+            }
+          },
+          timestamp: Date.now()
+        }
+
+        const existing = localStorage.getItem("okekirim_pending_submissions")
+        const list = existing ? JSON.parse(existing) : []
+        list.push(pendingSub)
+        localStorage.setItem("okekirim_pending_submissions", JSON.stringify(list))
+
+        showSuccessToast("Koneksi terputus. Setoran disimpan secara offline!")
+
+        // Optimistically update lists to avoid double payment or stale status
+        const partialAmt = (payAmount && payAmount !== "" && payAmount !== "0") ? parseInt(payAmount) : 0
+        if (showBatchPayment) {
+          if (partialAmt > 0 && partialAmt < batchTotal) {
+            setApiOrders((prev: Order[]) => {
+              let rem = partialAmt
+              return prev.map((o: Order) => {
+                if (selectedOrders.includes(o.id)) {
+                  const reduce = Math.min(o.sisa, rem)
+                  rem -= reduce
+                  return { ...o, sisa: o.sisa - reduce, status: o.sisa - reduce <= 0 ? "lunas" : "nunggak" }
+                }
+                return o
+              })
+            })
+          } else {
+            setApiOrders((prev: Order[]) => prev.filter((o: Order) => !selectedOrders.includes(o.id)))
+          }
+        } else if (selectedOrder) {
+          if (partialAmt > 0 && partialAmt < selectedOrder.sisa) {
+            setApiOrders((prev: Order[]) => prev.map((o: Order) => o.id === selectedOrder.id ? { ...o, sisa: o.sisa - partialAmt } : o))
+          } else {
+            setApiOrders((prev: Order[]) => prev.filter((o: Order) => o.id !== selectedOrder.id))
+          }
+        }
+
+        const successRoute = showBatchPayment
+          ? `${selectedOrders.length} orderan (batch)`
+          : order ? `${order.lokasiMuat} → ${order.lokasiBongkar}` : "-"
+
+        setDepositSuccessData({
+          driverName: driverName,
+          amount: totalAmount,
+          route: successRoute,
+          batchCount: showBatchPayment ? selectedOrders.length : undefined,
+        })
+        setShowDepositSuccess(true)
+        navigateToView("success")
+
+        setPayAmount("")
+        setUploadedFile(null)
+        setUploadedImage(null)
+        setSelectedOrders([])
+      } catch (err) {
+        showErrorToast("Gagal menyimpan setoran offline")
+      } finally {
+        isSubmittingDepositRef.current = false
+        setIsSubmittingDeposit(false)
+      }
+      return
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
       // Update payment status in database
       if (orderIds.length > 0) {
@@ -1012,8 +1355,9 @@ export default function DepositPage() {
         const explicitAmount = shouldSendExplicitAmount ? amountToRecord : undefined
         
         // Determine payment notes
+        const actualSisa = showBatchPayment ? batchTotal : (selectedOrder?.sisa || 0)
         let paymentNotes = "Lunas"
-        if (amountToRecord > 0 && amountToRecord < depositPaymentAmount) {
+        if (amountToRecord > 0 && amountToRecord < actualSisa) {
           paymentNotes = `Cicil Rp ${amountToRecord.toLocaleString("id-ID")}`
         }
 
@@ -1063,6 +1407,8 @@ export default function DepositPage() {
           }
         })
 
+        const orderSisa = !showBatchPayment && order ? Math.max((order.sisa || 0) - totalAmount, 0) : undefined
+
         await fetch("/api/telegram", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1078,6 +1424,7 @@ export default function DepositPage() {
             sisaSetoran: sisaAfterPayment > 0 ? sisaAfterPayment : undefined,
             proofDetectedAmount: proofOcrAmount || undefined,
             proofMismatchReason: proofOcrStatus === "mismatch" ? proofMismatchReason.trim() : undefined,
+            orderSisa: orderSisa,
           }),
         })
       } catch {
@@ -1085,7 +1432,6 @@ export default function DepositPage() {
       }
 
       clearTimeout(timeoutId)
-      setIsSubmittingDeposit(false)
       showSuccessToast("Setoran berhasil dikonfirmasi")
 
       // Store success data for SuccessPage component
@@ -1106,7 +1452,6 @@ export default function DepositPage() {
       navigateToView("success")
     } catch (err) {
       clearTimeout(timeoutId)
-      setIsSubmittingDeposit(false)
 
       // Requirement 8.6: Preserve form state on failure
       // Do NOT clear uploadedFile, uploadedImage, or payAmount here.
@@ -1119,6 +1464,9 @@ export default function DepositPage() {
         const message = err instanceof Error ? err.message : "Koneksi terputus, coba lagi"
         showErrorToast(message, () => handleSubmitDeposit())
       }
+    } finally {
+      isSubmittingDepositRef.current = false
+      setIsSubmittingDeposit(false)
     }
   }
 
@@ -1606,6 +1954,30 @@ export default function DepositPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              const driverObj = activeDrivers.find(d => d.name.trim().toLowerCase() === order.driver.trim().toLowerCase())
+                              const phone = driverObj?.phone
+                              if (!phone) {
+                                showErrorToast("Nomor HP driver tidak ditemukan")
+                                return
+                              }
+                              const cleanPhone = phone.replace(/[^0-9]/g, "")
+                              const formatted = cleanPhone.startsWith("0") 
+                                ? "62" + cleanPhone.substring(1) 
+                                : cleanPhone.startsWith("62") 
+                                  ? cleanPhone 
+                                  : "62" + cleanPhone
+                              const msg = `*PENGINGAT SETORAN OKEKIRIM*\n\nHalo *${order.driver}*,\nBerikut adalah rincian setoran Anda yang belum dilunasi:\n\n*DETAIL TRIP:*\n- ID Trip: #${order.id}\n- Tanggal: ${order.date}\n- Rute: ${order.lokasiMuat} -> ${order.lokasiBongkar}\n- Kendaraan: ${order.vehicle || "-"}\n\n*KEUANGAN:*\n- Sisa Setoran: *Rp ${order.sisa.toLocaleString("id-ID")}*\n\nMohon untuk segera melakukan penyetoran ya. Jika sudah melakukan transfer, silakan unggah bukti struknya di aplikasi OkeMitra. Terima kasih!\n\n---\nPesan otomatis dari sistem OkeKirim`
+                              window.open(`https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`, "_blank")
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:text-emerald-600 transition-colors"
+                            aria-label="Kirim pengingat WA"
+                            title="Kirim pengingat WA"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setDeletingOrder(order)
                             }}
                             className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
@@ -1690,7 +2062,7 @@ export default function DepositPage() {
         {mainTab === "orderan" && (
           <>
             {/* Binder 1: Pengirim & Waktu */}
-            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0 gap-0">
               <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <Users className="h-4 w-4 text-primary" />
@@ -1753,7 +2125,7 @@ export default function DepositPage() {
             </Card>
 
             {/* Binder 2: Rute & Keuangan */}
-            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0 gap-0">
               <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-primary" />
@@ -1879,7 +2251,7 @@ export default function DepositPage() {
             </Card>
 
             {/* Binder 3: Bukti & Slip Rincian */}
-            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0">
+            <Card className="border border-border/85 bg-card rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.015)] overflow-hidden py-0 gap-0">
               <div className="bg-secondary/40 px-4 py-3.5 border-b border-border/40">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <Upload className="h-4 w-4 text-primary" />

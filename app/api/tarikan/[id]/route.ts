@@ -42,6 +42,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     await pool.execute(query, params)
 
+    // Clear dashboard cache since stats have changed
+    try {
+      const { clearDashboardCache } = await import("@/app/api/dashboard/route")
+      clearDashboardCache()
+    } catch (e) {
+      console.warn("Failed to clear dashboard cache:", e)
+    }
+
     return NextResponse.json({ success: true, id: scheduleId })
   } catch (error) {
     console.error("Update error:", error)
@@ -61,6 +69,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     await pool.execute("DELETE FROM schedules WHERE id = ?", [scheduleId])
+
+    // Clear dashboard cache since stats have changed
+    try {
+      const { clearDashboardCache } = await import("@/app/api/dashboard/route")
+      clearDashboardCache()
+    } catch (e) {
+      console.warn("Failed to clear dashboard cache:", e)
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Delete error:", error)

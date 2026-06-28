@@ -101,7 +101,9 @@ export async function POST(request: NextRequest) {
             newPaidTotal,
             now,
             isFullyPaid ? now : null,
-            paymentNotes || (isFullyPaid ? "Lunas" : `Cicil Rp ${payAmount.toLocaleString("id-ID")}`),
+            isFullyPaid
+              ? (paymentNotes && paymentNotes.startsWith("Cicil") ? "Lunas" : paymentNotes || "Lunas")
+              : (paymentNotes && paymentNotes !== "Lunas" ? paymentNotes : `Cicil Rp ${payAmount.toLocaleString("id-ID")}`),
             id,
           ]
         )
@@ -110,16 +112,26 @@ export async function POST(request: NextRequest) {
 
     // Notify admins about the deposit payment
     try {
-      // Get driver name from the first schedule
-      const [driverRows] = await pool.execute(
-        "SELECT driver FROM schedules WHERE id = ?",
-        [scheduleIds[0]]
-      ) as any
-      const driverName = driverRows?.[0]?.driver || "Driver"
       const notifAmount = appliedAmount || (amount ? Number(amount) : 0)
+      if (notifAmount > 0) {
+        // Get driver name from the first schedule
+        const [driverRows] = await pool.execute(
+          "SELECT driver FROM schedules WHERE id = ?",
+          [scheduleIds[0]]
+        ) as any
+        const driverName = driverRows?.[0]?.driver || "Driver"
 
-      await notifyDepositPayment(driverName, notifAmount, scheduleIds.length)
+        await notifyDepositPayment(driverName, notifAmount, scheduleIds.length)
+      }
     } catch {}
+
+    // Clear dashboard cache since stats have changed
+    try {
+      const { clearDashboardCache } = await import("@/app/api/dashboard/route")
+      clearDashboardCache()
+    } catch (e) {
+      console.warn("Failed to clear dashboard cache:", e)
+    }
 
     return NextResponse.json({
       success: true,

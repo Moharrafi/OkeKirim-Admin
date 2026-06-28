@@ -92,7 +92,13 @@ function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): H
     argo: s.fare || 0,
     amount: status === "success" ? fullAmount : remainingAmount,
     type: s.orderType === "offline" ? "offline" : "online",
-    method: status === "success" ? (s.payment_notes || s.paymentNotes || "Lunas") : (s.payment_notes || s.paymentNotes || "Belum Setor"),
+    method: status === "success"
+      ? (s.payment_notes || s.paymentNotes || "Lunas")
+      : (s.payment_notes && s.payment_notes !== "Lunas"
+          ? s.payment_notes
+          : (s.paidCompanyAmount && s.paidCompanyAmount > 0
+              ? `Cicil Rp ${Number(s.paidCompanyAmount).toLocaleString("id-ID")}`
+              : "Belum Setor")),
     status,
     orderProof: s.orderProof || null,
   }

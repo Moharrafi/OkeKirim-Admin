@@ -46,9 +46,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "No drivers with FCM tokens", sent: 0 })
     }
 
-    // 2. Get drivers who already deposited today
+    // 2. Get drivers who already deposited today (status is 'lunas')
     const [depositRows] = await pool.execute(
-      "SELECT DISTINCT driver FROM schedules WHERE date = ?",
+      "SELECT DISTINCT driver FROM schedules WHERE date = ? AND status = 'lunas'",
       [today]
     ) as any
 

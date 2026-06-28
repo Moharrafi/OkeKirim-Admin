@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   BarChart,
   Bar,
@@ -10,6 +11,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  AreaChart,
+  Area,
 } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 import { Trophy, TrendingUp, Medal, Zap, ChevronRight } from "lucide-react"
@@ -17,7 +20,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 
 interface DashboardChartsProps {
-  monthlyChart: Array<{ month: number; total: number }>
+  monthlyChart: Array<{ month: number; total: number; totalFare?: number; tripCount?: number }>
   driverIncome: Array<{ driver: string; total: number; trips?: number }>
   orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
   isAdmin: boolean
@@ -191,6 +194,7 @@ export default function DashboardCharts({
   currentDriver,
   driverChartMonth,
 }: DashboardChartsProps) {
+  const [chartTab, setChartTab] = useState<"deposit" | "fare" | "trips">("deposit")
   const driverChartMonthLabel = driverChartMonth
     ? new Date(`${driverChartMonth}T00:00:00`).toLocaleDateString("id-ID", { month: "long", year: "numeric" })
     : ""
@@ -201,30 +205,116 @@ export default function DashboardCharts({
       {monthlyChart && monthlyChart.length > 0 && (
         <Card className="border-border bg-card">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-foreground">Pendapatan Bulanan</h3>
-              <Link href="/analysis" className="text-xs font-semibold text-primary flex items-center gap-0.5 hover:underline">
-                Lihat Analisis
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-            <div className="h-48" role="img" aria-label="Grafik pendapatan bulanan">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={monthlyChart.map(d => ({
-                    month: ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][d.month - 1],
-                    total: d.total / 1000000,
-                  }))}
-                  margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+            <div className="flex flex-col gap-3 mb-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-foreground tracking-tight">Analisis Bulanan</h3>
+                <Link href="/analysis" className="text-xs font-semibold text-primary flex items-center gap-0.5 hover:underline">
+                  Lihat Analisis
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              {/* Interactive Tabs */}
+              <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-secondary/50">
+                <button
+                  onClick={() => setChartTab("deposit")}
+                  className={cn(
+                    "text-[11px] font-semibold py-1.5 px-2 rounded-md transition-all",
+                    chartTab === "deposit"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
-                    formatter={(value: number) => [`Rp ${value.toFixed(1)} Juta`, 'Setoran']}
-                  />
-                  <Bar dataKey="total" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                  Setoran
+                </button>
+                <button
+                  onClick={() => setChartTab("fare")}
+                  className={cn(
+                    "text-[11px] font-semibold py-1.5 px-2 rounded-md transition-all",
+                    chartTab === "fare"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Argo Trip
+                </button>
+                <button
+                  onClick={() => setChartTab("trips")}
+                  className={cn(
+                    "text-[11px] font-semibold py-1.5 px-2 rounded-md transition-all",
+                    chartTab === "trips"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Trip
+                </button>
+              </div>
+            </div>
+
+            <div className="h-48" role="img" aria-label="Grafik data bulanan">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartTab === "deposit" ? (
+                  <AreaChart
+                    data={monthlyChart.map(d => ({
+                      month: ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][d.month - 1],
+                      total: d.total / 1000000,
+                    }))}
+                    margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorDeposit" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(value: number) => [`Rp ${value.toFixed(1)} Juta`, 'Total Setoran']}
+                    />
+                    <Area type="monotone" dataKey="total" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorDeposit)" />
+                  </AreaChart>
+                ) : chartTab === "fare" ? (
+                  <AreaChart
+                    data={monthlyChart.map(d => ({
+                      month: ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][d.month - 1],
+                      fare: (d.totalFare || 0) / 1000000,
+                    }))}
+                    margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorFare" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}Jt`} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(value: number) => [`Rp ${value.toFixed(1)} Juta`, 'Total Argo']}
+                    />
+                    <Area type="monotone" dataKey="fare" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorFare)" />
+                  </AreaChart>
+                ) : (
+                  <BarChart
+                    data={monthlyChart.map(d => ({
+                      month: ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"][d.month - 1],
+                      trips: d.tripCount || 0,
+                    }))}
+                    margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                  >
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(value: number) => [`${value} Trip`, 'Volume Trip']}
+                    />
+                    <Bar dataKey="trips" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             </div>
           </CardContent>

@@ -28,6 +28,7 @@ export interface Driver {
   vehicleType: string | null
   vehicleYear: string | null
   status: string
+  phone?: string | null
 }
 
 export interface HistoryResponse {

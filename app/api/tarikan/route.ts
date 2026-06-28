@@ -6,8 +6,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const filter = searchParams.get("filter") // "pending" | "paid" | "all"
   const driver = searchParams.get("driver")
-  const page = parseInt(searchParams.get("page") || "1")
-  const limit = parseInt(searchParams.get("limit") || "50")
+  const pageVal = parseInt(searchParams.get("page") || "1")
+  const limitVal = parseInt(searchParams.get("limit") || "50")
+  const page = Number.isInteger(pageVal) && pageVal > 0 ? pageVal : 1
+  const limit = Number.isInteger(limitVal) && limitVal > 0 ? Math.min(limitVal, 100) : 50
   const offset = (page - 1) * limit
 
   try {
@@ -100,6 +102,14 @@ export async function POST(request: NextRequest) {
 
     // Wait for FCM logging/sending so serverless execution does not end before the push is queued.
     await notifyNewOrder(driver, origin || "", destination || "", fare)
+
+    // Clear dashboard cache since stats have changed
+    try {
+      const { clearDashboardCache } = await import("@/app/api/dashboard/route")
+      clearDashboardCache()
+    } catch (e) {
+      console.warn("Failed to clear dashboard cache:", e)
+    }
 
     return NextResponse.json({ success: true, id: insertId }, { status: 201 })
   } catch (error) {

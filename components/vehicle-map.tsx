@@ -51,10 +51,15 @@ function createIcon(color: string, plate: string) {
       </div>
       
       <!-- Penunjuk Marker SVG -->
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48" style="display: block;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="32" height="48" style="display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));">
         <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
-        <circle cx="12" cy="12" r="6" fill="#fff"/>
-        <path d="M9 12l1.5-3h3L15 12l-1.5 3h-3L9 12z" fill="${color}"/>
+        <circle cx="12" cy="12" r="8" fill="#fff"/>
+        <g transform="translate(5, 5) scale(0.583)" stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
+          <circle cx="7" cy="17" r="1.5" fill="${color}" />
+          <path d="M9 17h6" />
+          <circle cx="17" cy="17" r="1.5" fill="${color}" />
+        </g>
       </svg>
     </div>
   `
