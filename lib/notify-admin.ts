@@ -45,14 +45,14 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
       return { logged: true, sent: 0 }
     }
 
-    // 3. Send push notifications
+    // 3. Send push notifications in parallel to prevent timeouts
     let sentCount = 0
     if (admin.apps.length > 0) {
       const uniqueTokenRows = Array.from(
         new Map(tokenRows.map((row: any) => [row.token, row])).values()
       ) as any[]
 
-      for (const row of uniqueTokenRows) {
+      const sendPromises = uniqueTokenRows.map(async (row) => {
         try {
           await admin.messaging().send({
             token: row.token,
@@ -71,7 +71,8 @@ export async function notifyAdmins(options: NotifyAdminOptions) {
           }
           console.error(`Failed to notify admin ${row.driver_name}:`, err)
         }
-      }
+      })
+      await Promise.all(sendPromises)
     }
 
     return { logged: true, sent: sentCount }
@@ -140,14 +141,14 @@ export async function notifyDriver(
       return { sent: 0 }
     }
 
-    // 2. Send push notifications using Firebase Admin
+    // 2. Send push notifications using Firebase Admin in parallel
     let sentCount = 0
     if (admin.apps.length > 0) {
       const uniqueTokenRows = Array.from(
         new Map(tokenRows.map((row: any) => [row.token, row])).values()
       ) as any[]
 
-      for (const row of uniqueTokenRows) {
+      const sendPromises = uniqueTokenRows.map(async (row) => {
         try {
           await admin.messaging().send({
             token: row.token,
@@ -176,7 +177,8 @@ export async function notifyDriver(
           }
           console.error(`Failed to notify driver ${driverName} token:`, err)
         }
-      }
+      })
+      await Promise.all(sendPromises)
     }
 
     return { sent: sentCount }

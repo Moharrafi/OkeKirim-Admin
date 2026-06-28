@@ -71,7 +71,7 @@ type ProofOcrStatus = "idle" | "reading" | "matched" | "mismatch" | "not_found" 
 // Tab index mapping for direction detection (constant, outside component)
 const TAB_INDEX: Record<MainTab, number> = { orderan: 0, setoran: 1 }
 const PROOF_AMOUNT_TOLERANCE = 100
-const REQUIRED_TRANSFER_RECIPIENT = "GITA VEBBY ILLAHY"
+export const REQUIRED_TRANSFER_RECIPIENT = "GITA VEBBY ILLAHY"
 
 interface Order {
   id: string
@@ -135,7 +135,7 @@ function isAmountMismatch(expected: number, detected: number | null) {
   return Math.abs(expected - detected) > PROOF_AMOUNT_TOLERANCE
 }
 
-function normalizeRecipientText(value: string) {
+export function normalizeRecipientText(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -144,12 +144,36 @@ function normalizeRecipientText(value: string) {
     .replace(/0/g, "O")
     .replace(/5/g, "S")
     .replace(/8/g, "B")
+    // Common OCR letter/word confusions for target recipient "GITA VEBBY ILLAHY"
+    .replace(/\bCITE\b/g, "GITA")
+    .replace(/\bCLTE\b/g, "GITA")
+    .replace(/\bCITA\b/g, "GITA")
+    .replace(/\bCLTA\b/g, "GITA")
+    .replace(/\bITA\b/g, "GITA")
+    .replace(/\bGTTA\b/g, "GITA")
+    .replace(/\bGLTA\b/g, "GITA")
+    .replace(/\bVEBY\b/g, "VEBBY")
+    .replace(/\bLIAHY\b/g, "ILLAHY")
+    .replace(/\bILAHY\b/g, "ILLAHY")
+    .replace(/\bILLAHI\b/g, "ILLAHY")
+    .replace(/\bILAHI\b/g, "ILLAHY")
+    .replace(/\bLLAHY\b/g, "ILLAHY")
+    .replace(/\bILIAHY\b/g, "ILLAHY")
+    .replace(/\bILIAHI\b/g, "ILLAHY")
+    .replace(/\bILYAHY\b/g, "ILLAHY")
+    .replace(/\bILYAHI\b/g, "ILLAHY")
     .replace(/[^A-Z]/g, "")
 }
 
-function recipientSimilarity(candidate: string) {
+export function recipientSimilarity(candidate: string) {
   const target = normalizeRecipientText(REQUIRED_TRANSFER_RECIPIENT)
-  const normalizedCandidate = normalizeRecipientText(candidate)
+  
+  // Clean prefix like "Ke", "Kepada", "Penerima" and special characters (like avatar ©)
+  const cleanCandidate = candidate
+    .replace(/^(KE\s*REKENING|TRANSFER\s*KE|NAMA\s*PENERIMA|PENERIMA|KEPADA|KE)\b[:\s©]*/i, "")
+    .trim()
+
+  const normalizedCandidate = normalizeRecipientText(cleanCandidate)
   if (!normalizedCandidate) return 0
   if (normalizedCandidate.includes(target)) return 1
 
@@ -170,10 +194,50 @@ function recipientSimilarity(candidate: string) {
   }
 
   const distance = distances[target.length][normalizedCandidate.length]
-  return 1 - distance / Math.max(target.length, normalizedCandidate.length)
+  const charSimilarity = 1 - distance / Math.max(target.length, normalizedCandidate.length)
+
+  // Word-based fuzzy similarity check
+  const targetWords = REQUIRED_TRANSFER_RECIPIENT.split(" ")
+  const candidateWords = cleanCandidate
+    .split(/\s+/)
+    .map((w) => normalizeRecipientText(w))
+    .filter((w) => w.length >= 2)
+
+  if (candidateWords.length === 0) return charSimilarity
+
+  let wordScoreSum = 0
+  for (const targetWord of targetWords) {
+    let bestWordScore = 0
+    for (const candidateWord of candidateWords) {
+      const wRows = targetWord.length + 1
+      const wCols = candidateWord.length + 1
+      const wDistances = Array.from({ length: wRows }, (_, r) => Array(wCols).fill(r))
+      for (let c = 0; c < wCols; c++) wDistances[0][c] = c
+
+      for (let r = 1; r < wRows; r++) {
+        for (let c = 1; c < wCols; c++) {
+          const cost = targetWord[r - 1] === candidateWord[c - 1] ? 0 : 1
+          wDistances[r][c] = Math.min(
+            wDistances[r - 1][c] + 1,
+            wDistances[r][c - 1] + 1,
+            wDistances[r - 1][c - 1] + cost
+          )
+        }
+      }
+      const wDist = wDistances[targetWord.length][candidateWord.length]
+      const wScore = 1 - wDist / Math.max(targetWord.length, candidateWord.length)
+      if (wScore > bestWordScore) {
+        bestWordScore = wScore
+      }
+    }
+    wordScoreSum += bestWordScore
+  }
+  const wordSimilarity = wordScoreSum / targetWords.length
+
+  return Math.max(charSimilarity, wordSimilarity)
 }
 
-function extractTransferRecipient(text: string) {
+export function extractTransferRecipient(text: string) {
   const requiredWords = REQUIRED_TRANSFER_RECIPIENT.split(" ")
   const lines = text
     .split(/\r?\n/)
