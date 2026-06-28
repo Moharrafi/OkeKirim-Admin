@@ -1,6 +1,6 @@
 "use client"
 
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from "react-leaflet"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { useEffect, useState } from "react"
@@ -83,6 +83,13 @@ function FlyToVehicle({ vehicle }: { vehicle: Vehicle | null }) {
   return null
 }
 
+// Custom CSS to hide default Leaflet tooltip border and arrow for a cleaner premium look
+const customTooltipStyles = `
+  .leaflet-tooltip-top:before {
+    border-top-color: transparent !important;
+  }
+`
+
 function FitBounds({ vehicles }: { vehicles: Vehicle[] }) {
   const map = useMap()
   const [hasFitted, setHasFitted] = useState(false)
@@ -98,6 +105,19 @@ function FitBounds({ vehicles }: { vehicles: Vehicle[] }) {
     map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 })
     setHasFitted(true)
   }, [vehicles, map, hasFitted])
+  return null
+}
+
+// Insert custom style rules into document head for leaflet tooltips
+function TooltipStyleLoader() {
+  useEffect(() => {
+    const styleId = "leaflet-custom-tooltip-style"
+    if (document.getElementById(styleId)) return
+    const styleEl = document.createElement("style")
+    styleEl.id = styleId
+    styleEl.innerHTML = customTooltipStyles
+    document.head.appendChild(styleEl)
+  }, [])
   return null
 }
 
@@ -146,6 +166,7 @@ export default function VehicleMap({ vehicles, selectedVehicle, onMarkerClick, e
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       />
+      <TooltipStyleLoader />
       <FitBounds vehicles={vehicles} />
       <FitAllVehicles vehicles={vehicles} fitAll={fitAll} onFitComplete={onFitComplete} />
       <FlyToVehicle vehicle={selectedData} />
@@ -159,6 +180,14 @@ export default function VehicleMap({ vehicles, selectedVehicle, onMarkerClick, e
             click: () => onMarkerClick(vehicle.id),
           }}
         >
+          <Tooltip
+            permanent
+            direction="top"
+            offset={[0, -48]}
+            className="!bg-white !text-slate-800 !font-bold !px-2 !py-0.5 !rounded-md !shadow-md !border !border-slate-200 !text-xs !whitespace-nowrap !font-mono"
+          >
+            {vehicle.plate}
+          </Tooltip>
           <Popup>
             <div className="min-w-[160px]">
               <p className="font-semibold text-sm">{vehicle.driver}</p>
