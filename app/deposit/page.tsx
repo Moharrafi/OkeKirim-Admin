@@ -759,12 +759,18 @@ export default function DepositPage() {
   }, [debouncedSearchQuery, filterDriver])
 
   const handleSuccessBack = useCallback(() => {
-    window.history.back()
-    
+    // Do NOT call window.history.back() here — navigateToView("success") uses
+    // replaceState (not pushState), so there is no history entry to go back to.
+    // Calling back() would navigate the user away from the deposit page entirely.
+    // Instead, directly clean up the success overlay and return to the setoran list.
+    cleanupSubViewStates()
+    setViewState("list")
+    handleTabSwitch("setoran")
+
     // Refresh data from server
     setLoadingOrders(true)
     const driverName = isDriver ? user.name : (filterDriver || undefined)
-    fetchPendingSchedules(driverName)
+    fetchSchedules("pending", driverName, { limit: 100 })
       .then((schedules) => {
         const mapped: Order[] = schedules.map(s => ({
           id: `SCH${String(s.id).padStart(3, "0")}`,
@@ -789,7 +795,7 @@ export default function DepositPage() {
       })
       .catch(() => setApiOrders([]))
       .finally(() => setLoadingOrders(false))
-  }, [filterDriver, isDriver, user.name])
+  }, [cleanupSubViewStates, filterDriver, handleTabSwitch, isDriver, user.name])
 
   useEffect(() => {
     const handleAndroidBack = (event: Event) => {
@@ -836,9 +842,9 @@ export default function DepositPage() {
     showOrderConfirm,
   ])
 
-  // Fetch drivers on mount
+  // Fetch drivers on mount — force: true bypasses sessionStorage cache
   useEffect(() => {
-    fetchDrivers().then(setApiDrivers).catch(() => {})
+    fetchDrivers({ force: true }).then(setApiDrivers).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -846,7 +852,7 @@ export default function DepositPage() {
       setLoadingOrders(true)
       // If driver is logged in, auto-filter by their name
       const driverName = isDriver ? user.name : (filterDriver || undefined)
-      fetchPendingSchedules(driverName)
+      fetchSchedules("pending", driverName, { limit: 100 })
         .then((schedules) => {
           const mapped: Order[] = schedules.map(s => ({
             id: `SCH${String(s.id).padStart(3, "0")}`,
@@ -920,7 +926,7 @@ export default function DepositPage() {
 
     try {
       const driverName = isDriver ? user.name : (filterDriver || undefined)
-      const schedules = await fetchPendingSchedules(driverName)
+      const schedules = await fetchSchedules("pending", driverName, { limit: 100 })
 
       if (abortController.signal.aborted) return
 
@@ -1700,6 +1706,66 @@ export default function DepositPage() {
     }
   }
 
+  // Send 1 WA message per driver summarising ALL their unpaid orders
+  const handleSendWaAll = useCallback(() => {
+    if (orders.length === 0) return
+
+    // Group orders by driver name
+    const byDriver: Record<string, Order[]> = {}
+    for (const order of orders) {
+      if (!byDriver[order.driver]) byDriver[order.driver] = []
+      byDriver[order.driver].push(order)
+    }
+
+    const driversWithNoPhone: string[] = []
+    let opened = 0
+
+    for (const [driverName, driverOrders] of Object.entries(byDriver)) {
+      const driverObj = apiDrivers.find(
+        (d) => d.name.trim().toLowerCase() === driverName.trim().toLowerCase()
+      )
+      const phone = driverObj?.phone
+      if (!phone) {
+        driversWithNoPhone.push(driverName)
+        continue
+      }
+
+      const cleanPhone = phone.replace(/[^0-9]/g, "")
+      const formatted = cleanPhone.startsWith("0")
+        ? "62" + cleanPhone.substring(1)
+        : cleanPhone.startsWith("62")
+          ? cleanPhone
+          : "62" + cleanPhone
+
+      const totalSisaDriver = driverOrders.reduce((sum, o) => sum + o.sisa, 0)
+      const tripLines = driverOrders
+        .map(
+          (o, i) =>
+            `${i + 1}. #${o.id} | ${o.date} | ${o.lokasiMuat} → ${o.lokasiBongkar}\n   Sisa: *Rp ${o.sisa.toLocaleString("id-ID")}*`
+        )
+        .join("\n")
+
+      const msg =
+        `*PENGINGAT SETORAN OKEKIRIM*\n\n` +
+        `Halo *${driverName}*,\n` +
+        `Berikut adalah ${driverOrders.length} setoran Anda yang belum dilunasi:\n\n` +
+        `*DETAIL TRIP:*\n${tripLines}\n\n` +
+        `*TOTAL SISA: Rp ${totalSisaDriver.toLocaleString("id-ID")}*\n\n` +
+        `Mohon segera melakukan penyetoran. Jika sudah transfer, silakan upload bukti struk di aplikasi OkeMitra. Terima kasih!\n\n` +
+        `---\nPesan otomatis dari sistem OkeKirim`
+
+      // Delay each tab slightly so browser doesn't block pop-ups
+      setTimeout(() => {
+        window.open(`https://wa.me/${formatted}?text=${encodeURIComponent(msg)}`, "_blank")
+      }, opened * 600)
+      opened++
+    }
+
+    if (driversWithNoPhone.length > 0) {
+      showErrorToast(`Nomor HP tidak ditemukan: ${driversWithNoPhone.join(", ")}`)
+    }
+  }, [orders, apiDrivers])
+
   const renderProofCheckPanel = (expectedAmount: number) => {
     if (!uploadedFile || proofOcrStatus === "idle") return null
 
@@ -1954,7 +2020,7 @@ export default function DepositPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              const driverObj = activeDrivers.find(d => d.name.trim().toLowerCase() === order.driver.trim().toLowerCase())
+                              const driverObj = apiDrivers.find(d => d.name.trim().toLowerCase() === order.driver.trim().toLowerCase())
                               const phone = driverObj?.phone
                               if (!phone) {
                                 showErrorToast("Nomor HP driver tidak ditemukan")
@@ -2501,6 +2567,20 @@ export default function DepositPage() {
                 </span>
               </div>
             </div>
+
+            {/* WA Semua button — kirim ringkasan per driver sekaligus */}
+            {isAdmin && orders.length > 0 && !isBatchMode && (
+              <button
+                onClick={handleSendWaAll}
+                className="flex items-center gap-1.5 w-full mt-2 px-3 py-2.5 rounded-xl text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/8 border border-emerald-200/50 dark:border-emerald-900/30 hover:bg-emerald-500/15 transition-all"
+              >
+                <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                Kirim WA Pengingat ke Semua Driver
+                <span className="ml-auto bg-emerald-500/15 px-2 py-0.5 rounded-full">
+                  {Object.keys(orders.reduce((acc, o) => ({ ...acc, [o.driver]: true }), {} as Record<string, boolean>)).length} driver
+                </span>
+              </button>
+            )}
 
             {/* Batch Selection Info */}
             {isBatchMode && selectedOrders.length > 0 && (

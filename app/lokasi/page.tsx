@@ -117,7 +117,6 @@ export default function LokasiPage() {
   const [lastFetch, setLastFetch] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [fitAllMarkers, setFitAllMarkers] = useState(false)
-  const [autoRefresh, setAutoRefresh] = useState(true)
 
   useEffect(() => {
     const isAuth = localStorage.getItem("isAuthenticated")
@@ -202,16 +201,6 @@ export default function LokasiPage() {
     fetchVehicles()
   }, [fetchVehicles])
 
-  // Auto-refresh interval (every 30 seconds)
-  useEffect(() => {
-    if (!autoRefresh) return
-
-    const interval = setInterval(() => {
-      fetchVehicles(true, false) // background refresh
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [autoRefresh, fetchVehicles])
 
   const handleMarkerClick = (vehicleId: string) => {
     // Klik dari map: hanya zoom ke marker, tidak munculkan popup detail
@@ -278,21 +267,6 @@ export default function LokasiPage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={cn(
-                "flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all pointer-events-auto",
-                autoRefresh
-                  ? "bg-emerald-500/5 text-emerald-600 border-emerald-200/50 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-900/30"
-                  : "bg-muted text-muted-foreground border-transparent"
-              )}
-            >
-              <span className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                autoRefresh ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-              )} />
-              Auto Refresh
-            </button>
             <Button
               variant="ghost"
               size="sm"

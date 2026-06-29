@@ -76,12 +76,12 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, vehicle, vehicleType, status } = body
+    const { id, name, vehicle, vehicleType, status, phone } = body
     if (!id) return NextResponse.json({ error: "ID wajib" }, { status: 400 })
 
     await pool.execute(
-      "UPDATE drivers SET name=?, vehicle=?, vehicleType=?, status=? WHERE id=?",
-      [name, vehicle || null, vehicleType || null, status || "aktif", id]
+      "UPDATE drivers SET name=?, vehicle=?, vehicleType=?, status=?, phone=? WHERE id=?",
+      [name, vehicle || null, vehicleType || null, status || "aktif", phone ?? null, id]
     )
 
     return NextResponse.json({ success: true })

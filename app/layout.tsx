@@ -22,6 +22,13 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'OkeMitra',
   },
+  other: {
+    // Apple touch icons for all iOS device sizes
+    'apple-touch-icon': '/logoapk.png',
+    'apple-touch-icon-precomposed': '/logoapk.png',
+    // iOS standalone mode splash meta
+    'mobile-web-app-capable': 'yes',
+  },
 }
 
 export const viewport: Viewport = {
@@ -54,6 +61,18 @@ export default function RootLayout({
             `,
           }}
         />
+        {/* Apple touch icons – all sizes iOS uses */}
+        <link rel="apple-touch-icon" href="/logoapk.png" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/logoapk.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/logoapk.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/logoapk.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logoapk.png" />
+        {/* iOS status bar */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="OkeMitra" />
+        {/* Android / Chrome */}
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
@@ -67,6 +86,20 @@ export default function RootLayout({
           </UserProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
+        {/* Service Worker registration for PWA */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) { console.log('SW registered:', reg.scope); })
+                    .catch(function(err) { console.log('SW error:', err); });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   )
