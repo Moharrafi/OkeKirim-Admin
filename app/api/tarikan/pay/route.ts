@@ -62,13 +62,14 @@ export async function POST(request: NextRequest) {
         const isFullyPaid = newPaid >= schedule.companyShare
 
         await pool.execute(
-          `UPDATE schedules SET status = ?, paidCompanyAmount = ?, lastPaidAt = ?, paidOffAt = ?, payment_notes = ? WHERE id = ?`,
+          `UPDATE schedules SET status = ?, paidCompanyAmount = ?, lastPaidAt = ?, paidOffAt = ?, payment_notes = ?, lastPaidAmount = ? WHERE id = ?`,
           [
             isFullyPaid ? "lunas" : "nunggak",
             newPaid,
             now,
             isFullyPaid ? now : null,
             isFullyPaid ? "Lunas" : `Cicil Rp ${payForThis.toLocaleString("id-ID")}`,
+            payForThis,
             schedule.id,
           ]
         )
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         const isFullyPaid = newPaidTotal >= companyShare
 
         await pool.execute(
-          `UPDATE schedules SET status = ?, paidCompanyAmount = ?, lastPaidAt = ?, paidOffAt = ?, payment_notes = ? WHERE id = ?`,
+          `UPDATE schedules SET status = ?, paidCompanyAmount = ?, lastPaidAt = ?, paidOffAt = ?, payment_notes = ?, lastPaidAmount = ? WHERE id = ?`,
           [
             isFullyPaid ? "lunas" : "nunggak",
             newPaidTotal,
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
             isFullyPaid
               ? (paymentNotes && paymentNotes.startsWith("Cicil") ? "Lunas" : paymentNotes || "Lunas")
               : (paymentNotes && paymentNotes !== "Lunas" ? paymentNotes : `Cicil Rp ${payAmount.toLocaleString("id-ID")}`),
+            payAmount,
             id,
           ]
         )

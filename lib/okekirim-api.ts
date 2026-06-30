@@ -19,6 +19,7 @@ export interface Schedule {
   paidOffAt: string | null
   created_at: string | null
   orderProof?: string | null
+  lastPaidAmount?: number
 }
 
 export interface Driver {

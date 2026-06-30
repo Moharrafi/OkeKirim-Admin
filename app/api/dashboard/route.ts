@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         [...driverParam]
       ),
       pool.execute(
-        `SELECT COALESCE(SUM(paidCompanyAmount), 0) as total, COUNT(*) as count 
+        `SELECT COALESCE(SUM(lastPaidAmount), 0) as total, COUNT(*) as count 
          FROM schedules 
          WHERE DATE(DATE_ADD(lastPaidAt, INTERVAL 7 HOUR)) = ?${driverWhere}`,
         [jakartaTodayStr, ...driverParam]

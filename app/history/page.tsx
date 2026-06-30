@@ -90,7 +90,7 @@ function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): H
     vehicle: s.vehicle || s.driverVehicle || "-",
     route: `${s.origin || "-"} → ${s.destination || "-"}`,
     argo: s.fare || 0,
-    amount: status === "success" ? fullAmount : remainingAmount,
+    amount: status === "success" ? (s.lastPaidAmount || fullAmount) : remainingAmount,
     type: s.orderType === "offline" ? "offline" : "online",
     method: status === "success"
       ? (s.payment_notes || s.paymentNotes || "Lunas")
