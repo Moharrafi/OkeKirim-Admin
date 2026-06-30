@@ -31,6 +31,7 @@ import {
   Coins,
   Download,
   AlertTriangle,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
@@ -626,6 +627,74 @@ export default function AnalysisPage() {
       netProfitGrowth: calcGrowth(netProfit, prevNetProfit)
     }
   }, [data, isAdmin, serviceStats])
+
+  // AI Financial Insights calculation
+  const aiInsights = useMemo(() => {
+    if (!finances || !data) return []
+
+    const insights = []
+    
+    // 1. Profitability Insight
+    const netProfitGrowth = finances.netProfitGrowth || 0
+    if (netProfitGrowth > 10) {
+      insights.push({
+        type: "success",
+        title: "Pertumbuhan Profit Positif",
+        desc: `Bagi hasil perusahaan tumbuh sebesar ${netProfitGrowth.toFixed(1)}% MoM. Kinerja operasional sangat sehat.`
+      })
+    } else if (netProfitGrowth < 0) {
+      insights.push({
+        type: "danger",
+        title: "Penurunan Profit Operasional",
+        desc: `Bagi hasil perusahaan mengalami penurunan sebesar ${Math.abs(netProfitGrowth).toFixed(1)}% MoM. Evaluasi kembali utilitas armada.`
+      })
+    } else {
+      insights.push({
+        type: "info",
+        title: "Kondisi Finansial Stabil",
+        desc: "Pembagian hasil dan total profit operasional berjalan stabil MoM. Pertahankan ritme trip saat ini."
+      })
+    }
+
+    // 2. Service Cost Efficiency
+    if (isAdmin && services.length > 0) {
+      const currentMonthCost = serviceStats.currentMonth || 0
+      const companyShare = finances.companyShare || 0
+      const ratio = companyShare > 0 ? (currentMonthCost / companyShare) * 100 : 0
+      
+      if (ratio > 35) {
+        insights.push({
+          type: "warning",
+          title: "Beban Servis Truk Tinggi",
+          desc: `Biaya servis bulan ini (Rp ${formatRupiah(currentMonthCost)}) memakan ${ratio.toFixed(1)}% dari bagi hasil. Disarankan audit suku cadang.`
+        })
+      } else if (currentMonthCost > 0) {
+        insights.push({
+          type: "success",
+          title: "Efisiensi Servis Terjaga",
+          desc: `Biaya servis bulan ini terkontrol dengan baik (hanya ${ratio.toFixed(1)}% dari pendapatan). Perawatan preventif armada efektif.`
+        })
+      }
+    }
+
+    // 3. Deposit Overdue
+    const overdue = data.overdueCount || 0
+    if (overdue > 0) {
+      insights.push({
+        type: "warning",
+        title: "Setoran Tertunda Terdeteksi",
+        desc: `Ada ${overdue} orderan yang jatuh tempo (overdue > 7 hari) belum disetor. Segera kirim pengingat WA otomatis ke driver.`
+      })
+    } else {
+      insights.push({
+        type: "success",
+        title: "Kepatuhan Setoran 100%",
+        desc: "Seluruh setoran driver terdistribusi tepat waktu. Tidak ada orderan nunggak melebihi batas 7 hari."
+      })
+    }
+
+    return insights
+  }, [finances, data, services, serviceStats.currentMonth, isAdmin])
 
   // Monthly trends chart data
   const monthlyChartData = useMemo(() => {
@@ -1344,6 +1413,36 @@ export default function AnalysisPage() {
                     dibandingkan bulan lalu (Rp {formatRupiah(finances.prevArgoTotal)}).
                   </p>
                 </div>
+
+                {/* AI Financial Insights Card */}
+                <Card className="border-border bg-card shadow-sm">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-border">
+                      <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+                      <h4 className="font-bold text-xs text-foreground uppercase tracking-wider">Rekomendasi Pintar AI</h4>
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      {aiInsights.map((insight, idx) => {
+                        let colorClasses = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-200/50"
+                        if (insight.type === "success") {
+                          colorClasses = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50"
+                        } else if (insight.type === "warning") {
+                          colorClasses = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50"
+                        } else if (insight.type === "danger") {
+                          colorClasses = "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200/50"
+                        }
+
+                        return (
+                          <div key={idx} className={cn("p-3 rounded-xl border text-[11px] leading-relaxed", colorClasses)}>
+                            <p className="font-bold mb-1 text-xs">{insight.title}</p>
+                            <p className="text-muted-foreground font-light">{insight.desc}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 

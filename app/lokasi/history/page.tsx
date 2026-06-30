@@ -15,6 +15,7 @@ import {
   Route,
   Gauge,
   Timer,
+  Fuel,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -80,6 +81,7 @@ export default function VehicleHistoryPage() {
 
   const [historyData, setHistoryData] = useState<HistoryData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().split("T")[0]
   })
@@ -91,10 +93,25 @@ export default function VehicleHistoryPage() {
 
   const fetchHistory = async () => {
     setLoading(true)
+    setError(null)
     try {
       const resp = await fetch(
         `/api/gps/history?vehicleId=${vehicleId}&date=${selectedDate}`
       )
+      
+      if (!resp.ok) {
+        let errMsg = "Gagal mengambil riwayat perjalanan"
+        try {
+          const errData = await resp.json()
+          errMsg = errData.error || errMsg
+        } catch {
+          errMsg = `${errMsg} (${resp.status})`
+        }
+        setError(errMsg)
+        setHistoryData(null)
+        return
+      }
+
       const data = await resp.json()
       setHistoryData(data)
 
@@ -223,8 +240,26 @@ export default function VehicleHistoryPage() {
           </div>
         )}
 
+        {/* Error State */}
+        {!loading && error && (
+          <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
+            <CardContent className="p-4 text-center">
+              <div className="text-red-500 font-semibold mb-2">Gagal Memuat Data</div>
+              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/50"
+                onClick={() => fetchHistory()}
+              >
+                Coba Lagi
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Summary Stats */}
-        {!loading && historyData && historyData.trips.length > 0 && (
+        {!loading && !error && historyData && historyData.trips && historyData.trips.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
             <Card className="border-border bg-card">
               <CardContent className="p-3 text-center">
@@ -256,8 +291,79 @@ export default function VehicleHistoryPage() {
           </div>
         )}
 
+        {/* Fuel & Performance Insights */}
+        {!loading && !error && historyData && historyData.trips && historyData.trips.length > 0 && (
+          <Card className="border-border bg-card shadow-sm">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-border">
+                <Fuel className="h-4 w-4 text-amber-500" />
+                <h4 className="font-semibold text-xs text-foreground uppercase tracking-wider">Performa & Konsumsi Solar (Est)</h4>
+              </div>
+              
+              {(() => {
+                const totalDist = historyData.totalDistance || 0
+                const estLiters = totalDist / 7
+                const estFuelCost = estLiters * 6800
+                const estCo2 = estLiters * 2.68
+
+                let maxSpeedObserved = 0
+                historyData.trips.forEach(t => {
+                  if (t.maxSpeed > maxSpeedObserved) maxSpeedObserved = t.maxSpeed
+                })
+                
+                let score = 100
+                if (maxSpeedObserved > 100) score -= 25
+                else if (maxSpeedObserved > 80) score -= 12
+                
+                const avgSpeedOverall = historyData.trips.reduce((sum, t) => sum + (t.avgSpeed || 0), 0) / historyData.trips.length
+                if (avgSpeedOverall < 20) score -= 8
+                else if (avgSpeedOverall > 60) score -= 5
+                
+                score = Math.max(30, Math.round(score))
+
+                let scoreLabel = "Sangat Baik"
+                let scoreColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                if (score < 60) {
+                  scoreLabel = "Perlu Perbaikan"
+                  scoreColor = "text-red-600 dark:text-red-400 bg-red-500/10"
+                } else if (score < 80) {
+                  scoreLabel = "Cukup Baik"
+                  scoreColor = "text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                }
+
+                return (
+                  <div className="grid grid-cols-2 gap-3.5 pt-1">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase">Konsumsi Solar</span>
+                      <p className="text-base font-bold text-foreground">{estLiters.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">L</span></p>
+                      <p className="text-[9px] text-muted-foreground font-light">Asumsi rata-rata 1L : 7 km</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase">Estimasi Biaya</span>
+                      <p className="text-base font-bold text-foreground">Rp {estFuelCost.toLocaleString("id-ID", { maximumFractionDigits: 0 })}</p>
+                      <p className="text-[9px] text-muted-foreground font-light">Solar Rp 6.800 / Liter</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase">Jejak Karbon (CO2)</span>
+                      <p className="text-base font-bold text-foreground">{estCo2.toFixed(1)} <span className="text-xs font-normal text-muted-foreground">kg</span></p>
+                      <p className="text-[9px] text-muted-foreground font-light">Emisi Solar 2.68 kg/L</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase">Skor Eco-Driving</span>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-base font-bold text-foreground">{score}</span>
+                        <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase", scoreColor)}>{scoreLabel}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Trip List */}
-        {!loading && historyData && historyData.trips.length > 0 && (
+        {!loading && !error && historyData && historyData.trips && historyData.trips.length > 0 && (
           <div className="space-y-3">
             <h3 className="font-semibold text-foreground">Detail Perjalanan</h3>
 
@@ -328,7 +434,7 @@ export default function VehicleHistoryPage() {
         )}
 
         {/* Empty State / Parked Location */}
-        {!loading && historyData && historyData.trips.length === 0 && (
+        {!loading && !error && historyData && historyData.trips && historyData.trips.length === 0 && (
           <div className="space-y-4">
             {historyData.parkedLocation ? (
               <Card className="border-border bg-card">

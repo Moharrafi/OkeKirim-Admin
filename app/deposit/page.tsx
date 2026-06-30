@@ -754,6 +754,38 @@ export default function DepositPage() {
   const [apiDrivers, setApiDrivers] = useState<Driver[]>([])
   const [filterDriver, setFilterDriver] = useState<string>("")
 
+  const refreshPendingOrders = useCallback(async () => {
+    setLoadingOrders(true)
+    const driverName = isDriver ? user.name : (filterDriver || undefined)
+    try {
+      const schedules = await fetchSchedules("pending", driverName, { limit: 100 })
+      const mapped: Order[] = schedules.map(s => ({
+        id: `SCH${String(s.id).padStart(3, "0")}`,
+        driver: s.driver || "Unknown",
+        driverId: String(s.id),
+        vehicle: s.vehicle || s.driverVehicle || "-",
+        lokasiMuat: s.origin || "-",
+        lokasiBongkar: s.destination || "-",
+        argo: s.fare || 0,
+        companyShare: s.companyShare || Math.round((s.fare || 0) * 0.4),
+        paidAmount: s.paidCompanyAmount || 0,
+        sisa: (s.companyShare || Math.round((s.fare || 0) * 0.4)) - (s.paidCompanyAmount || 0),
+        type: (s.orderType === "offline" ? "offline" : "online") as OrderType,
+        date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
+        rawDate: s.date ? new Date(s.date).toISOString().split("T")[0] : "",
+        time: "",
+        status: "pending",
+        isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
+        orderProof: s.orderProof || null,
+      }))
+      setApiOrders(mapped)
+    } catch {
+      setApiOrders([])
+    } finally {
+      setLoadingOrders(false)
+    }
+  }, [filterDriver, isDriver, user.name])
+
   useEffect(() => {
     setVisibleOrdersLimit(10)
   }, [debouncedSearchQuery, filterDriver])
@@ -766,36 +798,8 @@ export default function DepositPage() {
     cleanupSubViewStates()
     setViewState("list")
     handleTabSwitch("setoran")
-
-    // Refresh data from server
-    setLoadingOrders(true)
-    const driverName = isDriver ? user.name : (filterDriver || undefined)
-    fetchSchedules("pending", driverName, { limit: 100 })
-      .then((schedules) => {
-        const mapped: Order[] = schedules.map(s => ({
-          id: `SCH${String(s.id).padStart(3, "0")}`,
-          driver: s.driver || "Unknown",
-          driverId: String(s.id),
-          vehicle: s.vehicle || s.driverVehicle || "-",
-          lokasiMuat: s.origin || "-",
-          lokasiBongkar: s.destination || "-",
-          argo: s.fare || 0,
-          companyShare: s.companyShare || Math.round((s.fare || 0) * 0.4),
-          paidAmount: s.paidCompanyAmount || 0,
-          sisa: (s.companyShare || Math.round((s.fare || 0) * 0.4)) - (s.paidCompanyAmount || 0),
-          type: (s.orderType === "offline" ? "offline" : "online") as OrderType,
-          date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-          rawDate: s.date ? new Date(s.date).toISOString().split("T")[0] : "",
-          time: "",
-          status: "pending",
-          isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
-          orderProof: s.orderProof || null,
-        }))
-        setApiOrders(mapped)
-      })
-      .catch(() => setApiOrders([]))
-      .finally(() => setLoadingOrders(false))
-  }, [cleanupSubViewStates, filterDriver, handleTabSwitch, isDriver, user.name])
+    refreshPendingOrders()
+  }, [cleanupSubViewStates, handleTabSwitch, refreshPendingOrders])
 
   useEffect(() => {
     const handleAndroidBack = (event: Event) => {
@@ -849,36 +853,9 @@ export default function DepositPage() {
 
   useEffect(() => {
     if (mainTab === "setoran") {
-      setLoadingOrders(true)
-      // If driver is logged in, auto-filter by their name
-      const driverName = isDriver ? user.name : (filterDriver || undefined)
-      fetchSchedules("pending", driverName, { limit: 100 })
-        .then((schedules) => {
-          const mapped: Order[] = schedules.map(s => ({
-            id: `SCH${String(s.id).padStart(3, "0")}`,
-            driver: s.driver || "Unknown",
-            driverId: String(s.id),
-            vehicle: s.vehicle || s.driverVehicle || "-",
-            lokasiMuat: s.origin || "-",
-            lokasiBongkar: s.destination || "-",
-            argo: s.fare || 0,
-            companyShare: s.companyShare || Math.round((s.fare || 0) * 0.4),
-            paidAmount: s.paidCompanyAmount || 0,
-            sisa: (s.companyShare || Math.round((s.fare || 0) * 0.4)) - (s.paidCompanyAmount || 0),
-            type: (s.orderType === "offline" ? "offline" : "online") as OrderType,
-            date: s.date ? new Date(s.date).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "-",
-            rawDate: s.date ? new Date(s.date).toISOString().split("T")[0] : "",
-            time: "",
-            status: "pending",
-            isOverdue7: s.date ? isOverdue(new Date(s.date).toISOString().split("T")[0], 7) : false,
-            orderProof: s.orderProof || null,
-          }))
-          setApiOrders(mapped)
-        })
-        .catch(() => setApiOrders([]))
-        .finally(() => setLoadingOrders(false))
+      refreshPendingOrders()
     }
-  }, [mainTab, filterDriver, isDriver, user.name])
+  }, [mainTab, refreshPendingOrders])
 
   const orders = apiOrders
 
@@ -1439,6 +1416,9 @@ export default function DepositPage() {
 
       clearTimeout(timeoutId)
       showSuccessToast("Setoran berhasil dikonfirmasi")
+      
+      // Refresh pending orders in the background so the list is updated immediately
+      refreshPendingOrders()
 
       // Store success data for SuccessPage component
       const order = selectedOrder || (selectedOrders.length > 0 ? orders.find(o => selectedOrders.includes(o.id)) : null)
@@ -2816,7 +2796,7 @@ export default function DepositPage() {
         </div>
       )}
 
-      {showDepositSuccess && (
+      {showDepositSuccess && viewState === "success" && (
         <div className="fixed inset-0 z-50 bg-background overflow-y-auto animate-in fade-in duration-200">
           <SuccessPage
             driverName={depositSuccessData?.driverName || ""}
@@ -2829,7 +2809,7 @@ export default function DepositPage() {
       )}
 
       {/* Batch Payment View overlay */}
-      {showBatchPayment && (
+      {showBatchPayment && viewState === "batch" && (
         <SwipeBackDetector enabled={true} onSwipeBack={closeBatchPaymentView}>
           <div ref={viewContainerRef} className={cn("fixed inset-0 z-50 bg-background overflow-y-auto will-change-transform", animationClass)} onAnimationEnd={handleAnimationEnd}>
             <MobileHeader 
@@ -3031,7 +3011,7 @@ export default function DepositPage() {
       )}
 
       {/* Single Setoran Detail View overlay */}
-      {selectedOrder && (
+      {selectedOrder && viewState === "detail" && (
         <SwipeBackDetector enabled={true} onSwipeBack={closeSinglePaymentView}>
           <div ref={viewContainerRef} className={cn("fixed inset-0 z-50 bg-background overflow-y-auto will-change-transform", animationClass)} onAnimationEnd={handleAnimationEnd}>
             <MobileHeader 

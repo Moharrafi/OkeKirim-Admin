@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Wallet,
   Users,
-  Car,
+  MapPin,
   TrendingUp,
   Wrench,
   ArrowUpRight,
@@ -275,7 +275,7 @@ export default function DashboardPage() {
   const quickActions = isAdmin
     ? [
         { label: "Orderan", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
-        { label: "Lokasi", sublabel: "Peta Armada", href: "/lokasi", icon: Car, tone: "blue" as const },
+        { label: "Lokasi", sublabel: "Peta Armada", href: "/lokasi", icon: MapPin, tone: "blue" as const },
         { label: "Service", sublabel: "Servis Truk", href: "/service", icon: Wrench, tone: "amber" as const },
       ]
     : [

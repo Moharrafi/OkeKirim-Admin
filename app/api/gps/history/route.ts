@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+
 export const maxDuration = 30
 
 const BASE_URL = "https://hosting.glonasssoft.ru"
@@ -71,12 +72,14 @@ let vehicleCache: { vehicles: any[]; timestamp: number } | null = null
 const historyCache = new Map<string, { data: unknown; timestamp: number }>()
 
 async function getCachedVehicles(token: string) {
-  if (vehicleCache && Date.now() - vehicleCache.timestamp < VEHICLE_CACHE_TTL) {
+  if (vehicleCache && Date.now() - vehicleCache.timestamp < VEHICLE_CACHE_TTL && vehicleCache.vehicles.length > 0) {
     return vehicleCache.vehicles
   }
 
   const vehicles = await getVehicles(token)
-  vehicleCache = { vehicles, timestamp: Date.now() }
+  if (vehicles && vehicles.length > 0) {
+    vehicleCache = { vehicles, timestamp: Date.now() }
+  }
   return vehicles
 }
 
