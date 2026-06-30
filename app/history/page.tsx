@@ -55,6 +55,9 @@ type HistoryTransaction = {
   method: string
   status: string
   orderProof?: string | null
+  companyShare?: number
+  paidCompanyAmount?: number
+  lastPaidAmount?: number
 }
 
 function addDaysToDateString(dateString: string, days: number) {
@@ -101,6 +104,9 @@ function mapScheduleToTransaction(s: Schedule, status: "success" | "pending"): H
               : "Belum Setor")),
     status,
     orderProof: s.orderProof || null,
+    companyShare: fullAmount,
+    paidCompanyAmount: s.paidCompanyAmount || 0,
+    lastPaidAmount: s.lastPaidAmount || 0,
   }
 }
 
@@ -554,10 +560,28 @@ export default function HistoryPage() {
                     </div>
                   </>
                 )}
-                <div className="flex justify-between py-2">
-                  <span className="text-muted-foreground">Tanggal</span>
-                  <span className="font-medium text-foreground">{selectedTx.date}, {selectedTx.time}</span>
-                </div>
+                 {(() => {
+                   const prevPaid = (selectedTx.paidCompanyAmount || 0) - (selectedTx.lastPaidAmount || 0)
+                   if (prevPaid > 0 && selectedTx.companyShare) {
+                     return (
+                       <>
+                         <div className="flex justify-between py-2 border-t border-border/40">
+                           <span className="text-muted-foreground">Total Wajib Setor (40%)</span>
+                           <span className="font-semibold text-foreground">Rp {selectedTx.companyShare.toLocaleString("id-ID")}</span>
+                         </div>
+                         <div className="flex justify-between py-2">
+                           <span className="text-muted-foreground">Cicilan Sebelumnya</span>
+                           <span className="font-medium text-amber-600 dark:text-amber-400">Rp {prevPaid.toLocaleString("id-ID")}</span>
+                         </div>
+                       </>
+                     )
+                   }
+                   return null
+                 })()}
+                 <div className="flex justify-between py-2">
+                   <span className="text-muted-foreground">Tanggal</span>
+                   <span className="font-medium text-foreground">{selectedTx.date}, {selectedTx.time}</span>
+                 </div>
                 <div className="flex justify-between py-2">
                   <span className="text-muted-foreground">
                     {isDriver ? "Status" : "Metode"}
