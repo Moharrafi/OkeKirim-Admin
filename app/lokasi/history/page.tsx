@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
 import { MobileHeader } from "@/components/mobile-header"
@@ -103,6 +103,7 @@ export default function VehicleHistoryPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().split("T")[0]
   })
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!vehicleId) return
@@ -219,7 +220,16 @@ export default function VehicleHistoryPage() {
                 <ChevronLeft className="h-5 w-5" />
               </Button>
 
-              <div className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-secondary/50">
+              <div 
+                onClick={() => {
+                  try {
+                    dateInputRef.current?.showPicker()
+                  } catch (err) {
+                    dateInputRef.current?.click()
+                  }
+                }}
+                className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-secondary/50"
+              >
                 <Calendar className="h-4 w-4 text-primary" />
                 <div className="text-center">
                   <p className="text-sm font-semibold text-foreground">
@@ -233,6 +243,7 @@ export default function VehicleHistoryPage() {
                 </div>
                 {/* Overlay Input Tanggal Kustom */}
                 <input
+                  ref={dateInputRef}
                   type="date"
                   value={selectedDate}
                   max={new Date().toISOString().split("T")[0]}
@@ -241,7 +252,7 @@ export default function VehicleHistoryPage() {
                       setSelectedDate(e.target.value)
                     }
                   }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  className="absolute w-0 h-0 opacity-0 pointer-events-none"
                 />
               </div>
 
