@@ -312,7 +312,7 @@ export default function VehicleHistoryPage() {
 
         {/* Peta Animasi Rute */}
         {!loading && !error && historyData && historyData.points && historyData.points.length > 0 && (
-          <Card className="overflow-hidden border-border bg-card h-[400px] relative rounded-xl shadow-sm">
+          <Card className="overflow-hidden border-border bg-card h-[400px] relative rounded-xl shadow-sm p-0 py-0">
             <HistoryMap points={historyData.points} />
           </Card>
         )}

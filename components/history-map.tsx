@@ -5,7 +5,8 @@ import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { Button } from "@/components/ui/button"
-import { Play, Pause, RotateCcw, Eye, EyeOff, Gauge, Clock } from "lucide-react"
+import { Play, Pause, RotateCcw, Eye, EyeOff, Gauge, Clock, Maximize2, Minimize2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface NavPoint {
   lat: number
@@ -79,11 +80,35 @@ function FollowMarker({ lat, lng, active }: { lat: number; lng: number; active: 
   return null
 }
 
+function InvalidateMapSize({ trigger }: { trigger: any }) {
+  const map = useMap()
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      map.invalidateSize()
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [trigger, map])
+  return null
+}
+
 export default function HistoryMap({ points }: HistoryMapProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(1) // 1x, 2x, 4x, 8x
   const [autoFollow, setAutoFollow] = useState(true)
+  const [isFullScreen, setIsFullScreen] = useState(false)
+
+  // Mengunci scroll halaman saat peta layar penuh aktif
+  useEffect(() => {
+    if (isFullScreen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [isFullScreen])
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -147,9 +172,14 @@ export default function HistoryMap({ points }: HistoryMapProps) {
   }
 
   return (
-    <div className="relative w-full h-full flex flex-col rounded-xl overflow-hidden border border-border">
+    <div className={cn(
+      "relative w-full flex flex-col overflow-hidden",
+      isFullScreen 
+        ? "fixed inset-0 z-[9999] bg-background h-screen w-screen" 
+        : "h-full w-full"
+    )}>
       {/* Bagian Atas: Leaflet Map */}
-      <div className="relative flex-1 bg-muted">
+      <div className="relative flex-1 bg-muted min-h-0 w-full">
         <MapContainer
           center={[points[0].lat, points[0].lng]}
           zoom={14}
@@ -160,6 +190,7 @@ export default function HistoryMap({ points }: HistoryMapProps) {
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           
           <FitRouteBounds points={points} />
+          <InvalidateMapSize trigger={isFullScreen} />
           
           {currentPoint && (
             <>
@@ -214,7 +245,11 @@ export default function HistoryMap({ points }: HistoryMapProps) {
       </div>
 
       {/* Bagian Bawah: Kontrol Pemutaran */}
-      <div className="p-4 bg-card border-t border-border space-y-4">
+      <div className={cn(
+        isFullScreen 
+          ? "absolute bottom-6 left-4 right-4 z-[1000] bg-background/95 dark:bg-card/95 backdrop-blur-md border border-border p-4 rounded-2xl shadow-xl space-y-3" 
+          : "p-4 bg-card border-t border-border space-y-4"
+      )}>
         {/* Slider Timeline */}
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-semibold text-muted-foreground select-none">Mulai</span>
@@ -281,6 +316,21 @@ export default function HistoryMap({ points }: HistoryMapProps) {
               title="Auto-Follow Kamera"
             >
               {autoFollow ? <Eye className="h-4.5 w-4.5" /> : <EyeOff className="h-4.5 w-4.5" />}
+            </Button>
+
+            {/* Tombol Layar Penuh (Fullscreen Toggle) */}
+            <Button
+              size="icon"
+              variant={isFullScreen ? "secondary" : "outline"}
+              className={`h-9 w-9 rounded-xl border shadow-sm ${
+                isFullScreen 
+                  ? "bg-primary/10 border-primary/20 text-primary" 
+                  : "bg-background border-border text-muted-foreground hover:bg-secondary"
+              }`}
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              title={isFullScreen ? "Perkecil Layar" : "Layar Penuh"}
+            >
+              {isFullScreen ? <Minimize2 className="h-4.5 w-4.5" /> : <Maximize2 className="h-4.5 w-4.5" />}
             </Button>
           </div>
 
