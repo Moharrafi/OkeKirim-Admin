@@ -97,6 +97,11 @@ export default function HistoryMap({ points }: HistoryMapProps) {
   const [speedMultiplier, setSpeedMultiplier] = useState<number>(1) // 1x, 2x, 4x, 8x
   const [autoFollow, setAutoFollow] = useState(true)
   const [isFullScreen, setIsFullScreen] = useState(false)
+  const [mapKey, setMapKey] = useState("history-map-init")
+
+  useEffect(() => {
+    setMapKey("history-map-mounted")
+  }, [])
 
   // Mengunci scroll halaman saat peta layar penuh aktif
   useEffect(() => {
@@ -181,6 +186,7 @@ export default function HistoryMap({ points }: HistoryMapProps) {
       {/* Bagian Atas: Leaflet Map */}
       <div className="relative flex-1 bg-muted min-h-0 w-full">
         <MapContainer
+          key={mapKey}
           center={[points[0].lat, points[0].lng]}
           zoom={14}
           style={{ width: "100%", height: "100%" }}

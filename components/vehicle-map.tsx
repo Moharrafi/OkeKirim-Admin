@@ -159,9 +159,15 @@ function FitAllVehicles({ vehicles, fitAll, onFitComplete }: { vehicles: Vehicle
 
 export default function VehicleMap({ vehicles, selectedVehicle, onMarkerClick, expanded, fitAll, onFitComplete }: VehicleMapProps) {
   const selectedData = vehicles.find((v) => v.id === selectedVehicle) || null
+  const [mapKey, setMapKey] = useState("vehicle-map-init")
+
+  useEffect(() => {
+    setMapKey("vehicle-map-mounted")
+  }, [])
 
   return (
     <MapContainer
+      key={mapKey}
       center={[-6.2088, 106.8256]}
       zoom={12}
       style={{ width: "100%", height: "100%" }}
