@@ -207,7 +207,7 @@ export default function VehicleHistoryPage() {
 
       <div className="px-4 py-4 space-y-4">
         {/* Date Selector */}
-        <Card className="border-border bg-card">
+        <Card className="border-border bg-card p-0 py-0 shadow-sm">
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <Button
@@ -219,7 +219,7 @@ export default function VehicleHistoryPage() {
                 <ChevronLeft className="h-5 w-5" />
               </Button>
 
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-secondary/50">
                 <Calendar className="h-4 w-4 text-primary" />
                 <div className="text-center">
                   <p className="text-sm font-semibold text-foreground">
@@ -231,6 +231,18 @@ export default function VehicleHistoryPage() {
                     </p>
                   )}
                 </div>
+                {/* Overlay Input Tanggal Kustom */}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedDate(e.target.value)
+                    }
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
               </div>
 
               <Button
