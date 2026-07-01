@@ -7,6 +7,8 @@ import {
   type MonthlyProfitSummary,
 } from "@/lib/monthly-report-pdf"
 
+export const maxDuration = 60
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ""
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || ""
 const SEPARATOR = "-".repeat(32)
