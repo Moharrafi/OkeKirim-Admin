@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -103,7 +105,7 @@ export default function VehicleHistoryPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().split("T")[0]
   })
-  const dateInputRef = useRef<HTMLInputElement>(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   useEffect(() => {
     if (!vehicleId) return
@@ -220,41 +222,40 @@ export default function VehicleHistoryPage() {
                 <ChevronLeft className="h-5 w-5" />
               </Button>
 
-              <div 
-                onClick={() => {
-                  try {
-                    dateInputRef.current?.showPicker()
-                  } catch (err) {
-                    dateInputRef.current?.click()
-                  }
-                }}
-                className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-secondary/50"
-              >
-                <Calendar className="h-4 w-4 text-primary" />
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-foreground">
-                    {isToday ? "Hari Ini" : formatDate(selectedDate)}
-                  </p>
-                  {isToday && (
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(selectedDate)}
-                    </p>
-                  )}
-                </div>
-                {/* Overlay Input Tanggal Kustom */}
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  value={selectedDate}
-                  max={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setSelectedDate(e.target.value)
-                    }
-                  }}
-                  className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                />
-              </div>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <div className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 active:scale-95 transition-all px-2 py-1 rounded-lg hover:bg-secondary/50">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-foreground">
+                        {isToday ? "Hari Ini" : formatDate(selectedDate)}
+                      </p>
+                      {isToday && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(selectedDate)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center">
+                  <CalendarComponent
+                    mode="single"
+                    selected={new Date(selectedDate)}
+                    onSelect={(date) => {
+                      if (date) {
+                        const localIsoDate = date.getFullYear() + "-" + 
+                          String(date.getMonth() + 1).padStart(2, '0') + "-" + 
+                          String(date.getDate()).padStart(2, '0')
+                        setSelectedDate(localIsoDate)
+                        setCalendarOpen(false)
+                      }
+                    }}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
 
               <Button
                 variant="ghost"
