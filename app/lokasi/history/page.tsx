@@ -238,7 +238,7 @@ export default function VehicleHistoryPage() {
                     </div>
                   </div>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="center">
+                <PopoverContent className="w-auto p-0 z-[10001]" align="center">
                   <CalendarComponent
                     mode="single"
                     selected={new Date(selectedDate)}
