@@ -279,7 +279,7 @@ export default function VehicleHistoryPage() {
         {/* Summary Stats */}
         {!loading && !error && historyData && historyData.trips && historyData.trips.length > 0 && (
           <div className="grid grid-cols-3 gap-3">
-            <Card className="border-border bg-card">
+            <Card className="border-border bg-card p-0 py-0 shadow-sm">
               <CardContent className="p-3 text-center">
                 <Route className="h-5 w-5 text-primary mx-auto mb-1" />
                 <p className="text-lg font-bold text-foreground">
@@ -288,7 +288,7 @@ export default function VehicleHistoryPage() {
                 <p className="text-xs text-muted-foreground">km</p>
               </CardContent>
             </Card>
-            <Card className="border-border bg-card">
+            <Card className="border-border bg-card p-0 py-0 shadow-sm">
               <CardContent className="p-3 text-center">
                 <Timer className="h-5 w-5 text-amber-500 mx-auto mb-1" />
                 <p className="text-lg font-bold text-foreground">
@@ -297,7 +297,7 @@ export default function VehicleHistoryPage() {
                 <p className="text-xs text-muted-foreground">durasi</p>
               </CardContent>
             </Card>
-            <Card className="border-border bg-card">
+            <Card className="border-border bg-card p-0 py-0 shadow-sm">
               <CardContent className="p-3 text-center">
                 <Navigation className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
                 <p className="text-lg font-bold text-foreground">

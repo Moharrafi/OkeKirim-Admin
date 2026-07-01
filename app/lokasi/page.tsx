@@ -528,7 +528,7 @@ export default function LokasiPage() {
             onClick={() => setSelectedVehicle(null)}
           />
           <div className="fixed inset-x-0 bottom-0 z-[60] pb-20 animate-in slide-in-from-bottom-4 duration-300">
-          <Card className="mx-4 border-border bg-card shadow-2xl">
+          <Card className="mx-4 border-border bg-card shadow-2xl p-0 py-0">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
