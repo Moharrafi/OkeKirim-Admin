@@ -346,7 +346,7 @@ export default function LokasiPage() {
         {/* Map */}
         <Card
           className={cn(
-            "border-border bg-card overflow-hidden transition-all duration-300",
+            "border-border bg-card overflow-hidden transition-all duration-300 p-0 py-0",
             mapExpanded && "!fixed !inset-0 !z-[9999] !m-0 !rounded-none !border-0"
           )}
         >
