@@ -360,6 +360,7 @@ export async function GET(request: NextRequest) {
       vehicle: name,
       date: date || new Date().toISOString().split("T")[0],
       trips,
+      points: navPoints,
       parkedLocation,
       totalDistance: Math.round(totalDistance * 100) / 100,
       totalDuration,

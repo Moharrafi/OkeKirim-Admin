@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import dynamic from "next/dynamic"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,18 @@ import {
   Fuel,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const HistoryMap = dynamic(() => import("@/components/history-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[350px] bg-muted rounded-xl">
+      <div className="text-center">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground">Memuat peta...</p>
+      </div>
+    </div>
+  ),
+})
 
 interface Trip {
   startTime: string
@@ -38,6 +51,12 @@ interface HistoryData {
   vehicle: string
   date: string
   trips: Trip[]
+  points?: {
+    lat: number
+    lng: number
+    speed: number
+    timestamp: string
+  }[]
   parkedLocation?: {
     address: string
     lat: number
@@ -289,6 +308,13 @@ export default function VehicleHistoryPage() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Peta Animasi Rute */}
+        {!loading && !error && historyData && historyData.points && historyData.points.length > 0 && (
+          <Card className="overflow-hidden border-border bg-card h-[400px] relative rounded-xl shadow-sm">
+            <HistoryMap points={historyData.points} />
+          </Card>
         )}
 
         {/* Fuel & Performance Insights */}
