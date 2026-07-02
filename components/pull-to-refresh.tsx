@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils"
 interface PullToRefreshProps {
   onRefresh: () => Promise<void>
   children: React.ReactNode
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
+export function PullToRefresh({ onRefresh, children, scrollContainerRef }: PullToRefreshProps) {
   const [pullDistance, setPullDistance] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const startY = useRef(0)
@@ -18,25 +19,33 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   const THRESHOLD = 80
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    // Only activate pull-to-refresh when page is scrolled to top
-    if (window.scrollY <= 0) {
+    const isAtTop = scrollContainerRef 
+      ? (scrollContainerRef.current ? scrollContainerRef.current.scrollTop <= 0 : true)
+      : window.scrollY <= 0
+
+    if (isAtTop) {
       startY.current = e.touches[0].clientY
       isPulling.current = true
     }
-  }, [])
+  }, [scrollContainerRef])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!isPulling.current || refreshing) return
     const currentY = e.touches[0].clientY
     const diff = currentY - startY.current
-    if (diff > 0 && window.scrollY <= 0) {
+    
+    const isAtTop = scrollContainerRef 
+      ? (scrollContainerRef.current ? scrollContainerRef.current.scrollTop <= 0 : true)
+      : window.scrollY <= 0
+
+    if (diff > 0 && isAtTop) {
       setPullDistance(Math.min(diff * 0.4, 120))
     } else {
       // User is scrolling up normally
       isPulling.current = false
       setPullDistance(0)
     }
-  }, [refreshing])
+  }, [refreshing, scrollContainerRef])
 
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling.current) return
@@ -61,7 +70,7 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="relative"
+      className="relative h-full"
     >
       {/* Pull indicator */}
       {(pullDistance > 0 || refreshing) && (
@@ -86,3 +95,4 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
     </div>
   )
 }
+

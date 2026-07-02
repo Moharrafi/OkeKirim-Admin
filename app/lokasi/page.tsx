@@ -1,15 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { MobileHeader } from "@/components/mobile-header"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-  Search,
   MapPin,
   Car,
   Battery,
@@ -27,7 +25,6 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PullToRefresh } from "@/components/pull-to-refresh"
-import { useDebounce } from "@/hooks/use-debounce"
 import { toast } from "sonner"
 
 const VehicleMap = dynamic(() => import("@/components/vehicle-map"), {
@@ -107,11 +104,11 @@ const getSignalBars = (signal: number) => {
 
 export default function LokasiPage() {
   const router = useRouter()
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState<string>("all")
   const [mapExpanded, setMapExpanded] = useState(false)
   const [lastFetch, setLastFetch] = useState<Date | null>(null)
@@ -212,14 +209,8 @@ export default function LokasiPage() {
     setSelectedVehicle(vehicleId)
   }
 
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
-
   const filteredVehicles = vehicles.filter((v) => {
-    const matchesSearch =
-      v.driver.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-      v.plate.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-    const matchesFilter = activeFilter === "all" || v.status === activeFilter
-    return matchesSearch && matchesFilter
+    return activeFilter === "all" || v.status === activeFilter
   })
 
   const selectedVehicleData = vehicles.find((v) => v.id === selectedVehicle)
@@ -231,292 +222,270 @@ export default function LokasiPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={() => fetchVehicles(true, true)}>
-    <div className="min-h-screen pb-24">
-      <MobileHeader title="Lokasi Kendaraan" />
+    <div className="h-screen flex flex-col overflow-hidden bg-background">
+      {/* Top Fixed Area (Header, Connection Status, Tabs, and Map) */}
+      <div className="flex-shrink-0 bg-background flex flex-col z-40">
+        <MobileHeader title="Lokasi Kendaraan" />
 
-      <div className={cn(
-        "px-4 py-4 space-y-4 transition-all duration-200",
-        selectedVehicleData && "blur-sm pointer-events-none"
-      )}>
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cari driver atau plat..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-card border-border pl-11 h-12 rounded-xl"
-          />
-        </div>
+        {/* Info & Tabs */}
+        <div className={cn(
+          "px-4 pt-3 pb-2 space-y-3 transition-all duration-200 bg-background",
+          selectedVehicleData && "pointer-events-none"
+        )}>
 
-        {/* GPS Connection Status */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {error ? (
-              <WifiOff className="h-3.5 w-3.5 text-red-500" />
-            ) : (
-              <Wifi className="h-3.5 w-3.5 text-emerald-500" />
-            )}
-            <span>
-              {error
-                ? "GPS Offline"
-                : lastFetch
-                  ? `GlonassSoft • ${lastFetch.toLocaleTimeString("id-ID")}`
-                  : "Menghubungkan..."}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => fetchVehicles(true, true)}
-              disabled={refreshing}
-            >
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />
-              Refresh
-            </Button>
-          </div>
-        </div>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Memuat data GPS...</p>
+          {/* GPS Connection Status */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {error ? (
+                <WifiOff className="h-3.5 w-3.5 text-red-500" />
+              ) : (
+                <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+              )}
+              <span>
+                {error
+                  ? "GPS Offline"
+                  : lastFetch
+                    ? `GlonassSoft • ${lastFetch.toLocaleTimeString("id-ID")}`
+                    : "Menghubungkan..."}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => fetchVehicles(true, true)}
+                disabled={refreshing}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />
+                Refresh
+              </Button>
             </div>
           </div>
-        )}
 
-        {/* Error State */}
-        {error && !loading && (
-          <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950">
-            <CardContent className="p-4 text-center">
-              <WifiOff className="h-8 w-8 text-red-500 mx-auto mb-2" />
-              <p className="text-sm font-medium text-red-700 dark:text-red-400">{error}</p>
+          {/* Loading State inline */}
+          {loading && (
+            <div className="flex items-center justify-center py-2">
+              <div className="text-center">
+                <div className="animate-spin h-6 w-6 border-4 border-primary border-t-transparent rounded-full mx-auto mb-1" />
+                <p className="text-xs text-muted-foreground">Memuat data GPS...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State inline */}
+          {error && !loading && (
+            <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950 p-2 text-center text-xs">
+              <span className="text-red-700 dark:text-red-400 font-medium">{error}</span>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-3"
+                className="ml-2 h-7 py-1 px-3 text-xs"
                 onClick={() => fetchVehicles()}
               >
                 Coba Lagi
               </Button>
-            </CardContent>
-          </Card>
-        )}
+            </Card>
+          )}
 
-        {!loading && !error && (
-          <>
+          {!loading && !error && (
+            /* Filter Tabs */
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
+              {[
+                { key: "all", label: "Semua" },
+                { key: "active", label: "Aktif" },
+                { key: "idle", label: "Diam" },
+                { key: "offline", label: "Offline" },
+              ].map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => {
+                    setActiveFilter(filter.key)
+                    if (filter.key === "all") {
+                      setFitAllMarkers(true)
+                      setSelectedVehicle(null)
+                    }
+                  }}
+                  className={cn(
+                    "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all",
+                    activeFilter === filter.key
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-white text-muted-foreground border border-border shadow-sm"
+                  )}
+                >
+                  {filter.label}
+                  <span className="ml-1.5 opacity-70">
+                    {statusCounts[filter.key as keyof typeof statusCounts]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* Filter Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-          {[
-            { key: "all", label: "Semua" },
-            { key: "active", label: "Aktif" },
-            { key: "idle", label: "Diam" },
-            { key: "offline", label: "Offline" },
-          ].map((filter) => (
-            <button
-              key={filter.key}
-              onClick={() => {
-                setActiveFilter(filter.key)
-                if (filter.key === "all") {
-                  setFitAllMarkers(true)
-                  setSelectedVehicle(null)
-                }
-              }}
+        {/* Map - NEVER Blurred, pointer-events-none when vehicle is selected */}
+        <div className={cn(
+          "w-full bg-background transition-all duration-200 border-b border-border/85",
+          selectedVehicleData && "pointer-events-none"
+        )}>
+          {!loading && !error && (
+            <div
               className={cn(
-                "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all",
-                activeFilter === filter.key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-white text-muted-foreground border border-border shadow-sm"
+                "overflow-hidden transition-all duration-300",
+                mapExpanded && "!fixed !inset-0 !z-[9999] !m-0 !rounded-none !border-0"
               )}
             >
-              {filter.label}
-              <span className="ml-1.5 opacity-70">
-                {statusCounts[filter.key as keyof typeof statusCounts]}
-              </span>
-            </button>
-          ))}
-        </div>
+              <div className={cn("relative w-full", mapExpanded ? "h-screen" : "h-72")}>
+                <VehicleMap
+                  vehicles={filteredVehicles}
+                  selectedVehicle={selectedVehicle}
+                  onMarkerClick={handleMarkerClick}
+                  expanded={mapExpanded}
+                  fitAll={fitAllMarkers}
+                  onFitComplete={() => setFitAllMarkers(false)}
+                />
 
-        {/* Map */}
-        <Card
-          className={cn(
-            "border-border bg-card overflow-hidden transition-all duration-300 p-0 py-0",
-            mapExpanded && "!fixed !inset-0 !z-[9999] !m-0 !rounded-none !border-0"
+                {/* Map Controls */}
+                <div className="absolute top-3 right-3 flex flex-col gap-2 z-[10000] pointer-events-auto">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-9 w-9 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md border-0"
+                    onClick={() => setMapExpanded(!mapExpanded)}
+                  >
+                    {mapExpanded ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  </Button>
+                </div>
+
+                {/* Legend */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-3 px-3 py-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md z-[10000] pointer-events-auto">
+                  {["active", "idle", "offline"].map((status) => {
+                    const config = getStatusConfig(status)
+                    return (
+                      <div key={status} className="flex items-center gap-1.5 text-xs">
+                        <span className={cn("h-2 w-2 rounded-full", config.color)} />
+                        <span className="text-slate-600 dark:text-slate-300">{config.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
           )}
-        >
-          <div className={cn("relative w-full", mapExpanded ? "h-screen" : "h-72")}>
-            <VehicleMap
-              vehicles={filteredVehicles}
-              selectedVehicle={selectedVehicle}
-              onMarkerClick={handleMarkerClick}
-              expanded={mapExpanded}
-              fitAll={fitAllMarkers}
-              onFitComplete={() => setFitAllMarkers(false)}
-            />
+        </div>
+      </div>
 
-            {/* Map Controls */}
-            <div className="absolute top-3 right-3 flex flex-col gap-2 z-[10000] pointer-events-auto">
-              <Button
-                variant="secondary"
-                size="icon"
-                className="h-9 w-9 rounded-lg bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md border-0"
-                onClick={() => setMapExpanded(!mapExpanded)}
-              >
-                {mapExpanded ? <X className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </Button>
-            </div>
+      {/* Scrollable Vehicle List Container (wrapped in custom PullToRefresh) */}
+      <div className="flex-1 min-h-0 relative">
+        <PullToRefresh onRefresh={() => fetchVehicles(true, true)} scrollContainerRef={scrollContainerRef}>
+          <div
+            ref={scrollContainerRef}
+            className={cn(
+              "h-full overflow-y-auto px-4 py-4 space-y-3 pb-[calc(env(safe-area-inset-bottom,0px)+80px)] transition-all duration-200",
+              selectedVehicleData && "pointer-events-none"
+            )}
+          >
+            {!loading && !error && (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-foreground">Daftar Kendaraan</h3>
+                  <span className="text-sm text-muted-foreground">
+                    {filteredVehicles.length} kendaraan
+                  </span>
+                </div>
 
-            {/* Legend */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-3 px-3 py-1.5 rounded-full bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-md z-[10000] pointer-events-auto">
-              {["active", "idle", "offline"].map((status) => {
-                const config = getStatusConfig(status)
-                return (
-                  <div key={status} className="flex items-center gap-1.5 text-xs">
-                    <span className={cn("h-2 w-2 rounded-full", config.color)} />
-                    <span className="text-slate-600 dark:text-slate-300">{config.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </Card>
-
-        {/* Vehicle List */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground">Daftar Kendaraan</h3>
-            <span className="text-sm text-muted-foreground">
-              {filteredVehicles.length} kendaraan
-            </span>
-          </div>
-
-          {filteredVehicles.map((vehicle) => {
-            const statusConfig = getStatusConfig(vehicle.status)
-            return (
-              <Card
-                key={vehicle.id}
-                className={cn(
-                  "border-border bg-card transition-all cursor-pointer hover:border-primary/50",
-                  selectedVehicle === vehicle.id && "border-primary ring-2 ring-primary/20"
-                )}
-                onClick={() => handleListClick(vehicle.id)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="relative">
-                      <Avatar
-                        className="h-12 w-12 flex-shrink-0 ring-2 ring-offset-2 ring-offset-background"
-                        style={{
-                          // @ts-expect-error - custom ring color
-                          "--tw-ring-color":
-                            vehicle.status === "active"
-                              ? "rgb(16 185 129)"
-                              : vehicle.status === "idle"
-                                ? "rgb(245 158 11)"
-                                : "rgb(148 163 184)",
-                        }}
-                      >
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold uppercase">
-                          {(() => {
-                            const match = (vehicle.driver || "").trim().match(/[A-Za-z]+$/)
-                            return match ? match[0] : (vehicle.driver || "").substring(0, 3)
-                          })()}
-                        </AvatarFallback>
-                      </Avatar>
-                      {vehicle.status === "active" && (
-                        <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-                          <Navigation className="h-2 w-2 text-white" />
-                        </span>
+                {filteredVehicles.map((vehicle) => {
+                  const statusConfig = getStatusConfig(vehicle.status)
+                  return (
+                    <Card
+                      key={vehicle.id}
+                      className={cn(
+                        "border-border bg-card transition-all cursor-pointer hover:border-primary/50 shadow-sm hover:shadow-md",
+                        selectedVehicle === vehicle.id && "border-primary ring-2 ring-primary/20"
                       )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="font-semibold text-foreground truncate">{vehicle.driver}</p>
-                        <div
-                          className={cn(
-                            "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium",
-                            vehicle.status === "active" &&
-                              "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                            vehicle.status === "idle" &&
-                              "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-                            vehicle.status === "offline" &&
-                              "bg-slate-500/10 text-slate-600 dark:text-slate-400"
-                          )}
-                        >
-                          <span className={cn("h-1.5 w-1.5 rounded-full", statusConfig.color)} />
-                          {statusConfig.label}
-                        </div>
-                      </div>
-
-                      <p className="text-sm text-muted-foreground mb-2">{vehicle.plate}</p>
-
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-                        <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
-                        <span className="truncate">{vehicle.location}</span>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-secondary">
-                            <Navigation className="h-3 w-3 text-muted-foreground" />
+                      onClick={() => handleListClick(vehicle.id)}
+                    >
+                      <CardContent className="p-4">
+                        {/* Row 1: Header (Avatar, Driver Name, Plate & Status) */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative shrink-0">
+                              <Avatar className="h-9 w-9 border border-border">
+                                <AvatarFallback className="bg-primary/5 text-primary text-xs font-semibold">
+                                  {vehicle.driver
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span
+                                className={cn(
+                                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background",
+                                  statusConfig.color
+                                )}
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm text-foreground truncate">
+                                {vehicle.driver}
+                              </p>
+                              <span className="text-[10px] font-mono font-bold text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/40 inline-block mt-0.5">
+                                {vehicle.plate}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-foreground font-medium">{vehicle.speed}</span>
-                          <span className="text-muted-foreground">km/h</span>
-                        </div>
 
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <div
+                          <span
                             className={cn(
-                              "flex items-center justify-center w-6 h-6 rounded-full",
-                              vehicle.battery > 50
-                                ? "bg-emerald-500/10"
-                                : vehicle.battery > 20
-                                  ? "bg-amber-500/10"
-                                  : "bg-red-500/10"
+                              "text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0",
+                              vehicle.status === "active"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : vehicle.status === "idle"
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                  : "bg-slate-500/10 text-slate-600 dark:text-slate-400"
                             )}
                           >
-                            <Battery
-                              className={cn(
-                                "h-3 w-3",
-                                vehicle.battery > 50
-                                  ? "text-emerald-500"
-                                  : vehicle.battery > 20
-                                    ? "text-amber-500"
-                                    : "text-red-500"
-                              )}
-                            />
-                          </div>
-                          <span className="text-foreground font-medium">{vehicle.battery}%</span>
+                            {statusConfig.label}
+                          </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-secondary">
-                            <Signal className="h-3 w-3 text-muted-foreground" />
-                          </div>
-                          {getSignalBars(vehicle.signal)}
+                        {/* Row 2: Location Address */}
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground my-3">
+                          <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="truncate text-foreground/80">{vehicle.location || "Lokasi tidak diketahui"}</span>
                         </div>
 
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
-                          <Clock className="h-3 w-3" />
-                          {vehicle.lastUpdate}
+                        {/* Row 3: Stats Footer */}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground border-t border-border/50 pt-3">
+                          <div className="flex items-center gap-1">
+                            <Navigation className="h-3.5 w-3.5 rotate-45 text-muted-foreground" />
+                            <span className="font-medium text-foreground/80">{vehicle.speed} km/h</span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <Battery className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-medium text-foreground/80">{vehicle.battery}%</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <Signal className="h-3.5 w-3.5 text-muted-foreground" />
+                            {getSignalBars(vehicle.signal)}
+                          </div>
+
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground ml-auto">
+                            <Clock className="h-3 w-3" />
+                            {vehicle.lastUpdate}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-        </>
-        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        </PullToRefresh>
       </div>
 
       {/* Vehicle Detail Sheet */}
@@ -527,9 +496,12 @@ export default function LokasiPage() {
             className="fixed inset-0 z-[55] bg-black/20 animate-in fade-in duration-200"
             onClick={() => setSelectedVehicle(null)}
           />
-          <div className="fixed inset-x-0 bottom-0 z-[60] pb-20 animate-in slide-in-from-bottom-4 duration-300">
-          <Card className="mx-4 border-border bg-card shadow-2xl p-0 py-0">
-            <CardContent className="p-4">
+          <div className="fixed inset-x-0 bottom-0 z-[60] animate-in slide-in-from-bottom duration-300">
+          <Card className="w-full border-t border-x-0 border-b-0 rounded-t-3xl rounded-b-none p-0 py-0 shadow-[0_-8px_32px_rgba(15,23,42,0.12)] bg-card pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
+            <CardContent className="p-4 pt-3">
+              {/* Drag Handle */}
+              <div className="w-12 h-1.5 bg-muted rounded-full mx-auto mb-4" />
+
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="relative">
@@ -669,6 +641,5 @@ export default function LokasiPage() {
         </>
       )}
     </div>
-    </PullToRefresh>
   )
 }

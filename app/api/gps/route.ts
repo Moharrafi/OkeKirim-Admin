@@ -17,13 +17,29 @@ interface GlonassVehicle {
   number?: string
   StateNumber?: string
   GarageNumber?: string
+  lastMessageReceiveTime?: string
+}
+
+let lastRequestTime = 0
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function throttledFetch(url: string, options?: RequestInit) {
+  const now = Date.now()
+  const elapsed = now - lastRequestTime
+  if (elapsed < 1000) {
+    await sleep(1000 - elapsed)
+  }
+  lastRequestTime = Date.now()
+  return fetch(url, options)
 }
 
 async function login(): Promise<string | null> {
   if (!USERNAME || !PASSWORD) return null
 
   try {
-    const resp = await fetch(`${BASE_URL}/api/v3/auth/login`, {
+    const resp = await throttledFetch(`${BASE_URL}/api/v3/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ login: USERNAME, password: PASSWORD }),
@@ -45,7 +61,7 @@ async function getVehicles(token: string): Promise<GlonassVehicle[]> {
   }
 
   try {
-    const resp = await fetch(`${BASE_URL}/api/vehicles?AuthId=${token}`, {
+    const resp = await throttledFetch(`${BASE_URL}/api/vehicles?AuthId=${token}`, {
       headers,
     })
     if (!resp.ok) return []
@@ -55,17 +71,6 @@ async function getVehicles(token: string): Promise<GlonassVehicle[]> {
   } catch {
     return []
   }
-}
-
-async function getLastPosition(
-  token: string,
-  vehicleId: number
-): Promise<{ lat: number; lng: number; speed: number; timestamp: string } | null> {
-  return getHistoryPosition(token, vehicleId, 2)
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function getHistoryPosition(
@@ -89,7 +94,7 @@ async function getHistoryPosition(
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const resp = await fetch(
+      const resp = await throttledFetch(
         `${BASE_URL}/api/history/points?${params.toString()}`,
         { headers }
       )
@@ -102,16 +107,19 @@ async function getHistoryPosition(
             return position
           }
         }
+      } else if (resp.status === 429) {
+        await sleep(1500)
       }
     } catch {
-      // Retry below. GlonassSoft history calls can fail intermittently under load.
+      // Retry
     }
 
-    await sleep(250 * (attempt + 1))
+    await sleep(200 * (attempt + 1))
   }
 
   return null
 }
+
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -153,7 +161,8 @@ function normalizeVehicle(
     return {
       id: vid, name, plate, phone,
       lat: 0, lng: 0, speed: 0, course: 0,
-      lastUpdate: "", status: "offline",
+      lastUpdate: v.lastMessageReceiveTime || "",
+      status: "offline",
       address: "Tidak ada sinyal GPS",
     }
   }
@@ -213,7 +222,7 @@ function parsePositionFromText(text: string): { lat: number; lng: number; speed:
 
 async function logout(token: string) {
   try {
-    await fetch(`${BASE_URL}/api/v3/auth/logout`, {
+    await throttledFetch(`${BASE_URL}/api/v3/auth/logout`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -257,6 +266,33 @@ let gpsRefreshPromise: Promise<unknown> | null = null
 const GPS_CACHE_TTL = 30000
 const GPS_STALE_TTL = 5 * 60000
 
+async function getOptimizedLastPosition(
+  token: string,
+  vehicleId: number,
+  lastMessageReceiveTime: string | undefined
+): Promise<{ lat: number; lng: number; speed: number; timestamp: string } | null> {
+  if (!lastMessageReceiveTime) return null
+
+  const lastUpdate = new Date(lastMessageReceiveTime)
+  const now = new Date()
+  const diffHours = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60)
+
+  // Skip if older than 7 days (168 hours)
+  if (diffHours > 168) {
+    return null
+  }
+
+  // Determine starting daysBack based on lastMessageReceiveTime
+  let daysBack = 0.16 // 4 hours
+  if (diffHours > 4 && diffHours <= 24) {
+    daysBack = 1 // 24 hours
+  } else if (diffHours > 24) {
+    daysBack = 7 // 7 days
+  }
+
+  return getHistoryPosition(token, vehicleId, daysBack)
+}
+
 async function buildGpsResponse() {
   const token = await login()
   if (!token) {
@@ -288,11 +324,7 @@ async function buildGpsResponse() {
       const numId = v.vehicleId
       if (!numId) return normalizeVehicle(v, null, driverMap)
 
-      let pos = await getLastPosition(token, numId)
-
-      if (!pos || (pos.lat === 0 && pos.lng === 0)) {
-        pos = await getLastPositionExtended(token, numId)
-      }
+      const pos = await getOptimizedLastPosition(token, numId, v.lastMessageReceiveTime)
 
       return normalizeVehicle(v, pos, driverMap)
     })

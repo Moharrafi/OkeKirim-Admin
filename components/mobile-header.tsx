@@ -361,7 +361,7 @@ export function MobileHeader({
 
       {/* Full-screen Notification Panel */}
       {showNotifications && (
-        <div className="fixed inset-0 z-50 animate-slide-in-right">
+        <div className="fixed inset-0 z-[10000] animate-slide-in-right">
           <div className="flex h-full flex-col bg-background">
             {/* Notification Header */}
             <div className="safe-area-top sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur-xl">
