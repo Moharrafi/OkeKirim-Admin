@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 interface Debt {
   id: number
@@ -82,6 +83,18 @@ export default function HutangPage() {
   const [payAmount, setPayAmount] = useState("")
   const [payDate, setPayDate] = useState("")
   const [payNotes, setPayNotes] = useState("")
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+  }>({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  })
 
   useEffect(() => {
     if (!isAuthenticated) router.push("/login")
@@ -223,36 +236,48 @@ export default function HutangPage() {
   }
 
   const handleDeleteDebt = async (id: number) => {
-    if (!confirm("Hapus data kasbon ini dan seluruh riwayat pembayarannya?")) return
-    try {
-      const res = await fetch("/api/debts", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, type: "debt" })
-      })
-      if (res.ok) {
-        setDebts(prev => prev.filter(d => d.id !== id))
-        setPayments(prev => prev.filter(p => p.debt_id !== id))
+    setConfirmDialog({
+      open: true,
+      title: "Hapus Kasbon?",
+      message: "Hapus data kasbon ini dan seluruh riwayat pembayarannya?",
+      onConfirm: async () => {
+        try {
+          const res = await fetch("/api/debts", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, type: "debt" })
+          })
+          if (res.ok) {
+            setDebts(prev => prev.filter(d => d.id !== id))
+            setPayments(prev => prev.filter(p => p.debt_id !== id))
+          }
+        } catch (err) {
+          console.error(err)
+        }
       }
-    } catch (err) {
-      console.error(err)
-    }
+    })
   }
 
   const handleDeletePayment = async (paymentId: number) => {
-    if (!confirm("Hapus catatan pembayaran ini?")) return
-    try {
-      const res = await fetch("/api/debts", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: paymentId, type: "payment" })
-      })
-      if (res.ok) {
-        await refreshData(false)
+    setConfirmDialog({
+      open: true,
+      title: "Hapus Pembayaran?",
+      message: "Hapus catatan pembayaran ini?",
+      onConfirm: async () => {
+        try {
+          const res = await fetch("/api/debts", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: paymentId, type: "payment" })
+          })
+          if (res.ok) {
+            await refreshData(false)
+          }
+        } catch (err) {
+          console.error(err)
+        }
       }
-    } catch (err) {
-      console.error(err)
-    }
+    })
   }
 
   const resetAddForm = () => {
@@ -706,6 +731,20 @@ export default function HutangPage() {
             </div>
           </div>
         )}
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          open={confirmDialog.open}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.title.toLowerCase().includes("hapus") ? "Ya, Hapus" : "Ya, Lanjutkan"}
+          cancelText="Batal"
+          onConfirm={() => {
+            confirmDialog.onConfirm()
+            setConfirmDialog(prev => ({ ...prev, open: false }))
+          }}
+          onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        />
       </div>
     </PullToRefresh>
   )

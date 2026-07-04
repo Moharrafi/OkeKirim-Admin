@@ -16,6 +16,7 @@ import {
   Smartphone,
   Banknote,
   Clock,
+  FileText,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -277,6 +278,7 @@ export default function DashboardPage() {
         { label: "Orderan", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
         { label: "Lokasi", sublabel: "Peta Armada", href: "/lokasi", icon: MapPin, tone: "blue" as const },
         { label: "Service", sublabel: "Servis Truk", href: "/service", icon: Wrench, tone: "amber" as const },
+        { label: "Dokumen", sublabel: "KIR & Pajak", href: "/documents", icon: FileText, tone: "green" as const },
       ]
     : [
         { label: "Setor", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
@@ -314,25 +316,25 @@ export default function DashboardPage() {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
     <div className="min-h-screen pb-28">
-      <MobileHeader title="Beranda" overdueCount={data?.overdueCount || 0} variant="dark" />
+      <MobileHeader title="OkeMitra" overdueCount={data?.overdueCount || 0} variant="dark" />
 
       <main className="px-4 py-4 space-y-5">
-        {/* Immersive Dark Fintech Header Panel */}
-        <div className="relative bg-slate-950 text-white dark:bg-indigo-950/80 pb-20 pt-5 px-4 -mx-4 -mt-4 rounded-b-[32px] shadow-lg overflow-hidden border-b border-white/5">
+        {/* Immersive Blue Fintech Header Panel */}
+        <div className="relative bg-primary text-white pb-20 pt-5 px-4 -mx-4 -mt-4 rounded-b-none shadow-md overflow-hidden border-none">
           {/* Radial color glows for deep luxury finish */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_60%)] pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(6,182,212,0.1),transparent_50%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_50%)] pointer-events-none" />
           {/* Decorative mesh vector grids */}
           <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
 
-          {/* Sapaan & Profil Row inside the Dark Panel */}
+          {/* Sapaan & Profil Row inside the Blue Panel */}
           <div className="relative z-10 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-indigo-300 font-extrabold text-sm border border-white/20 shadow-inner">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white font-extrabold text-sm border border-white/20 shadow-inner">
                   {user.name.split(" ").map(n => n[0]).join("")}
                 </div>
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-slate-950 dark:border-indigo-950 animate-pulse" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-primary animate-pulse" />
               </div>
               <div className="min-w-0">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-300 tracking-wider">
@@ -352,25 +354,25 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Futuristic Glassmorphic Wallet Card */}
+        {/* Unified Wallet Card */}
         <div className="relative -mt-16 mx-0 z-10 px-0">
-          <div className="relative rounded-3xl bg-slate-900/70 dark:bg-slate-950/50 backdrop-blur-xl text-white shadow-2xl p-5 overflow-hidden border border-white/10 before:absolute before:inset-0 before:pointer-events-none before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_50%)]">
+          <div className="relative rounded-3xl bg-card text-foreground shadow-xl p-5 overflow-hidden border border-border/80">
             
             {/* Header Switcher Row inside E-Wallet Card */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-3 mb-4">
-              <span className="text-[10px] font-extrabold tracking-wider text-slate-300 uppercase">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3 mb-4">
+              <span className="text-[10px] font-extrabold tracking-wider text-muted-foreground uppercase">
                 {statsTab === "monthly" 
                   ? (isAdmin ? "Laba Bersih Perusahaan" : "Total Pendapatan Supir")
                   : (isAdmin ? "Setoran Hari Ini" : "Pendapatan Hari Ini")}
               </span>
-              <div className="flex rounded-full bg-white/5 p-0.5 border border-white/10">
+              <div className="flex rounded-full bg-secondary p-0.5 border border-border/60">
                 <button
                   onClick={() => setStatsTab("monthly")}
                   className={cn(
                     "px-3 py-1 rounded-full text-[9px] font-extrabold transition-all",
                     statsTab === "monthly" 
-                      ? "bg-indigo-600 text-white shadow-sm" 
-                      : "text-slate-300 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Bulan Ini
@@ -380,8 +382,8 @@ export default function DashboardPage() {
                   className={cn(
                     "px-3 py-1 rounded-full text-[9px] font-extrabold transition-all",
                     statsTab === "daily" 
-                      ? "bg-indigo-600 text-white shadow-sm" 
-                      : "text-slate-300 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Hari Ini
@@ -393,42 +395,42 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xs font-bold text-slate-400">IDR</span>
-                  <p className="text-3xl font-black leading-none tracking-tight text-white">
+                  <span className="text-xs font-bold text-muted-foreground">IDR</span>
+                  <p className="text-3xl font-black leading-none tracking-tight text-foreground">
                     {loading ? "..." : formatRupiah(activeAmount)}
                   </p>
                 </div>
                 <div className="mt-3 flex items-center gap-1.5">
                   {statsTab === "monthly" && trend ? (
                     <>
-                      <div className={cn("flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold", trend.isUp ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300")}>
+                      <div className={cn("flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold", trend.isUp ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-600")}>
                         {trend.isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                         <span>{trend.isUp ? "+" : ""}{trend.percent}%</span>
                       </div>
-                      <span className="text-[10px] text-slate-300/70 font-medium">vs bulan lalu</span>
+                      <span className="text-[10px] text-muted-foreground font-medium">vs bulan lalu</span>
                     </>
                   ) : (
-                    <span className="text-[10px] text-slate-300/70 font-medium">
+                    <span className="text-[10px] text-muted-foreground font-medium">
                       {loading ? "Memuat..." : statsTab === "daily" ? "Akumulasi hari ini" : "Data berjalan bulan ini"}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 border border-white/10 shadow-inner">
-                <Wallet className="h-5 w-5 text-indigo-300" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 shadow-xs">
+                <Wallet className="h-5 w-5" />
               </div>
             </div>
 
             {/* Small metrics info row */}
-            <div className="mt-5 flex gap-4 text-[10px] text-slate-300/80 border-t border-white/5 pt-3">
+            <div className="mt-5 flex gap-4 text-[10px] text-muted-foreground border-t border-border/50 pt-3">
               <div>
                 <span className="opacity-75">Trip: </span>
-                <strong className="text-white font-bold">{loading ? "..." : activeTripsCount}</strong>
+                <strong className="text-foreground font-extrabold">{loading ? "..." : activeTripsCount}</strong>
               </div>
-              <div className="h-3 w-px bg-white/10" />
+              <div className="h-3 w-px bg-border/60" />
               <div>
                 <span className="opacity-75">{isAdmin ? "Driver Aktif: " : "Argo Berjalan: "}</span>
-                <strong className="text-white font-bold">
+                <strong className="text-foreground font-extrabold">
                   {loading
                     ? "..."
                     : isAdmin
@@ -440,11 +442,30 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Dock-style Quick Actions Hub */}
-        <div className="flex gap-3 justify-between items-stretch">
-          {quickActions.map((action) => (
-            <QuickActionTile key={action.href} {...action} />
-          ))}
+        {/* Unified Quick Actions Card (DANA style) */}
+        <div className="rounded-3xl border border-border/70 bg-card shadow-[0_4px_16px_rgba(0,0,0,0.02)] p-3 flex justify-between items-center gap-1">
+          {quickActions.map((action) => {
+            const config = toneClass[action.tone]
+            return (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="flex-1 flex flex-col items-center justify-center gap-1.5 py-0.5 active:scale-[0.96] transition-all text-center group"
+              >
+                <div className={cn(
+                  "flex h-11 w-11 items-center justify-center rounded-2xl shadow-xs border transition-all duration-200 group-hover:scale-105",
+                  config.soft,
+                  "border-border/30"
+                )}>
+                  <action.icon className="h-4.5 w-4.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-[11px] font-extrabold text-foreground leading-tight group-hover:text-blue-600 transition-colors">{action.label}</p>
+                  <p className="text-[8px] text-muted-foreground font-medium leading-none">{action.sublabel}</p>
+                </div>
+              </Link>
+            )
+          })}
         </div>
 
         {loading && (

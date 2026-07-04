@@ -293,24 +293,24 @@ export function MobileHeader({
     <>
       <header 
         className={cn(
-          "safe-area-top sticky top-0 z-40 backdrop-blur-xl transition-colors", 
+          "safe-area-top sticky top-0 z-40 transition-colors", 
           variant === "dark" 
-            ? "bg-slate-950 dark:bg-indigo-950/80 border-none text-white" 
-            : "border-b border-border/60 bg-background/95 text-foreground"
+            ? "bg-primary border-none text-white shadow-none" 
+            : "bg-primary text-white border-none shadow-xs"
         )}
         role="banner"
       >
         <div className="flex min-h-[60px] items-center justify-between px-4 py-2.5">
           {showGreeting ? (
             <div className="flex items-center gap-3">
-              <Avatar className={cn("h-11 w-11 border", variant === "dark" ? "border-white/10 bg-white/5" : "border-primary/20 bg-primary/10")}>
-                <AvatarFallback className={cn("font-semibold", variant === "dark" ? "bg-white/5 text-indigo-300" : "bg-primary/10 text-primary")}>
+              <Avatar className={cn("h-11 w-11 border", variant === "dark" ? "border-white/10 bg-white/5" : "border-white/20 bg-white/10")}>
+                <AvatarFallback className={cn("font-semibold", variant === "dark" ? "bg-white/5 text-indigo-300" : "bg-white/10 text-white")}>
                   {user.name.split(" ").map(n => n[0]).join("")}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <p className={cn("text-[11px] font-medium", variant === "dark" ? "text-slate-300" : "text-muted-foreground")}>Selamat datang</p>
-                <p className={cn("text-base font-semibold leading-tight", variant === "dark" ? "text-white" : "text-foreground")}>{user.name}</p>
+                <p className={cn("text-[11px] font-medium", variant === "dark" ? "text-slate-300" : "text-blue-100")}>Selamat datang</p>
+                <p className="text-base font-semibold leading-tight text-white">{user.name}</p>
               </div>
             </div>
           ) : showBack ? (
@@ -318,29 +318,29 @@ export function MobileHeader({
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className={cn("-ml-2 h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-white hover:bg-white/10" : "text-foreground")}
+                className={cn("-ml-2 h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-white hover:bg-white/10" : "text-white hover:bg-white/10")}
                 onClick={onBack}
                 aria-label="Kembali"
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </Button>
-              <h1 className={cn("text-lg font-bold", variant === "dark" ? "text-white" : "text-foreground")}>{title}</h1>
+              <h1 className="text-lg font-bold text-white">{title}</h1>
             </div>
           ) : (
-            <h1 className={cn("text-lg font-bold", variant === "dark" ? "text-white" : "text-foreground")}>{title}</h1>
+            <h1 className="text-lg font-bold text-white">{title}</h1>
           )}
           <div className="flex items-center gap-1">
             <Button 
               variant="ghost" 
               size="icon" 
-              className={cn("relative h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-muted-foreground")} 
+              className={cn("relative h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-blue-100 hover:text-white hover:bg-white/10")} 
               aria-label="Notifikasi"
               onClick={handleBellClick}
             >
               <Bell className="h-5 w-5" aria-hidden="true" />
               {hasUnread && (
                 <span
-                  className={cn("absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2", variant === "dark" ? "ring-slate-950 dark:ring-indigo-950" : "ring-background")}
+                  className={cn("absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2", variant === "dark" ? "ring-slate-950 dark:ring-indigo-950" : "ring-blue-600")}
                   aria-label="Ada notifikasi baru"
                 />
               )}
@@ -349,7 +349,7 @@ export function MobileHeader({
               <Button 
                 variant="ghost" 
                 size="icon" 
-                className={cn("h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-muted-foreground")} 
+                className={cn("h-10 w-10 rounded-lg transition-colors", variant === "dark" ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-blue-100 hover:text-white hover:bg-white/10")} 
                 aria-label="Pengaturan"
               >
                 <Settings className="h-5 w-5" aria-hidden="true" />
@@ -364,20 +364,20 @@ export function MobileHeader({
         <div className="fixed inset-0 z-[10000] animate-slide-in-right">
           <div className="flex h-full flex-col bg-background">
             {/* Notification Header */}
-            <div className="safe-area-top sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur-xl">
+            <div className="safe-area-top sticky top-0 z-10 bg-primary text-white border-none shadow-sm">
               <div className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-10 w-10 rounded-lg text-foreground"
+                  className="h-10 w-10 rounded-lg text-white hover:bg-white/10"
                   onClick={() => setShowNotifications(false)}
                   aria-label="Kembali"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <div className="flex-1">
-                  <h1 className="text-lg font-bold text-foreground">Notifikasi</h1>
-                  <p className="text-[11px] text-muted-foreground">
+                  <h1 className="text-lg font-bold text-white">Notifikasi</h1>
+                  <p className="text-[11px] text-blue-100 font-medium">
                     {overdueOrders.length > 0
                       ? `${overdueOrders.length} notifikasi`
                       : loadingNotifs ? "Memuat..." : "Tidak ada notifikasi"
@@ -388,7 +388,7 @@ export function MobileHeader({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-primary"
+                    className="text-xs text-white hover:bg-white/10 font-semibold"
                     onClick={async () => {
                       try {
                         await fetch("/api/notifications", {

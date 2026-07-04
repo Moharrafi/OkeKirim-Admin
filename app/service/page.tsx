@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useUser } from "@/lib/user-context"
 import { PullToRefresh } from "@/components/pull-to-refresh"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import {
   PieChart,
   Pie,
@@ -65,6 +66,18 @@ export default function ServicePage() {
   const [filter, setFilter] = useState<"active" | "done">("active")
   const [viewNota, setViewNota] = useState<string | null>(null)
   const [loadingReceiptId, setLoadingReceiptId] = useState<number | null>(null)
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+  }>({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  })
   const [drivers, setDrivers] = useState<Array<{ id: number; name: string; vehicle: string | null; status: string }>>([])
 
   useEffect(() => {
@@ -163,13 +176,19 @@ export default function ServicePage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Hapus service ini?")) return
-    await fetch("/api/services", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+    setConfirmDialog({
+      open: true,
+      title: "Hapus Servis?",
+      message: "Hapus service ini?",
+      onConfirm: async () => {
+        await fetch("/api/services", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        })
+        setServices(prev => prev.filter(s => s.id !== id))
+      }
     })
-    setServices(prev => prev.filter(s => s.id !== id))
   }
 
   const resetForm = () => {
@@ -795,6 +814,19 @@ export default function ServicePage() {
           </div>
         </div>
       )}
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.title.toLowerCase().includes("hapus") ? "Ya, Hapus" : "Ya, Lanjutkan"}
+        cancelText="Batal"
+        onConfirm={() => {
+          confirmDialog.onConfirm()
+          setConfirmDialog(prev => ({ ...prev, open: false }))
+        }}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+      />
     </div>
     </PullToRefresh>
   )
