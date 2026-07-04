@@ -355,7 +355,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Unified Wallet Card */}
-        <div className="relative -mt-20 mx-0 z-10 px-0">
+        <div className="relative -mt-16 mx-0 z-10 px-0">
           <div className="relative rounded-3xl bg-card text-foreground shadow-xl p-5 overflow-hidden border border-border/80">
             
             {/* Header Switcher Row inside E-Wallet Card */}

@@ -11,21 +11,21 @@
   --card-foreground: oklch(0.15 0.015 250);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.015 250);
-  --primary: #3874FF;
+  --primary: oklch(0.55 0.16 250);
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.95 0.01 250);
   --secondary-foreground: oklch(0.15 0.015 250);
   --muted: oklch(0.95 0.01 250);
   --muted-foreground: oklch(0.48 0.015 250);
-  --accent: #3874FF;
+  --accent: oklch(0.55 0.16 250);
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.85 0.015 250); /* Higher contrast border (similar to Slate-300) */
   --input: oklch(0.75 0.015 250);  /* Highly visible input outline */
-  --ring: #3874FF;
-  --chart-1: #3874FF;
-  --chart-2: #5a8fff;
+  --ring: oklch(0.55 0.16 250);
+  --chart-1: oklch(0.55 0.16 250);
+  --chart-2: oklch(0.55 0.18 250);
   --chart-3: oklch(0.65 0.18 85);
   --chart-4: oklch(0.55 0.22 330);
   --chart-5: oklch(0.6 0.2 40);
