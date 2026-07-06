@@ -502,7 +502,7 @@ export default function ProfilePage() {
 
         {/* Version */}
         <p className="text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground py-2">
-          OkeMitra v1.0.0
+          OkeMitra v2.0.0
         </p>
       </main>
     </div>

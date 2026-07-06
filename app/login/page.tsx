@@ -338,7 +338,7 @@ function LoginContent() {
       {/* Footer */}
       <div className="px-6 py-4">
         <p className="text-center text-xs text-muted-foreground">
-          v1.0.0 - OkeMitra
+          v2.0.0 - OkeMitra
         </p>
       </div>
     </div>
