@@ -340,7 +340,7 @@ export function MobileHeader({
               <Bell className="h-5 w-5" aria-hidden="true" />
               {hasUnread && (
                 <span
-                  className={cn("absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2", variant === "dark" ? "ring-slate-950 dark:ring-indigo-950" : "ring-blue-600")}
+                  className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-primary"
                   aria-label="Ada notifikasi baru"
                 />
               )}
