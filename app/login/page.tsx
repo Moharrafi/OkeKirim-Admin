@@ -139,48 +139,57 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-primary/5 via-background to-background">
-      <div className="flex-1 flex flex-col justify-center px-6 py-12">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="mb-5">
-            <img src="/logo.png" alt="OkeMitra" className="h-20 w-20 rounded-2xl" />
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Top Blue Header Section */}
+      <div className="relative bg-primary text-white pb-24 pt-14 px-6 rounded-b-[2.5rem] shadow-md overflow-hidden border-none text-center">
+        {/* Radial color glows for deep luxury finish */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_50%)] pointer-events-none" />
+        {/* Decorative mesh vector grids */}
+        <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
+        
+        {/* Logo & Info inside Blue Header */}
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="mb-4 bg-white/10 backdrop-blur-md p-1.5 rounded-2xl border border-white/20 shadow-inner">
+            <img src="/logo.png" alt="OkeMitra" className="h-16 w-16 rounded-xl" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">OkeMitra</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manajemen Setoran Driver</p>
+          <h1 className="text-2xl font-black tracking-tight text-white leading-none">OkeMitra</h1>
+          <p className="text-xs text-blue-100/80 font-medium mt-1.5 leading-none">Manajemen Setoran Driver</p>
         </div>
+      </div>
 
-        {/* Login Type Tabs */}
-        <div className="flex gap-2 p-1.5 rounded-full bg-secondary border border-border mb-6">
-          <button
-            onClick={() => setLoginType("admin")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-medium text-sm transition-all",
-              loginType === "admin"
-                ? "bg-primary text-primary-foreground shadow-lg"
-                : "text-muted-foreground"
-            )}
-          >
-            <Shield className="h-4 w-4" />
-            Admin
-          </button>
-          <button
-            onClick={() => setLoginType("driver")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-medium text-sm transition-all",
-              loginType === "driver"
-                ? "bg-primary text-primary-foreground shadow-lg"
-                : "text-muted-foreground"
-            )}
-          >
-            <Truck className="h-4 w-4" />
-            Driver
-          </button>
-        </div>
-
-        {/* Login Form */}
-        <Card className="border-border bg-card">
-          <CardContent className="p-6 space-y-5">
+      {/* Main Login Card Container */}
+      <div className="flex-1 flex flex-col px-4 -mt-14 pb-12 z-10 max-w-sm mx-auto w-full justify-center">
+        <Card className="border border-border bg-card shadow-xl rounded-3xl overflow-hidden">
+          <CardContent className="p-5 space-y-5">
+            
+            {/* Login Type Tabs inside the Card */}
+            <div className="flex gap-1.5 p-1 rounded-full bg-secondary border border-border/80 mb-1">
+              <button
+                onClick={() => setLoginType("admin")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all",
+                  loginType === "admin"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Shield className="h-3.5 w-3.5" />
+                Admin
+              </button>
+              <button
+                onClick={() => setLoginType("driver")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all",
+                  loginType === "driver"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Truck className="h-3.5 w-3.5" />
+                Driver
+              </button>
+            </div>
             {loginType === "admin" ? (
               <>
                 {/* Admin: Email */}
