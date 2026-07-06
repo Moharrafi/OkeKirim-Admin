@@ -295,7 +295,7 @@ export function MobileHeader({
         className={cn(
           "safe-area-top sticky top-0 z-40 transition-colors", 
           variant === "dark" 
-            ? "bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),var(--primary))] border-none text-white shadow-none" 
+            ? "bg-primary border-none text-white shadow-none" 
             : "bg-primary text-white border-none shadow-xs"
         )}
         role="banner"

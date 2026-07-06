@@ -321,11 +321,6 @@ export default function DashboardPage() {
       <main className="px-4 py-4 space-y-5">
         {/* Immersive Blue Fintech Header Panel */}
         <div className="relative bg-primary text-white pb-20 pt-5 px-4 -mx-4 -mt-4 rounded-b-none shadow-md overflow-hidden border-none">
-          {/* Radial color glows for deep luxury finish */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_50%)] pointer-events-none" />
-          {/* Decorative mesh vector grids */}
-          <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none" />
 
           {/* Sapaan & Profil Row inside the Blue Panel */}
           <div className="relative z-10 flex items-center justify-between gap-4">

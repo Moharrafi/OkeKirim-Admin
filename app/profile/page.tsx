@@ -216,8 +216,6 @@ export default function ProfilePage() {
       
       {/* Immersive Profile Header Panel */}
       <div className="relative bg-primary text-white pb-20 pt-4 px-4 rounded-b-none shadow-md overflow-hidden border-none">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_50%)] pointer-events-none" />
         
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
