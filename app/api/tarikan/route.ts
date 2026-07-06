@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     // Clear dashboard cache since stats have changed
     try {
-      const { clearDashboardCache } = await import("@/app/api/dashboard/route")
+      const { clearDashboardCache } = await import("@/lib/dashboard-cache")
       clearDashboardCache()
     } catch (e) {
       console.warn("Failed to clear dashboard cache:", e)

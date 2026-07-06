@@ -4,7 +4,7 @@ import {
   normalizeRecipientText,
   recipientSimilarity,
   REQUIRED_TRANSFER_RECIPIENT,
-} from "../app/deposit/page"
+} from "./ocr-recipient"
 
 describe("OCR Recipient Matching", () => {
   it("normalizes recipient text and cleans up common OCR typos", () => {
