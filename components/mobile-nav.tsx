@@ -93,7 +93,7 @@ export function MobileNav() {
                   className={cn(
                     "absolute -top-7 flex h-14 w-14 flex-col items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 border-[4px] border-card z-20",
                     isActive 
-                      ? "bg-indigo-600 dark:bg-indigo-500 shadow-indigo-600/30 scale-105 border-indigo-100 dark:border-indigo-900 ring-4 ring-indigo-500/20" 
+                      ? "bg-primary shadow-primary/30 scale-105 border-blue-100 dark:border-blue-900 ring-4 ring-primary/20" 
                       : "bg-primary shadow-primary/30 hover:bg-primary/95 hover:shadow-primary/40"
                   )}
                 >
