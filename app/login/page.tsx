@@ -141,7 +141,7 @@ function LoginContent() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       {/* Top Blue Header Section */}
-      <div className="relative bg-primary text-white pb-24 pt-14 px-6 rounded-b-[2.5rem] shadow-md overflow-hidden border-none text-center">
+      <div className="relative bg-primary text-white pb-28 pt-16 px-6 rounded-b-[3.5rem] shadow-md overflow-hidden border-none text-center">
         {/* Radial color glows for deep luxury finish */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.08),transparent_50%)] pointer-events-none" />
@@ -159,19 +159,19 @@ function LoginContent() {
       </div>
 
       {/* Main Login Card Container */}
-      <div className="flex-1 flex flex-col px-4 -mt-14 pb-12 z-10 max-w-sm mx-auto w-full justify-center">
-        <Card className="border border-border bg-card shadow-xl rounded-3xl overflow-hidden">
+      <div className="px-4 -mt-20 pb-12 z-10 max-w-sm mx-auto w-full">
+        <Card className="border border-slate-100 bg-card shadow-[0_25px_50px_-12px_rgba(56,116,255,0.12)] rounded-3xl overflow-hidden">
           <CardContent className="p-5 space-y-5">
             
             {/* Login Type Tabs inside the Card */}
-            <div className="flex gap-1.5 p-1 rounded-full bg-secondary border border-border/80 mb-1">
+            <div className="flex gap-1 p-1 rounded-2xl bg-slate-100/80 border border-slate-200/50 mb-1">
               <button
                 onClick={() => setLoginType("admin")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all",
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all",
                   loginType === "admin"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/30"
                 )}
               >
                 <Shield className="h-3.5 w-3.5" />
@@ -180,10 +180,10 @@ function LoginContent() {
               <button
                 onClick={() => setLoginType("driver")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full font-bold text-xs transition-all",
+                  "flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-bold text-xs transition-all",
                   loginType === "driver"
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/30"
                 )}
               >
                 <Truck className="h-3.5 w-3.5" />
@@ -193,8 +193,8 @@ function LoginContent() {
             {loginType === "admin" ? (
               <>
                 {/* Admin: Email */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Email</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-1">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -202,14 +202,14 @@ function LoginContent() {
                       placeholder="Masukkan email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12 rounded-xl bg-secondary border-0"
+                      className="pl-10 h-12 rounded-xl bg-slate-50 border border-slate-200/80 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary transition-all text-sm font-medium"
                     />
                   </div>
                 </div>
 
                 {/* Admin: Password */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Password</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-1">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -217,7 +217,7 @@ function LoginContent() {
                       placeholder="Masukkan password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12 rounded-xl bg-secondary border-0"
+                      className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 border border-slate-200/80 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary transition-all text-sm"
                     />
                     <button
                       type="button"
@@ -232,10 +232,10 @@ function LoginContent() {
             ) : (
               <>
                 {/* Driver: Pilih Kendaraan */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Pilih Kendaraan</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-1">Pilih Kendaraan</Label>
                   <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-                    <SelectTrigger className="h-12 w-full rounded-xl bg-secondary border-0">
+                    <SelectTrigger className="h-12 w-full rounded-xl bg-slate-50 border border-slate-200/80 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary transition-all text-sm font-semibold">
                       <div className="flex items-center gap-2">
                         <Car className="h-4 w-4 text-muted-foreground" />
                         <SelectValue placeholder="Pilih nopol kendaraan..." />
@@ -260,8 +260,8 @@ function LoginContent() {
                 </div>
 
                 {/* Driver: Password */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Password</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider pl-1">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -269,7 +269,7 @@ function LoginContent() {
                       placeholder="Masukkan password"
                       value={driverPassword}
                       onChange={(e) => setDriverPassword(e.target.value)}
-                      className="pl-10 pr-10 h-12 rounded-xl bg-secondary border-0"
+                      className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 border border-slate-200/80 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary transition-all text-sm"
                     />
                     <button
                       type="button"
@@ -286,20 +286,20 @@ function LoginContent() {
             {/* Info Message */}
             {info && (
               <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                <p className="text-sm text-green-600 text-center">{info}</p>
+                <p className="text-sm text-green-600 text-center font-medium">{info}</p>
               </div>
             )}
 
             {/* Error Message */}
             {error && (
               <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                <p className="text-sm text-destructive text-center">{error}</p>
+                <p className="text-sm text-destructive text-center font-medium">{error}</p>
               </div>
             )}
 
             {/* Login Button */}
             <Button
-              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-base shadow-lg shadow-primary/25"
+              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/95 active:scale-[0.98] transition-all hover:shadow-xl hover:shadow-primary/30"
               disabled={
                 loginType === "admin"
                   ? !email || !password || isLoading
@@ -315,7 +315,7 @@ function LoginContent() {
               ) : (
                 <span className="flex items-center gap-2">
                   Masuk
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 animate-pulse" />
                 </span>
               )}
             </Button>
@@ -324,7 +324,7 @@ function LoginContent() {
             {loginType === "driver" && (
               <Link
                 href="/register"
-                className="w-full flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 font-medium transition-colors pt-2"
+                className="w-full flex items-center justify-center gap-2 text-xs text-primary hover:text-primary/80 font-bold transition-colors pt-2"
               >
                 <UserPlus className="h-4 w-4" />
                 Belum punya password? Daftar
