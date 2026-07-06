@@ -59,12 +59,21 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, vehicle, vehicleType, status } = body
+    const { name, vehicle, vehicleType, status, phone, email, address, vehicleYear } = body
     if (!name) return NextResponse.json({ error: "Nama wajib" }, { status: 400 })
 
     const [result] = await pool.execute(
-      "INSERT INTO drivers (name, vehicle, vehicleType, status) VALUES (?, ?, ?, ?)",
-      [name, vehicle || null, vehicleType || null, status || "aktif"]
+      "INSERT INTO drivers (name, vehicle, vehicleType, status, phone, email, address, vehicleYear) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        name,
+        vehicle || null,
+        vehicleType || null,
+        status || "aktif",
+        phone || null,
+        email || null,
+        address || null,
+        vehicleYear || null
+      ]
     ) as any
 
     return NextResponse.json({ success: true, id: result.insertId }, { status: 201 })
@@ -76,12 +85,22 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, name, vehicle, vehicleType, status, phone } = body
+    const { id, name, vehicle, vehicleType, status, phone, email, address, vehicleYear } = body
     if (!id) return NextResponse.json({ error: "ID wajib" }, { status: 400 })
 
     await pool.execute(
-      "UPDATE drivers SET name=?, vehicle=?, vehicleType=?, status=?, phone=? WHERE id=?",
-      [name, vehicle || null, vehicleType || null, status || "aktif", phone ?? null, id]
+      "UPDATE drivers SET name=?, vehicle=?, vehicleType=?, status=?, phone=?, email=?, address=?, vehicleYear=? WHERE id=?",
+      [
+        name,
+        vehicle || null,
+        vehicleType || null,
+        status || "aktif",
+        phone || null,
+        email || null,
+        address || null,
+        vehicleYear || null,
+        id
+      ]
     )
 
     return NextResponse.json({ success: true })

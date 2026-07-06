@@ -30,6 +30,8 @@ export interface Driver {
   vehicleYear: string | null
   status: string
   phone?: string | null
+  email?: string | null
+  address?: string | null
 }
 
 export interface HistoryResponse {

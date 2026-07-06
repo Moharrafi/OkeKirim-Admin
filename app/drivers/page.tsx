@@ -42,6 +42,10 @@ export default function DriversPage() {
   const [formVehicle, setFormVehicle] = useState("")
   const [formVehicleType, setFormVehicleType] = useState("")
   const [formStatus, setFormStatus] = useState("aktif")
+  const [formPhone, setFormPhone] = useState("")
+  const [formEmail, setFormEmail] = useState("")
+  const [formAddress, setFormAddress] = useState("")
+  const [formVehicleYear, setFormVehicleYear] = useState("")
 
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean
@@ -155,7 +159,16 @@ export default function DriversPage() {
   }, [refreshDrivers])
 
   const handleSave = async () => {
-    const body = { name: formName, vehicle: formVehicle, vehicleType: formVehicleType, status: formStatus }
+    const body = {
+      name: formName,
+      vehicle: formVehicle,
+      vehicleType: formVehicleType,
+      status: formStatus,
+      phone: formPhone,
+      email: formEmail,
+      address: formAddress,
+      vehicleYear: formVehicleYear
+    }
     
     if (editingDriver) {
       await fetch(`/api/drivers`, {
@@ -228,6 +241,10 @@ export default function DriversPage() {
     setFormVehicle("")
     setFormVehicleType("")
     setFormStatus("aktif")
+    setFormPhone("")
+    setFormEmail("")
+    setFormAddress("")
+    setFormVehicleYear("")
     setIsManualVehicle(false) // Reset manual vehicle input flag
   }
 
@@ -237,6 +254,10 @@ export default function DriversPage() {
     setFormVehicle(driver.vehicle || "")
     setFormVehicleType(driver.vehicleType || "")
     setFormStatus(driver.status || "aktif")
+    setFormPhone(driver.phone || "")
+    setFormEmail(driver.email || "")
+    setFormAddress(driver.address || "")
+    setFormVehicleYear(driver.vehicleYear || "")
     setIsManualVehicle(false) // Start with dropdown when editing too
     setShowForm(true)
   }
@@ -399,13 +420,44 @@ export default function DriversPage() {
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
                 <div>
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nama Driver</Label>
                   <Input
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="Masukkan nama..."
+                    className="bg-card border border-border h-11 rounded-xl mt-1.5 focus-visible:ring-1 focus-visible:ring-primary/40 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">No. HP</Label>
+                  <Input
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="Masukkan no hp..."
+                    className="bg-card border border-border h-11 rounded-xl mt-1.5 focus-visible:ring-1 focus-visible:ring-primary/40 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email</Label>
+                  <Input
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="Masukkan email..."
+                    className="bg-card border border-border h-11 rounded-xl mt-1.5 focus-visible:ring-1 focus-visible:ring-primary/40 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Alamat</Label>
+                  <Input
+                    value={formAddress}
+                    onChange={(e) => setFormAddress(e.target.value)}
+                    placeholder="Masukkan alamat..."
                     className="bg-card border border-border h-11 rounded-xl mt-1.5 focus-visible:ring-1 focus-visible:ring-primary/40 text-sm"
                   />
                 </div>
@@ -487,6 +539,16 @@ export default function DriversPage() {
                   </div>
                 </div>
 
+                <div>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tahun Kendaraan</Label>
+                  <Input
+                    value={formVehicleYear}
+                    onChange={(e) => setFormVehicleYear(e.target.value)}
+                    placeholder="Contoh: 2022"
+                    className="bg-card border border-border h-11 rounded-xl mt-1.5 focus-visible:ring-1 focus-visible:ring-primary/40 text-sm"
+                  />
+                </div>
+
                 {editingDriver && (
                   <div>
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</Label>
@@ -559,6 +621,26 @@ export default function DriversPage() {
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {detailDriver.vehicle || "-"} {detailDriver.vehicleType ? `(${detailDriver.vehicleType})` : ""}
                     </p>
+                  </div>
+                </div>
+
+                {/* Driver Profile Info */}
+                <div className="p-3 rounded-xl bg-secondary/35 border border-border/50 text-[11px] space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground font-medium">No. HP:</span>
+                    <span className="font-semibold text-foreground">{detailDriver.phone || "-"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground font-medium">Email:</span>
+                    <span className="font-semibold text-foreground truncate max-w-[180px]">{detailDriver.email || "-"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground font-medium">Alamat:</span>
+                    <span className="font-semibold text-foreground truncate max-w-[180px]">{detailDriver.address || "-"}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground font-medium">Tahun Kendaraan:</span>
+                    <span className="font-semibold text-foreground">{detailDriver.vehicleYear || "-"}</span>
                   </div>
                 </div>
 
