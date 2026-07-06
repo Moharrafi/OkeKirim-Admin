@@ -9,7 +9,7 @@ const DYNAMIC_CACHE = `okemitra-dynamic-${CACHE_VERSION}`
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
-  '/logoapk.png',
+  '/logo.png',
   '/apple-icon.png',
   '/offline.html',
 ]

@@ -24,8 +24,8 @@ export const metadata: Metadata = {
   },
   other: {
     // Apple touch icons for all iOS device sizes
-    'apple-touch-icon': '/logoapk.png',
-    'apple-touch-icon-precomposed': '/logoapk.png',
+    'apple-touch-icon': '/logo.png',
+    'apple-touch-icon-precomposed': '/logo.png',
     // iOS standalone mode splash meta
     'mobile-web-app-capable': 'yes',
   },
@@ -62,11 +62,11 @@ export default function RootLayout({
           }}
         />
         {/* Apple touch icons – all sizes iOS uses */}
-        <link rel="apple-touch-icon" href="/logoapk.png" />
-        <link rel="apple-touch-icon" sizes="120x120" href="/logoapk.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/logoapk.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/logoapk.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/logoapk.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="120x120" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/logo.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
         {/* iOS status bar */}
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

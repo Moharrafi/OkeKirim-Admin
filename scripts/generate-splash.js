@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
-const logoPath = path.join(__dirname, '..', 'public', 'logoapk.png');
+const logoPath = path.join(__dirname, '..', 'public', 'logo.png');
 const resDir = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res');
 
 // Splash screen sizes for different densities

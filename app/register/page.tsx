@@ -120,7 +120,7 @@ export default function RegisterPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="mb-5">
-            <img src="/logoapk.png" alt="OkeMitra" className="h-20 w-20 rounded-2xl" />
+            <img src="/logo.png" alt="OkeMitra" className="h-20 w-20 rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Daftar Driver</h1>
           <p className="text-sm text-muted-foreground mt-1">
