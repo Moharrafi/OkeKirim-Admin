@@ -326,7 +326,8 @@ export default function LokasiPage() {
 
         {/* Map - NEVER Blurred, pointer-events-none when vehicle is selected */}
         <div className={cn(
-          "w-full bg-background transition-all duration-200 border-b border-border/85",
+          "w-full bg-background transition-all duration-200",
+          !loading && !error && "border-b border-border/85",
           selectedVehicleData && "pointer-events-none"
         )}>
           {!loading && !error && (
