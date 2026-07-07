@@ -283,6 +283,7 @@ export default function DashboardPage() {
     : [
         { label: "Setor", sublabel: "Input Setoran", href: "/deposit", icon: Wallet, tone: "primary" as const },
         { label: "Riwayat", sublabel: "Catatan Trip", href: "/history", icon: TrendingUp, tone: "blue" as const },
+        { label: "Dokumen", sublabel: "KIR & Pajak", href: "/documents", icon: FileText, tone: "green" as const },
         { label: "Profil", sublabel: "Data Driver", href: "/profile", icon: Users, tone: "amber" as const },
       ]
 
@@ -390,8 +391,8 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-xs font-bold text-muted-foreground">IDR</span>
-                  <p className="text-3xl font-black leading-none tracking-tight text-foreground">
+                  <span className="text-xs font-semibold text-muted-foreground mr-0.5">IDR</span>
+                  <p className="text-3xl font-extrabold leading-none tracking-normal text-foreground tabular-nums font-sans">
                     {loading ? "..." : formatRupiah(activeAmount)}
                   </p>
                 </div>

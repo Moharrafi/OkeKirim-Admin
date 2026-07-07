@@ -77,7 +77,8 @@ function formatTime(isoString: string): string {
 }
 
 function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
+  const [year, month, day] = dateStr.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
   return date.toLocaleDateString("id-ID", {
     weekday: "long",
     day: "numeric",
@@ -103,7 +104,11 @@ export default function VehicleHistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(() => {
-    return new Date().toISOString().split("T")[0]
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dateDay = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dateDay}`
   })
   const [calendarOpen, setCalendarOpen] = useState(false)
 
@@ -191,14 +196,26 @@ export default function VehicleHistoryPage() {
   }
 
   const changeDate = (offset: number) => {
-    const current = new Date(selectedDate)
+    const [year, month, day] = selectedDate.split("-").map(Number)
+    const current = new Date(year, month - 1, day)
     current.setDate(current.getDate() + offset)
-    // Don't allow future dates
-    if (current > new Date()) return
-    setSelectedDate(current.toISOString().split("T")[0])
+    
+    // Don't allow future dates in local time
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const currentMidnight = new Date(current.getFullYear(), current.getMonth(), current.getDate())
+    if (currentMidnight > today) return
+
+    const y = current.getFullYear()
+    const m = String(current.getMonth() + 1).padStart(2, '0')
+    const dateDay = String(current.getDate()).padStart(2, '0')
+    setSelectedDate(`${y}-${m}-${dateDay}`)
   }
 
-  const isToday = selectedDate === new Date().toISOString().split("T")[0]
+  const isToday = selectedDate === (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
 
   return (
     <div className="min-h-screen pb-24">
@@ -241,7 +258,10 @@ export default function VehicleHistoryPage() {
                 <PopoverContent className="w-auto p-0 z-[10001]" align="center">
                   <CalendarComponent
                     mode="single"
-                    selected={new Date(selectedDate)}
+                    selected={(() => {
+                      const [year, month, day] = selectedDate.split("-").map(Number)
+                      return new Date(year, month - 1, day)
+                    })()}
                     onSelect={(date) => {
                       if (date) {
                         const localIsoDate = date.getFullYear() + "-" + 

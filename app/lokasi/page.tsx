@@ -337,7 +337,7 @@ export default function LokasiPage() {
                 mapExpanded && "!fixed !inset-0 !z-[9999] !m-0 !rounded-none !border-0"
               )}
             >
-              <div className={cn("relative w-full", mapExpanded ? "h-screen" : "h-72")}>
+              <div className={cn("relative w-full", mapExpanded ? "h-screen" : "h-72 z-0")}>
                 <VehicleMap
                   vehicles={filteredVehicles}
                   selectedVehicle={selectedVehicle}

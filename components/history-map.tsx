@@ -181,7 +181,7 @@ export default function HistoryMap({ points }: HistoryMapProps) {
       "relative w-full flex flex-col overflow-hidden",
       isFullScreen 
         ? "fixed inset-0 z-[9999] bg-background h-screen w-screen" 
-        : "h-full w-full"
+        : "h-full w-full z-0"
     )}>
       {/* Bagian Atas: Leaflet Map */}
       <div className="relative flex-1 bg-muted min-h-0 w-full">

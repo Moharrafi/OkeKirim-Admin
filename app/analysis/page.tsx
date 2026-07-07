@@ -978,7 +978,7 @@ export default function AnalysisPage() {
                     </div>
                     <div className="flex items-baseline mt-2">
                       <span className="text-sm font-semibold text-muted-foreground mr-1.5">Rp</span>
-                      <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                      <span className="text-2xl font-extrabold text-foreground tracking-normal tabular-nums font-sans">
                         {formatRupiah(finances.netProfit)}
                       </span>
                     </div>
@@ -1049,7 +1049,7 @@ export default function AnalysisPage() {
                     </div>
                     <div className="flex items-baseline mt-2">
                       <span className="text-sm font-semibold text-muted-foreground mr-1.5">Rp</span>
-                      <span className="text-2xl font-extrabold text-foreground tracking-tight">
+                      <span className="text-2xl font-extrabold text-foreground tracking-normal tabular-nums font-sans">
                         {formatRupiah(finances.driverShare)}
                       </span>
                     </div>

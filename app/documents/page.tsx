@@ -60,7 +60,7 @@ interface Driver {
 
 export default function DocumentsPage() {
   const router = useRouter()
-  const { isAdmin, isAuthenticated } = useUser()
+  const { isAdmin, user, isAuthenticated } = useUser()
 
   // Tab state: 'pajak' | 'kir' | 'history'
   const [activeTab, setActiveTab] = useState<"pajak" | "kir" | "history">("pajak")
@@ -105,10 +105,10 @@ export default function DocumentsPage() {
   })
 
   useEffect(() => {
-    if (isAuthenticated && !isAdmin) {
-      router.push("/")
+    if (!isAuthenticated) {
+      router.push("/login")
     }
-  }, [isAuthenticated, isAdmin, router])
+  }, [isAuthenticated, router])
 
   const fetchData = async () => {
     setLoading(true)
@@ -136,10 +136,10 @@ export default function DocumentsPage() {
   }
 
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated) {
       fetchData()
     }
-  }, [isAuthenticated, isAdmin])
+  }, [isAuthenticated])
 
   const handleRefresh = async () => {
     await fetchData()
@@ -342,6 +342,15 @@ export default function DocumentsPage() {
 
   // Filter logic
   const filteredDocuments = documents.filter((doc) => {
+    // If driver, only show their own vehicle documents
+    if (!isAdmin && user.vehicle) {
+      const driverPlate = user.vehicle.replace(/\s+/g, "").toUpperCase()
+      const docPlate = doc.vehicle.replace(/\s+/g, "").toUpperCase()
+      if (docPlate !== driverPlate) return false
+    } else if (!isAdmin && !user.vehicle) {
+      return false
+    }
+
     const q = searchQuery.toLowerCase().trim()
     const matchesQuery = doc.vehicle.toLowerCase().includes(q)
     if (!matchesQuery) return false
@@ -356,6 +365,15 @@ export default function DocumentsPage() {
   })
 
   const filteredRenewals = renewals.filter((ren) => {
+    // If driver, only show their own vehicle renewals
+    if (!isAdmin && user.vehicle) {
+      const driverPlate = user.vehicle.replace(/\s+/g, "").toUpperCase()
+      const renPlate = ren.vehicle.replace(/\s+/g, "").toUpperCase()
+      if (renPlate !== driverPlate) return false
+    } else if (!isAdmin && !user.vehicle) {
+      return false
+    }
+
     const q = searchQuery.toLowerCase().trim()
     return (
       ren.vehicle.toLowerCase().includes(q) ||
@@ -364,12 +382,12 @@ export default function DocumentsPage() {
     )
   })
 
-  if (!isAuthenticated || !isAdmin) return null
+  if (!isAuthenticated) return null
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="min-h-screen pb-24 bg-background">
-        <MobileHeader title="Kelola Dokumen" showBack onBack={() => router.push("/")} />
+        <MobileHeader title={isAdmin ? "Kelola Dokumen" : "Surat Kendaraan"} showBack onBack={() => router.push("/")} />
 
         <div className="px-4 py-4 space-y-5">
           {/* Header Action Button */}
@@ -379,7 +397,7 @@ export default function DocumentsPage() {
                 ? `${filteredRenewals.length} riwayat perpanjangan`
                 : `${filteredDocuments.length} dokumen dipantau`}
             </p>
-            {activeTab !== "history" && (
+            {isAdmin && activeTab !== "history" && (
               <Button
                 size="sm"
                 className="rounded-xl bg-primary text-primary-foreground font-semibold"
@@ -498,30 +516,32 @@ export default function DocumentsPage() {
                         </div>
 
                         {/* Actions Row */}
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 rounded-lg text-xs font-semibold px-2.5 hover:bg-secondary text-foreground border-border"
-                            onClick={() => openRenewModal(doc)}
-                          >
-                            Perpanjang
-                          </Button>
-                          <button
-                            onClick={() => openEditDocModal(doc)}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                            title="Edit Dokumen"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteDoc(doc.id)}
-                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
-                            title="Hapus Dokumen"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 rounded-lg text-xs font-semibold px-2.5 hover:bg-secondary text-foreground border-border"
+                              onClick={() => openRenewModal(doc)}
+                            >
+                              Perpanjang
+                            </Button>
+                            <button
+                              onClick={() => openEditDocModal(doc)}
+                              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                              title="Edit Dokumen"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDoc(doc.id)}
+                              className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
+                              title="Hapus Dokumen"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -531,7 +551,11 @@ export default function DocumentsPage() {
               {filteredDocuments.length === 0 && (
                 <div className="text-center py-16">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-60" />
-                  <p className="text-muted-foreground text-sm font-medium">Dokumen tidak ditemukan</p>
+                  <p className="text-muted-foreground text-sm font-medium">
+                    {!user.vehicle 
+                      ? "Anda belum memiliki kendaraan yang ditugaskan" 
+                      : "Dokumen kendaraan tidak ditemukan"}
+                  </p>
                 </div>
               )}
             </div>
@@ -560,13 +584,15 @@ export default function DocumentsPage() {
                           <span>Biaya: <strong>Rp {ren.cost.toLocaleString("id-ID")}</strong></span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteRenewal(ren.id)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
-                        title="Hapus Riwayat"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteRenewal(ren.id)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-red-400 hover:text-destructive transition-colors"
+                          title="Hapus Riwayat"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="bg-secondary/40 border border-border/30 rounded-xl p-2.5 text-[11px] flex justify-between items-center text-muted-foreground font-medium">
