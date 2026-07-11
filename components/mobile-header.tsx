@@ -265,6 +265,25 @@ export function MobileHeader({
     }
   }, [loadNotifications])
 
+  const handleNotificationClick = useCallback(async (order: OverdueOrder) => {
+    setShowNotifications(false)
+    if (order.isRead === false) {
+      try {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: [order.id] }),
+        })
+        setOverdueOrders((prev) =>
+          prev.map((o) => (o.id === order.id ? { ...o, isRead: true } : o))
+        )
+        await checkUnreadNotifications()
+      } catch (error) {
+        console.error("Failed to mark notification as read:", error)
+      }
+    }
+  }, [checkUnreadNotifications])
+
   function formatDate(dateStr: string): string {
     try {
       const d = parseNotificationDate(dateStr)
@@ -440,7 +459,7 @@ export function MobileHeader({
                           key={`${order.notifType ? "notif" : "overdue"}-${order.id}`}
                           href={order.url || "/deposit"}
                           className={`flex items-start gap-3 rounded-xl p-4 transition-colors active:bg-secondary ${order.notifType ? "bg-card" : "bg-card"} ${order.isRead === false ? "bg-primary/5" : "bg-card"}`}
-                          onClick={() => setShowNotifications(false)}
+                          onClick={() => handleNotificationClick(order)}
                         >
                           <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconConfig.className}`}>
                             {iconConfig.icon}
