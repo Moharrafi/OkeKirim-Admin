@@ -422,7 +422,7 @@ export default function DashboardCharts({
                       contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
                       formatter={(value: number) => [`Rp ${value.toFixed(1)} Juta`, 'Total Setoran']}
                     />
-                    <Area type="monotone" dataKey="total" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorDeposit)" />
+                    <Area type="monotone" dataKey="total" stroke="var(--primary)" strokeWidth={2} fillOpacity={1} fill="url(#colorDeposit)" isAnimationActive={false} />
                   </AreaChart>
                 ) : chartTab === "fare" ? (
                   <AreaChart
@@ -444,7 +444,7 @@ export default function DashboardCharts({
                       contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
                       formatter={(value: number) => [`Rp ${value.toFixed(1)} Juta`, 'Total Argo']}
                     />
-                    <Area type="monotone" dataKey="fare" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorFare)" />
+                    <Area type="monotone" dataKey="fare" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorFare)" isAnimationActive={false} />
                   </AreaChart>
                 ) : (
                   <BarChart
@@ -460,7 +460,7 @@ export default function DashboardCharts({
                       contentStyle={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px' }}
                       formatter={(value: number) => [`${value} Trip`, 'Volume Trip']}
                     />
-                    <Bar dataKey="trips" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="trips" fill="#3b82f6" radius={[4, 4, 0, 0]} isAnimationActive={false} />
                   </BarChart>
                 )}
               </ResponsiveContainer>
@@ -505,6 +505,7 @@ export default function DashboardCharts({
                           outerRadius={55}
                           paddingAngle={3}
                           dataKey="value"
+                          isAnimationActive={false}
                         >
                           {pieData.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />

@@ -10,6 +10,9 @@ const nextConfig = {
   },
   // Untuk build APK, uncomment output: "export" di bawah
   // output: "export",
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
   turbopack: {
     root: __dirname,
   },
