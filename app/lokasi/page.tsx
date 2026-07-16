@@ -470,7 +470,6 @@ export default function LokasiPage() {
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <Signal className="h-3.5 w-3.5 text-muted-foreground" />
                             {getSignalBars(vehicle.signal)}
                           </div>
 

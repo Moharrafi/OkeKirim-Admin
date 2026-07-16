@@ -67,8 +67,10 @@ interface DashboardData {
     vehicle?: string
   }>
   monthlyChart: Array<{ month: number; total: number }>
-  driverIncome: Array<{ driver: string; total: number }>
+  driverIncome: Array<{ driver: string; total: number; trips?: number; vehicleType?: string; rankTrend?: number | 'new' }>
   orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
+  driverVehicleType?: string
+  topDriverInsight?: string
 }
 
 type Tone = "primary" | "blue" | "amber" | "green"
@@ -661,6 +663,8 @@ export default function DashboardPage() {
                 formatRupiah={formatRupiah}
                 currentDriver={user.name}
                 driverChartMonth={data.driverChartMonth}
+                driverVehicleType={data.driverVehicleType}
+                topDriverInsight={data.topDriverInsight}
               />
             )}
 

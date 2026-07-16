@@ -21,29 +21,51 @@ import Link from "next/link"
 
 interface DashboardChartsProps {
   monthlyChart: Array<{ month: number; total: number; totalFare?: number; tripCount?: number }>
-  driverIncome: Array<{ driver: string; total: number; trips?: number }>
+  driverIncome: Array<{ driver: string; total: number; trips?: number; vehicleType?: string; rankTrend?: number | 'new' }>
   orderTypeBreakdown: Array<{ type: string; total: number; count: number }>
   isAdmin: boolean
   formatRupiah: (amount: number) => string
   currentDriver?: string
   driverChartMonth?: string
+  driverVehicleType?: string
+  topDriverInsight?: string
 }
 
 function DriverRankingCard({
   driverIncome,
   currentDriver,
   formatRupiah,
+  driverVehicleType,
+  topDriverInsight,
 }: {
-  driverIncome: Array<{ driver: string; total: number; trips?: number }>
+  driverIncome: Array<{ driver: string; total: number; trips?: number; vehicleType?: string; rankTrend?: number | 'new' }>
   currentDriver: string
   formatRupiah: (amount: number) => string
+  driverVehicleType?: string
+  topDriverInsight?: string
 }) {
+  const [vehicleFilter, setVehicleFilter] = useState<"all" | "same">("all")
+
   if (!driverIncome || driverIncome.length === 0) return null
 
-  // Find current driver's position
-  const sortedDrivers = [...driverIncome].sort((a, b) => b.total - a.total)
+  // Normalise names and find vehicleType of current driver if not provided
+  const normalizedCurrentDriver = currentDriver.trim().toLowerCase()
+  const detectedUserVehicleType = driverVehicleType || 
+    driverIncome.find(d => d.driver.trim().toLowerCase() === normalizedCurrentDriver)?.vehicleType || 
+    "CDE"
+
+  // Filter list based on selected tab
+  const filteredDrivers = driverIncome.filter(d => {
+    if (vehicleFilter === "same") {
+      return (d.vehicleType || "CDE").trim().toUpperCase() === detectedUserVehicleType.trim().toUpperCase()
+    }
+    return true
+  })
+
+  // Find current driver's position in the (filtered) list
+  const sortedDrivers = [...filteredDrivers].sort((a, b) => b.total - a.total)
   const currentIndex = sortedDrivers.findIndex(
-    d => d.driver.trim().toLowerCase() === currentDriver.trim().toLowerCase()
+    d => d.driver.trim().toLowerCase() === normalizedCurrentDriver
   )
   const currentData = currentIndex >= 0 ? sortedDrivers[currentIndex] : null
   const rank = currentIndex + 1
@@ -59,7 +81,7 @@ function DriverRankingCard({
     : 100
   
   // Percentage of top driver's income
-  const percentOfTop = topDriver.total > 0 
+  const percentOfTop = topDriver && topDriver.total > 0 
     ? Math.round((currentData.total / topDriver.total) * 100)
     : 0
 
@@ -75,23 +97,96 @@ function DriverRankingCard({
   const rankColor = rank === 1 ? "text-amber-500" : rank === 2 ? "text-gray-400" : rank === 3 ? "text-amber-700" : "text-muted-foreground"
   const rankBg = rank === 1 ? "bg-amber-500/10" : rank === 2 ? "bg-gray-400/10" : rank === 3 ? "bg-amber-700/10" : "bg-muted"
 
+  // Point 1: Realistic Rank Target (Nudge)
+  let targetNudgeText = ""
+  if (currentIndex > 0) {
+    const targetDriver = sortedDrivers[currentIndex - 1]
+    const diff = targetDriver.total - currentData.total
+    const currentAvg = currentData.trips && currentData.trips > 0 ? currentData.total / currentData.trips : 200000
+    const tripsNeeded = Math.ceil(diff / currentAvg)
+    targetNudgeText = `Kamu hanya butuh Rp ${formatRupiah(diff)} lagi (~${tripsNeeded} trip) untuk menyalip ${targetDriver.driver} di peringkat #${currentIndex}!`
+  } else if (currentIndex === 0) {
+    targetNudgeText = "Luar biasa! Kamu memimpin di peringkat teratas kategori ini. Pertahankan! 🏆"
+  }
+
+  // Point 2: Leaderboard Badges helper
+  let maxTrips = 0
+  let maxTripsDriver = ""
+  let maxAvg = 0
+  let maxAvgDriver = ""
+
+  sortedDrivers.forEach(d => {
+    if (d.trips && d.trips > maxTrips) {
+      maxTrips = d.trips
+      maxTripsDriver = d.driver
+    }
+    const avg = d.trips && d.trips > 0 ? d.total / d.trips : 0
+    if (avg > maxAvg) {
+      maxAvg = avg
+      maxAvgDriver = d.driver
+    }
+  })
+
+  const getBadges = (driverName: string, isRank1: boolean, tripsCount: number, totalAmount: number) => {
+    const list: Array<{ label: string; style: string }> = []
+    if (isRank1) {
+      list.push({ label: "🏆 Juara 1", style: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" })
+    }
+    if (driverName === maxTripsDriver && tripsCount > 0) {
+      list.push({ label: "⚡ Pejuang Rit", style: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" })
+    }
+    if (driverName === maxAvgDriver && totalAmount > 0) {
+      list.push({ label: "💎 Jawara Cargo", style: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20" })
+    }
+    if (list.length === 0 && tripsCount >= 5) {
+      list.push({ label: "✅ Konsisten", style: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" })
+    }
+    return list
+  }
+
   return (
     <Card className="border-border bg-card overflow-hidden">
       <CardContent className="p-0">
-        {/* Header with rank */}
-        <div className="px-4 pt-4 pb-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground">Peringkat Kamu</h3>
+        {/* Header with rank & switcher */}
+        <div className="px-4 pt-4 pb-3 border-b border-border/50 bg-secondary/10">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-foreground">Peringkat & Kompetisi</h3>
             <div className={cn("flex items-center gap-1 px-2.5 py-1 rounded-full", rankBg)}>
               {rank <= 3 ? <Medal className={cn("h-3.5 w-3.5", rankColor)} /> : <Trophy className={cn("h-3.5 w-3.5", rankColor)} />}
               <span className={cn("text-xs font-bold", rankColor)}>#{rank}</span>
               <span className="text-[10px] text-muted-foreground">/ {totalDrivers}</span>
             </div>
           </div>
+          
+          {/* Point 4: Category Filter Tab */}
+          <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-secondary/50 border border-border/60">
+            <button
+              onClick={() => setVehicleFilter("all")}
+              className={cn(
+                "text-[10px] font-extrabold py-1.5 rounded-md transition-all",
+                vehicleFilter === "all"
+                  ? "bg-card text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Semua Armada
+            </button>
+            <button
+              onClick={() => setVehicleFilter("same")}
+              className={cn(
+                "text-[10px] font-extrabold py-1.5 rounded-md transition-all",
+                vehicleFilter === "same"
+                  ? "bg-card text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Armada Sejenis ({detectedUserVehicleType})
+            </button>
+          </div>
         </div>
 
         {/* Main stats */}
-        <div className="px-4 pb-4">
+        <div className="px-4 py-4">
           <div className="flex items-end justify-between mb-3">
             <div>
               <p className="text-2xl font-bold text-foreground tracking-tight">
@@ -107,14 +202,23 @@ function DriverRankingCard({
             </div>
           </div>
 
+          {/* Point 1: Target Nudge Box */}
+          {targetNudgeText && (
+            <div className="mb-4 p-2 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 text-center">
+              <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 leading-tight">
+                {targetNudgeText}
+              </p>
+            </div>
+          )}
+
           {/* Progress bar relative to top */}
-          <div className="mb-3">
+          <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] text-muted-foreground">
                 {percentOfTop}% dari driver teratas
               </span>
-              {rank > 1 && (
-                <span className="text-[10px] text-muted-foreground">
+              {rank > 1 && topDriver && (
+                <span className="text-[10px] text-muted-foreground font-semibold text-primary">
                   Selisih Rp {formatRupiah(topDriver.total - currentData.total)}
                 </span>
               )}
@@ -150,29 +254,56 @@ function DriverRankingCard({
           </div>
         </div>
 
-        {/* Mini leaderboard (top 3 + current if not in top 3) */}
+        {/* Mini leaderboard with badges, trends, and details */}
         <div className="border-t border-border/60 px-4 py-3 bg-secondary/20">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Leaderboard</p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {sortedDrivers.map((d, i) => {
               const isMe = d.driver.trim().toLowerCase() === currentDriver.trim().toLowerCase()
               return (
                 <div key={d.driver} className={cn(
-                  "flex items-center justify-between py-1 px-2 rounded-lg",
-                  isMe && "bg-primary/10"
+                  "flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors",
+                  isMe && "bg-primary/10 border border-primary/20"
                 )}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "text-[10px] font-bold w-4",
-                      i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-amber-700" : "text-muted-foreground"
-                    )}>
-                      {i + 1}.
-                    </span>
-                    <span className={cn("text-xs", isMe ? "font-bold text-primary" : "text-foreground")}>
-                      {isMe ? "Kamu" : d.driver}
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Rank number + trend (Point 6) */}
+                    <div className="flex items-center gap-1 shrink-0 min-w-[28px]">
+                      <span className={cn(
+                        "text-[11px] font-extrabold",
+                        i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-amber-700" : "text-muted-foreground"
+                      )}>
+                        {i + 1}.
+                      </span>
+                      {d.rankTrend === "new" ? (
+                        <span className="text-[7px] font-black text-blue-500 bg-blue-500/10 px-0.5 rounded border border-blue-500/10 leading-none scale-90" title="Driver Baru">N</span>
+                      ) : d.rankTrend && d.rankTrend > 0 ? (
+                        <span className="text-[8px] text-emerald-500 font-black leading-none" title={`Naik ${d.rankTrend} peringkat`}>▲</span>
+                      ) : d.rankTrend && d.rankTrend < 0 ? (
+                        <span className="text-[8px] text-red-500 font-black leading-none" title={`Turun ${Math.abs(d.rankTrend)} peringkat`}>▼</span>
+                      ) : (
+                        <span className="text-[8px] text-muted-foreground opacity-30 leading-none">•</span>
+                      )}
+                    </div>
+
+                    {/* Driver details + Badges (Point 2) */}
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={cn("text-xs leading-none", isMe ? "font-bold text-primary" : "text-foreground font-medium")}>
+                          {isMe ? "Kamu" : d.driver}
+                        </span>
+                        {getBadges(d.driver, i === 0, d.trips || 0, d.total).map((b, bIdx) => (
+                          <span key={bIdx} className={cn("text-[7px] font-extrabold px-1 py-0.2 rounded-full leading-none tracking-tight shrink-0", b.style)}>
+                            {b.label}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[8px] text-muted-foreground font-medium leading-none mt-0.5">
+                        {d.trips || 0} trip · {d.vehicleType || "CDE"}
+                      </p>
+                    </div>
                   </div>
-                  <span className={cn("text-[10px] font-medium", isMe ? "text-primary" : "text-muted-foreground")}>
+
+                  <span className={cn("text-[10px] font-bold shrink-0 tabular-nums", isMe ? "text-primary" : "text-foreground")}>
                     Rp {formatRupiah(d.total)}
                   </span>
                 </div>
@@ -180,6 +311,21 @@ function DriverRankingCard({
             })}
           </div>
         </div>
+
+        {/* Top Driver Insights Card (Point 5) */}
+        {topDriverInsight && (
+          <div className="border-t border-border/50 bg-amber-500/5 px-4 py-3.5 flex items-start gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Zap className="h-4 w-4 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-[10px] font-extrabold text-amber-800 dark:text-amber-300 uppercase tracking-wider leading-none">Wawasan Driver Teratas</p>
+              <p className="text-[10px] text-amber-700/90 dark:text-amber-400/95 font-medium mt-1 leading-normal">
+                {topDriverInsight}
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -193,6 +339,8 @@ export default function DashboardCharts({
   formatRupiah,
   currentDriver,
   driverChartMonth,
+  driverVehicleType,
+  topDriverInsight,
 }: DashboardChartsProps) {
   const [chartTab, setChartTab] = useState<"deposit" | "fare" | "trips">("deposit")
   const driverChartMonthLabel = driverChartMonth
@@ -327,6 +475,8 @@ export default function DashboardCharts({
           driverIncome={driverIncome}
           currentDriver={currentDriver}
           formatRupiah={formatRupiah}
+          driverVehicleType={driverVehicleType}
+          topDriverInsight={topDriverInsight}
         />
       ) : isAdmin && ((driverIncome && driverIncome.length > 0) || (orderTypeBreakdown && orderTypeBreakdown.length > 0)) ? (
         <Card className="border-border bg-card">

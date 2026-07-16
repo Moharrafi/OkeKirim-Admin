@@ -144,13 +144,16 @@ export async function GET(request: NextRequest) {
     const [
       [driverIncome],
       [driverDepositByMonth],
-      [orderTypeBreakdown]
+      [orderTypeBreakdown],
+      [prevMonthDrivers],
+      [driverVehicleRows]
     ] = await Promise.all([
       pool.execute(
-        `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips
+        `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total, COUNT(*) as trips, d.vehicleType
          FROM schedules s 
+         LEFT JOIN drivers d ON s.driver = d.name
          WHERE s.date >= ? AND s.date < ?
-         GROUP BY s.driver 
+         GROUP BY s.driver, d.vehicleType
          ORDER BY total DESC`,
         [driverChartMonthStart, driverChartMonthEnd]
       ),
@@ -174,8 +177,21 @@ export async function GET(request: NextRequest) {
          WHERE date >= ? AND date < ?${driverWhere}
          GROUP BY orderType`,
         [driverChartMonthStart, driverChartMonthEnd, ...driverParam]
-      )
+      ),
+      pool.execute(
+        `SELECT s.driver, CAST(SUM(s.companyShare) AS UNSIGNED) as total
+         FROM schedules s 
+         WHERE s.date >= ? AND s.date < ?
+         GROUP BY s.driver 
+         ORDER BY total DESC`,
+        [lastMonthStart, driverChartMonthStart]
+      ),
+      driverFilter
+        ? pool.execute("SELECT vehicleType FROM drivers WHERE name = ?", [driverFilter])
+        : Promise.resolve([[[]]])
     ]) as any[]
+
+    const driverVehicleType = driverVehicleRows?.[0]?.[0]?.vehicleType || "CDE"
 
     const chartData = (monthlyChart as Array<{ month: number; total: string | number; totalFare: string | number; tripCount: string | number }>).map(r => ({
       month: Number(r.month),
@@ -184,11 +200,30 @@ export async function GET(request: NextRequest) {
       tripCount: Number(r.tripCount || 0),
     }))
 
-    const driverData = (driverIncome as Array<{ driver: string; total: string | number; trips: string | number }>).map(r => ({
-      driver: String(r.driver).trim(),
-      total: Number(r.total),
-      trips: Number(r.trips || 0),
-    }))
+    const driverData = (driverIncome as Array<{ driver: string; total: string | number; trips: string | number; vehicleType: string | null }>).map((r, index) => {
+      const driverNameNormalized = String(r.driver).trim().toLowerCase()
+      
+      // Calculate Rank Trend
+      let rankTrend: number | "new" = "new"
+      if (prevMonthDrivers && Array.isArray(prevMonthDrivers)) {
+        const prevIndex = prevMonthDrivers.findIndex(
+          (p: any) => String(p.driver).trim().toLowerCase() === driverNameNormalized
+        )
+        if (prevIndex >= 0) {
+          const prevRank = prevIndex + 1
+          const currentRank = index + 1
+          rankTrend = prevRank - currentRank // positive is up, negative is down, 0 is no change
+        }
+      }
+
+      return {
+        driver: String(r.driver).trim(),
+        total: Number(r.total),
+        trips: Number(r.trips || 0),
+        vehicleType: r.vehicleType || "CDE",
+        rankTrend,
+      }
+    })
 
     const driverDepositData = (driverDepositByMonth as Array<{ driver: string; totalFare: string | number; total: string | number; driverShare: string | number; paid: string | number; remaining: string | number; trips: string | number }>).map(r => ({
       driver: String(r.driver).trim(),
@@ -204,6 +239,28 @@ export async function GET(request: NextRequest) {
     const monthlyFare = Number((monthlyRows as any[])[0]?.totalFare || 0)
     const lastMonthCompany = Number((lastMonthRows as any[])[0]?.totalCompany || 0)
     const lastMonthFare = Number((lastMonthRows as any[])[0]?.totalFare || 0)
+
+    // Calculate Top Driver Insight (Point 5)
+    let topDriverInsight = ""
+    if (driverData.length > 0) {
+      const topDriverName = driverData[0].driver
+      const [topDriverSchedules] = await pool.execute(
+        `SELECT origin, destination, orderType, COUNT(*) as count 
+         FROM schedules 
+         WHERE driver = ? AND date >= ? AND date < ?
+         GROUP BY origin, destination, orderType
+         ORDER BY count DESC LIMIT 1`,
+        [topDriverName, driverChartMonthStart, driverChartMonthEnd]
+      ) as any[]
+      
+      if (topDriverSchedules.length > 0) {
+        const route = `${topDriverSchedules[0].origin} → ${topDriverSchedules[0].destination}`
+        const type = topDriverSchedules[0].orderType === "online" ? "Online" : "Offline"
+        topDriverInsight = `Tips Driver Teratas: ${topDriverName} paling aktif di rute ${route} dengan orderan ${type}.`
+      } else {
+        topDriverInsight = `Tips Driver Teratas: ${topDriverName} mengutamakan efisiensi rit secara reguler.`
+      }
+    }
 
     const responseData = {
       monthlyCompanyShare: monthlyCompany,
@@ -232,6 +289,8 @@ export async function GET(request: NextRequest) {
         total: Number(r.total),
         count: Number(r.count),
       })),
+      driverVehicleType,
+      topDriverInsight,
     }
 
     // Update cache
