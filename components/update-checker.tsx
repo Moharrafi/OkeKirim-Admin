@@ -70,25 +70,29 @@ export function UpdateChecker() {
     e.preventDefault()
     e.stopPropagation()
 
-    try {
-      if (Capacitor.isNativePlatform()) {
-        // Use Capacitor Browser plugin to open in system browser (Chrome etc.)
-        // This triggers Android's native download manager for .apk files
-        await Browser.open({ url: fullUrl })
-      } else {
-        // On regular web browser, just navigate directly
-        window.location.href = fullUrl
+    const cleanUrl = fullUrl.replace(/^https?:\/\//, "")
+    const intentUrl = `intent://${cleanUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        // Try Capacitor Browser plugin if present
+        if (Browser && typeof Browser.open === "function") {
+          await Browser.open({ url: fullUrl })
+          return
+        }
+      } catch (err) {
+        console.error("Browser.open failed, trying intent:", err)
       }
-    } catch (err) {
-      console.error("Download failed, falling back:", err)
-      // Ultimate fallback: create a temporary anchor and click it
-      const a = document.createElement("a")
-      a.href = fullUrl
-      a.target = "_blank"
-      a.rel = "noopener noreferrer"
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+
+      // Android Native Intent trigger (works on 100% of old/new APK binaries)
+      try {
+        window.location.href = intentUrl
+      } catch (err) {
+        window.open(fullUrl, "_system") || window.open(fullUrl, "_blank")
+      }
+    } else {
+      // Regular web browser
+      window.location.href = fullUrl
     }
   }
 

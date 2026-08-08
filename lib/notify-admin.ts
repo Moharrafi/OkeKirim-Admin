@@ -90,29 +90,53 @@ export async function notifyDepositPayment(driverName: string, amount: number, o
 
   const title = "Setoran Masuk"
   const body = orderCount > 1
-    ? `${driverName} melakukan setoran ${formattedAmount} untuk ${orderCount} orderan`
-    : `${driverName} melakukan setoran sebesar ${formattedAmount}`
+    ? `Anda ( driver ${driverName} ) melakukan setoran ${formattedAmount} untuk ${orderCount} orderan`
+    : `Setoran sebesar ${formattedAmount} berhasil dicatat`
 
+  // Log in database strictly for this specific driver
+  try {
+    await ensureNotificationsTable()
+    await pool.execute(
+      `INSERT INTO notifications (target_role, title, body, type, data, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+      ["driver", title, body, "deposit_payment", JSON.stringify({ driver: driverName, amount: String(amount), url: "/history" })]
+    )
+  } catch (err) {
+    console.error("Failed to log deposit notification:", err)
+  }
+
+  // Send push notification to admin FCM tokens
   return notifyAdmins({
-    title,
-    body,
+    title: `Setoran Masuk - ${driverName}`,
+    body: `${driverName} melakukan setoran ${formattedAmount}`,
     type: "deposit_payment",
     data: { driver: driverName, amount: String(amount), url: "/history" },
   })
 }
 
 /**
- * Notify admins when a new order is created.
+ * Notify when a new order is created, storing strictly for the driver account.
  */
 export async function notifyNewOrder(driverName: string, origin: string, destination: string, fare: number) {
   const formattedFare = `Rp ${fare.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`
 
   const title = "Orderan Baru"
-  const body = `${driverName} input orderan ${origin} -> ${destination} (${formattedFare})`
+  const body = `Input orderan ${origin} -> ${destination} (${formattedFare}) berhasil`
 
+  // Log in database strictly for this specific driver
+  try {
+    await ensureNotificationsTable()
+    await pool.execute(
+      `INSERT INTO notifications (target_role, title, body, type, data, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+      ["driver", title, body, "new_order", JSON.stringify({ driver: driverName, url: "/deposit?tab=setoran" })]
+    )
+  } catch (err) {
+    console.error("Failed to log order notification:", err)
+  }
+
+  // Send push notification to admin FCM tokens
   return notifyAdmins({
-    title,
-    body,
+    title: `Orderan Baru - ${driverName}`,
+    body: `${driverName} input orderan ${origin} -> ${destination} (${formattedFare})`,
     type: "new_order",
     data: { driver: driverName, url: "/deposit?tab=setoran" },
   })

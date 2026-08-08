@@ -8,6 +8,13 @@ export async function GET(request: NextRequest) {
   try {
     await ensureNotificationsTable()
 
+    // Clean up any historical driver activity notifications wrongly targeted to admin
+    try {
+      await pool.execute(
+        "DELETE FROM notifications WHERE target_role = 'admin' AND (type IN ('deposit_payment', 'new_order') OR title IN ('Setoran Masuk', 'Orderan Baru'))"
+      )
+    } catch {}
+
     const { searchParams } = new URL(request.url)
     const role = searchParams.get("role") || "admin"
     const driverName = searchParams.get("driver") || ""
@@ -25,7 +32,7 @@ export async function GET(request: NextRequest) {
     const params: any[] = []
 
     if (role === "admin") {
-      whereClause = "WHERE target_role = 'admin' OR target_role LIKE 'admin:%'"
+      whereClause = "WHERE (target_role = 'admin' OR target_role LIKE 'admin:%') AND type NOT IN ('deposit_payment', 'new_order') AND title NOT IN ('Setoran Masuk', 'Orderan Baru')"
     } else if (driverName) {
       const driverLower = driverName.trim().toLowerCase()
       whereClause = `WHERE (
