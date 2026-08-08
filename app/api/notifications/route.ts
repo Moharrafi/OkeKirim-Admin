@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get("role") || "admin"
+    const driverName = searchParams.get("driver") || ""
     const requestedLimit = Number(searchParams.get("limit") || 50)
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
@@ -19,7 +20,32 @@ export async function GET(request: NextRequest) {
       ? Math.max(Math.trunc(requestedOffset), 0)
       : 0
     const unreadOnly = searchParams.get("unread") === "true"
-    let query = `
+
+    let whereClause = ""
+    const params: any[] = []
+
+    if (role === "admin") {
+      whereClause = "WHERE target_role = 'admin' OR target_role LIKE 'admin:%'"
+    } else if (driverName) {
+      const driverLower = driverName.trim().toLowerCase()
+      whereClause = `WHERE (
+        (target_role = 'driver' AND (
+          data IS NULL 
+          OR JSON_UNQUOTE(JSON_EXTRACT(data, '$.driver')) IS NULL 
+          OR LOWER(JSON_UNQUOTE(JSON_EXTRACT(data, '$.driver'))) = ?
+        ))
+        OR LOWER(target_role) = ?
+      )`
+      params.push(driverLower, `driver:${driverLower}`)
+    } else {
+      whereClause = "WHERE target_role = 'driver'"
+    }
+
+    if (unreadOnly) {
+      whereClause += " AND is_read = 0"
+    }
+
+    const query = `
       SELECT
         id,
         target_role,
@@ -30,23 +56,15 @@ export async function GET(request: NextRequest) {
         is_read,
         DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s.000Z') AS created_at
       FROM notifications
-      WHERE target_role = ?
+      ${whereClause}
+      ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
     `
-    const params: any[] = [role]
-
-    if (unreadOnly) {
-      query += ` AND is_read = 0`
-    }
-
-    query += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
 
     const [rows] = await pool.execute(query, params) as any
 
-    // Get unread count
-    const [countRows] = await pool.execute(
-      "SELECT COUNT(*) as count FROM notifications WHERE target_role = ? AND is_read = 0",
-      [role]
-    ) as any
+    // Get unread count with same scoped filter
+    const countQuery = `SELECT COUNT(*) as count FROM notifications ${whereClause} AND is_read = 0`
+    const [countRows] = await pool.execute(countQuery, params) as any
 
     return NextResponse.json({
       notifications: rows || [],

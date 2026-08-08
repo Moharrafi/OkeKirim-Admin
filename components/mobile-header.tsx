@@ -155,7 +155,8 @@ export function MobileHeader({
 
   const checkUnreadNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`/api/notifications?role=${isAdmin ? "admin" : "driver"}&unread=true&limit=1`)
+      const driverParam = user.name ? `&driver=${encodeURIComponent(user.name)}` : ""
+      const res = await fetch(`/api/notifications?role=${isAdmin ? "admin" : "driver"}${driverParam}&unread=true&limit=1`)
       if (res.ok) {
         const data = await res.json()
         setHasUnread((data.unreadCount || 0) > 0)
@@ -163,7 +164,7 @@ export function MobileHeader({
     } catch {
       // If notifications API fails, keep the current badge state.
     }
-  }, [isAdmin])
+  }, [isAdmin, user.name])
 
   // Keep the bell badge in sync without loading the full notification list.
   useEffect(() => {
@@ -206,6 +207,7 @@ export function MobileHeader({
       const nextNotificationOffset = reset ? 0 : notificationOffset
       const notifParams = new URLSearchParams({
         role: isAdmin ? "admin" : "driver",
+        driver: user.name || "",
         limit: String(NOTIFICATION_PAGE_SIZE),
         offset: String(nextNotificationOffset),
       })
