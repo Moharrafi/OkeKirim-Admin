@@ -43,13 +43,8 @@ export function UpdateChecker() {
         const data: VersionData = await res.json()
 
         if (isNewerVersion(data.latestVersion, CURRENT_APP_VERSION)) {
-          const dismissedKey = `dismissed_update_${data.latestVersion}`
-          const dismissed = sessionStorage.getItem(dismissedKey)
-
-          if (data.forceUpdate || !dismissed) {
-            setUpdateData(data)
-            setOpen(true)
-          }
+          setUpdateData(data)
+          setOpen(true)
         }
       } catch (err) {
         console.error("Failed to check app version:", err)
@@ -70,8 +65,7 @@ export function UpdateChecker() {
   }
 
   const handleDismiss = () => {
-    if (updateData.forceUpdate) return
-    sessionStorage.setItem(`dismissed_update_${updateData.latestVersion}`, "true")
+    if (updateData?.forceUpdate) return
     setOpen(false)
   }
 
