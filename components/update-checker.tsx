@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Sparkles, Download, ArrowUpCircle, CheckCircle2, Copy, Check } from "lucide-react"
+import { Sparkles, Download, ArrowUpCircle, CheckCircle2, Copy, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
 const CURRENT_APP_VERSION = "2.0.0"
@@ -66,6 +65,22 @@ export function UpdateChecker() {
     ? rawTargetUrl
     : `https://oke-kirim.vercel.app${rawTargetUrl.startsWith("/") ? "" : "/"}${rawTargetUrl}`
 
+  const triggerChromeJump = () => {
+    const cleanUrl = fullUrl.replace(/^https?:\/\//, "")
+    const chromeUrl = `googlechrome://navigate?url=${encodeURIComponent(fullUrl)}`
+    const intentUrl = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
+
+    try {
+      window.location.href = chromeUrl
+    } catch {}
+
+    setTimeout(() => {
+      try {
+        window.location.href = intentUrl
+      } catch {}
+    }, 150)
+  }
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullUrl)
     setCopied(true)
@@ -79,24 +94,34 @@ export function UpdateChecker() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md rounded-3xl p-6 border-blue-500/20 bg-card shadow-2xl animate-in fade-in zoom-in-95">
-        <DialogHeader className="text-center sm:text-left">
-          <div className="mx-auto sm:mx-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 mb-3 shadow-xs">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-3xl p-6 border border-blue-500/20 bg-card text-card-foreground shadow-2xl animate-in zoom-in-95 duration-200 space-y-4 relative">
+        {!updateData.forceUpdate && (
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-secondary transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
+        <div className="text-center sm:text-left space-y-1.5">
+          <div className="mx-auto sm:mx-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-xs">
             <ArrowUpCircle className="h-6 w-6 stroke-[2.2]" />
           </div>
-          <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2 justify-center sm:justify-start">
+          <h3 className="text-xl font-black text-foreground flex items-center gap-2 justify-center sm:justify-start pt-1">
             Pembaruan Aplikasi Tersedia!
             <span className="bg-blue-500/10 text-blue-600 text-xs px-2 py-0.5 rounded-full font-bold border border-blue-500/20">
               v{updateData.latestVersion}
             </span>
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground mt-1">
+          </h3>
+          <p className="text-xs text-muted-foreground">
             Versi baru **OkeMitra** telah rilis. Dapatkan nada dering baru & peningkatan performa!
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
-        <div className="mt-4 space-y-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-border/60">
+        <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-border/60">
           <p className="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             Catatan Pembaruan:
@@ -111,11 +136,12 @@ export function UpdateChecker() {
           </ul>
         </div>
 
-        <div className="mt-5 flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-3 pt-1">
           <a
             href={fullUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={triggerChromeJump}
             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2 text-sm inline-flex items-center justify-center cursor-pointer"
           >
             <Download className="h-4 w-4 stroke-[2.5]" />
@@ -145,8 +171,8 @@ export function UpdateChecker() {
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }
 
