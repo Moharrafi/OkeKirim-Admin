@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Sparkles, Download, X, ArrowUpCircle, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Capacitor } from "@capacitor/core"
 
 const CURRENT_APP_VERSION = "2.0.0"
 
@@ -58,10 +59,20 @@ export function UpdateChecker() {
 
   if (!updateData || !open) return null
 
-  const targetUrl = updateData.downloadUrl || updateData.apkUrl || "/api/download-apk"
+  const rawTargetUrl = updateData.downloadUrl || updateData.apkUrl || "/api/download-apk"
+  const fullTargetUrl = rawTargetUrl.startsWith("http")
+    ? rawTargetUrl
+    : `https://oke-kirim.vercel.app${rawTargetUrl.startsWith("/") ? "" : "/"}${rawTargetUrl}`
 
-  const handleDownload = () => {
-    window.location.href = targetUrl
+  const handleDownload = (e: React.MouseEvent) => {
+    if (Capacitor.isNativePlatform()) {
+      e.preventDefault()
+      // Open link via Android System Browser / Download Manager
+      const systemWin = window.open(fullTargetUrl, "_system")
+      if (!systemWin) {
+        window.location.href = fullTargetUrl
+      }
+    }
   }
 
   const handleDismiss = () => {
@@ -104,7 +115,9 @@ export function UpdateChecker() {
 
         <div className="mt-6 flex flex-col sm:flex-row items-center gap-2">
           <a
-            href={targetUrl}
+            href={fullTargetUrl}
+            onClick={handleDownload}
+            target="_system"
             download="OkeMitra-v2.1.0.apk"
             className="w-full sm:flex-1 inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
           >
