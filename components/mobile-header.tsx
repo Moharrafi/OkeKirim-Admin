@@ -241,6 +241,11 @@ export function MobileHeader({
   ])
 
   const handleBellClick = async () => {
+    try {
+      const audio = new Audio("/sounds/setoran_reminder.wav")
+      audio.volume = 0.5
+      audio.play().catch(() => {})
+    } catch {}
     setShowNotifications(true)
     setOverdueOrders([])
     setNotificationOffset(0)

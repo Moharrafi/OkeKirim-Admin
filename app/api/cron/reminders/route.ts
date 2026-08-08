@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ==========================================
-    // 2. LOGIKA DEPOSIT REMINDER (SETORAN HARIAN)
+    // 2. LOGIKA DEPOSIT REMINDER (1x SEHARI SAAT JALAN)
     // ==========================================
     try {
       const now = new Date()
@@ -105,69 +105,149 @@ export async function GET(request: NextRequest) {
       const wibNow = new Date(now.getTime() + wibOffset)
       const today = searchParams.get("date") || wibNow.toISOString().split("T")[0]
 
+      // Ensure reminder log table exists
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS daily_reminder_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          driver_name VARCHAR(128) NOT NULL,
+          reminder_date DATE NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_driver_date (driver_name, reminder_date)
+        )
+      `)
+
       await pool.execute(
         "UPDATE fcm_tokens SET role = 'driver' WHERE role IS NULL AND LOWER(driver_name) NOT LIKE '%admin%'"
       )
       await pool.execute(
         "UPDATE fcm_tokens SET role = 'admin' WHERE role IS NULL AND LOWER(driver_name) LIKE '%admin%'"
       )
-      
+
+      // Fetch FCM tokens map
       const [tokenRows] = await pool.execute(
-        "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != '' AND role = 'driver'"
+        "SELECT driver_name, token FROM fcm_tokens WHERE token IS NOT NULL AND token != ''"
       ) as any
+
+      const fcmTokenMap = new Map<string, string>()
+      ;(tokenRows || []).forEach((r: any) => {
+        if (r.driver_name && r.token) {
+          fcmTokenMap.set(String(r.driver_name).trim().toLowerCase(), String(r.token))
+        }
+      })
+
+      // Fetch all active drivers from drivers table or fallback to FCM tokens
+      let driverList: string[] = []
+      try {
+        const [driverRows] = await pool.execute(
+          "SELECT DISTINCT name FROM drivers WHERE status = 'aktif' OR status IS NULL"
+        ) as any
+        driverList = (driverRows || []).map((r: any) => String(r.name).trim())
+      } catch {}
+
+      if (driverList.length === 0 && tokenRows && tokenRows.length > 0) {
+        driverList = (tokenRows || []).map((r: any) => String(r.driver_name).trim())
+      }
+
+      // If still empty (e.g. initial dev DB), include default drivers
+      if (driverList.length === 0) {
+        driverList = ["Pudini", "Budi", "Driver Test"]
+      }
 
       let depositSent = 0
       const depositDetails: any[] = []
 
-      if (tokenRows && tokenRows.length > 0) {
-        const [depositRows] = await pool.execute(
-          "SELECT DISTINCT driver FROM schedules WHERE date = ? AND status = 'lunas'",
+      // Cek driver yang sudah LUNAS hari ini
+      const [depositRows] = await pool.execute(
+        "SELECT DISTINCT driver FROM schedules WHERE date = ? AND status = 'lunas'",
+        [today]
+      ) as any
+
+      const driversWithDeposit = new Set(
+        (depositRows || []).map((r: any) => String(r.driver).trim().toLowerCase())
+      )
+
+      // Cek driver yang SUDAH dikirimi notifikasi 1x hari ini
+      const isManual = searchParams.get("key") === "manual"
+      let driversAlreadyReminded = new Set<string>()
+
+      if (!isManual) {
+        const [alreadySentRows] = await pool.execute(
+          "SELECT driver_name FROM daily_reminder_logs WHERE reminder_date = ?",
           [today]
         ) as any
 
-        const driversWithDeposit = new Set(
-          (depositRows || []).map((r: any) => String(r.driver).trim().toLowerCase())
+        driversAlreadyReminded = new Set(
+          (alreadySentRows || []).map((r: any) => String(r.driver_name).trim().toLowerCase())
         )
+      }
 
-        const notifications: { driver: string; token: string }[] = []
-        for (const row of tokenRows) {
-          const driverName = String(row.driver_name).trim()
-          if (driversWithDeposit.has(driverName.toLowerCase())) continue
-          notifications.push({ driver: driverName, token: row.token })
-        }
+      const customBodyText = "Hari ini narik ? jangan lupa setoran yah"
 
-        if (admin.apps.length > 0 && notifications.length > 0) {
-          for (const notif of notifications) {
-            const bodyText = `Halo ${notif.driver}, sudah narik hari ini? Segera lakukan setoran ya! 🙏`
-            try {
-              await admin.messaging().send({
-                token: notif.token,
+      for (const driverName of driverList) {
+        const driverLower = driverName.toLowerCase()
+
+        // Syarat 1: Belum bayar setoran hari ini
+        if (driversWithDeposit.has(driverLower)) continue
+
+        // Syarat 2: Belum pernah dikirim notifikasi hari ini (1x SAJA PER HARI, kecuali manual test)
+        if (!isManual && driversAlreadyReminded.has(driverLower)) continue
+
+        const token = fcmTokenMap.get(driverLower)
+
+        try {
+          // 1. Kirim Push Notification via FCM jika token & Firebase terkonfigurasi
+          if (admin.apps.length > 0 && token) {
+            await admin.messaging().send({
+              token: token,
+              notification: {
+                title: "Reminder Setoran",
+                body: customBodyText,
+              },
+              data: { type: "deposit_reminder", url: "/deposit?tab=setoran", sound: "setoran_reminder" },
+              android: {
+                priority: "high",
                 notification: {
-                  title: "Reminder Setoran",
-                  body: bodyText,
+                  sound: "setoran_reminder",
+                  channelId: "deposit_reminder_custom",
+                  defaultSound: false,
                 },
-                data: { type: "deposit_reminder", url: "/deposit?tab=setoran" },
-                android: {
-                  priority: "high",
-                  notification: { sound: "default", channelId: "deposit_reminder" },
-                },
-                apns: {
-                  headers: { "apns-priority": "10" },
-                  payload: { aps: { sound: "default" } },
-                },
-              })
-              depositSent++
-              depositDetails.push({ driver: notif.driver, status: "sent" })
-            } catch (err: any) {
-              if (err?.code === "messaging/registration-token-not-registered") {
-                await pool.execute("DELETE FROM fcm_tokens WHERE token = ?", [notif.token])
-              }
-              console.error(`Failed to send deposit notification to ${notif.driver}:`, err)
-              depositDetails.push({ driver: notif.driver, status: "failed", error: String(err) })
-            }
+              },
+              apns: {
+                headers: { "apns-priority": "10" },
+                payload: { aps: { sound: "setoran_reminder.caf" } },
+              },
+            })
           }
+
+          // 2. Simpan ke database In-App Notifications (tampil di lonceng aplikasi untuk role driver & admin)
+          await pool.execute(
+            "INSERT INTO notifications (target_role, title, body, type, data) VALUES (?, ?, ?, ?, ?)",
+            [
+              "driver",
+              "Reminder Setoran",
+              `Halo ${driverName}, ${customBodyText}`,
+              "deposit_reminder",
+              JSON.stringify({ url: "/deposit?tab=setoran", driver: driverName }),
+            ]
+          )
+
+          // 3. Catat di log agar TIDAK AKAN dikirim 2x pada hari yang sama
+          await pool.execute(
+            "INSERT IGNORE INTO daily_reminder_logs (driver_name, reminder_date) VALUES (?, ?)",
+            [driverName, today]
+          )
+
+          depositSent++
+          depositDetails.push({ driver: driverName, fcmSent: Boolean(token), status: "sent", message: customBodyText })
+        } catch (err: any) {
+          if (token && err?.code === "messaging/registration-token-not-registered") {
+            await pool.execute("DELETE FROM fcm_tokens WHERE token = ?", [token])
+          }
+          console.error(`Failed to send deposit notification to ${driverName}:`, err)
+          depositDetails.push({ driver: driverName, status: "failed", error: String(err) })
         }
       }
+
       results.deposit = { success: true, sent: depositSent, details: depositDetails }
     } catch (depositErr: any) {
       console.error("Deposit reminder helper error:", depositErr)

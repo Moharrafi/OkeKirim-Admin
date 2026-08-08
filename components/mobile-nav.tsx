@@ -91,10 +91,10 @@ export function MobileNav() {
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => setTappedIndex(index)}
                   className={cn(
-                    "absolute -top-7 flex h-14 w-14 flex-col items-center justify-center rounded-full text-white shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 border-[4px] border-card z-20",
+                    "absolute -top-7 flex h-14 w-14 flex-col items-center justify-center rounded-full text-white transition-all duration-300 hover:scale-105 active:scale-95 border-[4px] border-card z-20 shadow-[0_8px_24px_rgba(37,99,235,0.4)]",
                     isActive 
-                      ? "bg-primary shadow-primary/30 scale-105 border-blue-100 dark:border-blue-900 ring-4 ring-primary/20" 
-                      : "bg-primary shadow-primary/30 hover:bg-primary/95 hover:shadow-primary/40"
+                      ? "bg-primary scale-105 border-blue-100 dark:border-blue-950 ring-4 ring-primary/25 shadow-[0_10px_28px_rgba(37,99,235,0.5)]" 
+                      : "bg-primary hover:bg-primary/95"
                   )}
                 >
                   <item.icon className="h-5 w-5 stroke-[2.5]" aria-hidden="true" />
