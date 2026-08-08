@@ -66,32 +66,37 @@ export function UpdateChecker() {
     ? rawTargetUrl
     : `https://oke-kirim.vercel.app${rawTargetUrl.startsWith("/") ? "" : "/"}${rawTargetUrl}`
 
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const handleDownload = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
 
     const cleanUrl = fullUrl.replace(/^https?:\/\//, "")
     const intentUrl = `intent://${cleanUrl}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
 
     if (Capacitor.isNativePlatform()) {
+      let opened = false
       try {
-        // Try Capacitor Browser plugin if present
         if (Browser && typeof Browser.open === "function") {
-          await Browser.open({ url: fullUrl })
-          return
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Plugin Timeout")), 800)
+          )
+          await Promise.race([Browser.open({ url: fullUrl }), timeoutPromise])
+          opened = true
         }
       } catch (err) {
-        console.error("Browser.open failed, trying intent:", err)
+        console.warn("Native Browser.open failed or timed out:", err)
       }
 
-      // Android Native Intent trigger (works on 100% of old/new APK binaries)
-      try {
-        window.location.href = intentUrl
-      } catch (err) {
-        window.open(fullUrl, "_system") || window.open(fullUrl, "_blank")
+      if (!opened) {
+        try {
+          window.location.href = intentUrl
+        } catch {
+          window.open(fullUrl, "_blank") || (window.location.href = fullUrl)
+        }
       }
     } else {
-      // Regular web browser
       window.location.href = fullUrl
     }
   }
@@ -134,24 +139,36 @@ export function UpdateChecker() {
           </ul>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row items-center gap-2">
+        <div className="mt-6 flex flex-col items-center gap-3">
           <Button
             onClick={handleDownload}
-            className="w-full sm:flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2 text-sm"
           >
             <Download className="h-4 w-4 stroke-[2.5]" />
-            Unduh & Install APK
+            Unduh & Install APK (Otomatis)
           </Button>
 
-          {!updateData.forceUpdate && (
-            <Button
-              variant="outline"
-              onClick={handleDismiss}
-              className="w-full sm:w-auto font-semibold h-11 rounded-xl border-border/80 hover:bg-secondary text-muted-foreground"
+          <div className="flex items-center justify-between w-full text-xs px-1">
+            <a
+              href={fullUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1"
             >
-              Nanti Saja
-            </Button>
-          )}
+              <Download className="h-3 w-3" />
+              Link Manual Chrome
+            </a>
+
+            {!updateData.forceUpdate && (
+              <button
+                type="button"
+                onClick={handleDismiss}
+                className="text-muted-foreground hover:text-foreground font-medium"
+              >
+                Nanti Saja
+              </button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
