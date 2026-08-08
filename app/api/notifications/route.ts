@@ -108,3 +108,26 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await ensureNotificationsTable()
+    const { searchParams } = new URL(request.url)
+    const cleanAll = searchParams.get("cleanAll") === "true"
+
+    if (cleanAll) {
+      const [r1] = await pool.execute(
+        "DELETE FROM notifications WHERE type IN ('deposit_reminder', 'test') OR title LIKE '%Reminder Setoran%' OR title LIKE '%Test%'"
+      ) as any
+      try {
+        await pool.execute("DELETE FROM daily_reminder_logs WHERE reminder_date = CURRENT_DATE()")
+      } catch {}
+      return NextResponse.json({ success: true, deletedNotifications: r1.affectedRows })
+    }
+
+    return NextResponse.json({ error: "cleanAll=true required" }, { status: 400 })
+  } catch (error) {
+    console.error("Notifications DELETE error:", error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
+  }
+}
