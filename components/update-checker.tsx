@@ -5,6 +5,7 @@ import { Sparkles, Download, X, ArrowUpCircle, CheckCircle2 } from "lucide-react
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Capacitor } from "@capacitor/core"
+import { Browser } from "@capacitor/browser"
 
 const CURRENT_APP_VERSION = "2.0.0"
 
@@ -59,19 +60,35 @@ export function UpdateChecker() {
 
   if (!updateData || !open) return null
 
-  const rawTargetUrl = updateData.downloadUrl || updateData.apkUrl || "/api/download-apk"
-  const fullTargetUrl = rawTargetUrl.startsWith("http")
+  // Always build absolute URL for the APK download
+  const rawTargetUrl = updateData.downloadUrl || updateData.apkUrl || "/downloads/OkeMitra-v2.1.0.apk"
+  const fullUrl = rawTargetUrl.startsWith("http")
     ? rawTargetUrl
     : `https://oke-kirim.vercel.app${rawTargetUrl.startsWith("/") ? "" : "/"}${rawTargetUrl}`
 
-  const handleDownload = (e: React.MouseEvent) => {
-    if (Capacitor.isNativePlatform()) {
-      e.preventDefault()
-      // Open link via Android System Browser / Download Manager
-      const systemWin = window.open(fullTargetUrl, "_system")
-      if (!systemWin) {
-        window.location.href = fullTargetUrl
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    try {
+      if (Capacitor.isNativePlatform()) {
+        // Use Capacitor Browser plugin to open in system browser (Chrome etc.)
+        // This triggers Android's native download manager for .apk files
+        await Browser.open({ url: fullUrl })
+      } else {
+        // On regular web browser, just navigate directly
+        window.location.href = fullUrl
       }
+    } catch (err) {
+      console.error("Download failed, falling back:", err)
+      // Ultimate fallback: create a temporary anchor and click it
+      const a = document.createElement("a")
+      a.href = fullUrl
+      a.target = "_blank"
+      a.rel = "noopener noreferrer"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     }
   }
 
@@ -114,16 +131,13 @@ export function UpdateChecker() {
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row items-center gap-2">
-          <a
-            href={fullTargetUrl}
+          <Button
             onClick={handleDownload}
-            target="_system"
-            download="OkeMitra-v2.1.0.apk"
-            className="w-full sm:flex-1 inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
+            className="w-full sm:flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
           >
             <Download className="h-4 w-4 stroke-[2.5]" />
             Unduh & Install APK
-          </a>
+          </Button>
 
           {!updateData.forceUpdate && (
             <Button
@@ -141,4 +155,3 @@ export function UpdateChecker() {
 }
 
 export default UpdateChecker
-
