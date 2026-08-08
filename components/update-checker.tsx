@@ -78,8 +78,8 @@ export function UpdateChecker() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md rounded-3xl p-6 border-blue-500/20 bg-card shadow-2xl animate-in fade-in zoom-in-95">
         <DialogHeader className="text-center sm:text-left">
-          <div className="mx-auto sm:mx-0 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 mb-3">
-            <ArrowUpCircle className="h-8 w-8 stroke-[2.2] animate-bounce" />
+          <div className="mx-auto sm:mx-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 mb-3 shadow-xs">
+            <ArrowUpCircle className="h-6 w-6 stroke-[2.2]" />
           </div>
           <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2 justify-center sm:justify-start">
             Pembaruan Aplikasi Tersedia!
