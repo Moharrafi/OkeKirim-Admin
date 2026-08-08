@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const HistoryMap = dynamic(() => import("@/components/history-map"), {
+const HistoryMap = dynamic(() => import("@/components/history-map").then((mod) => mod.default || mod), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-[350px] bg-muted rounded-xl">

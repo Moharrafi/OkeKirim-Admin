@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 import { toast } from "sonner"
 
-const VehicleMap = dynamic(() => import("@/components/vehicle-map"), {
+const VehicleMap = dynamic(() => import("@/components/vehicle-map").then((mod) => mod.default || mod), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full bg-muted rounded-xl">

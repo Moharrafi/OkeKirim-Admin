@@ -26,7 +26,7 @@ import dynamic from "next/dynamic"
 import { SkeletonDashboard } from "@/components/skeleton-dashboard"
 import { PullToRefresh } from "@/components/pull-to-refresh"
 
-const DashboardCharts = dynamic(() => import("@/components/dashboard-charts"), {
+const DashboardCharts = dynamic(() => import("@/components/dashboard-charts").then((mod) => mod.default || mod), {
   ssr: false,
   loading: () => (
     <div className="h-48 rounded-xl border border-border bg-card p-3">
