@@ -63,9 +63,10 @@ export function UpdateChecker() {
 
   if (!updateData || !open) return null
 
+  const targetUrl = updateData.downloadUrl || updateData.apkUrl || "/api/download-apk"
+
   const handleDownload = () => {
-    const targetUrl = updateData.downloadUrl || updateData.apkUrl || "#"
-    window.open(targetUrl, "_blank")
+    window.location.href = targetUrl
   }
 
   const handleDismiss = () => {
@@ -108,13 +109,14 @@ export function UpdateChecker() {
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row items-center gap-2">
-          <Button
-            onClick={handleDownload}
-            className="w-full sm:flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
+          <a
+            href={targetUrl}
+            download="OkeMitra-v2.1.0.apk"
+            className="w-full sm:flex-1 inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-11 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2"
           >
             <Download className="h-4 w-4 stroke-[2.5]" />
             Unduh & Install APK
-          </Button>
+          </a>
 
           {!updateData.forceUpdate && (
             <Button

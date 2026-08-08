@@ -6,8 +6,8 @@ export async function GET() {
     versionCode: 210,
     minSupportedVersion: "1.0.0",
     forceUpdate: false,
-    apkUrl: "/downloads/OkeMitra-v2.1.apk",
-    downloadUrl: "https://github.com/Moharrafi/OkeKirim/releases/latest",
+    apkUrl: "/api/download-apk",
+    downloadUrl: "/api/download-apk",
     releaseNotes: [
       "Nada dering pengingat setoran baru (melodi 2.2 detik)",
       "Peningkatan tampilan dashboard modern & presisi",
