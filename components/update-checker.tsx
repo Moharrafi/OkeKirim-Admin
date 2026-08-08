@@ -1,11 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Sparkles, Download, ArrowUpCircle, CheckCircle2, Copy, Check, ExternalLink } from "lucide-react"
+import { Sparkles, Download, ArrowUpCircle, CheckCircle2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Capacitor } from "@capacitor/core"
-import { Browser } from "@capacitor/browser"
 import { toast } from "sonner"
 
 const CURRENT_APP_VERSION = "2.0.0"
@@ -68,46 +66,6 @@ export function UpdateChecker() {
     ? rawTargetUrl
     : `https://oke-kirim.vercel.app${rawTargetUrl.startsWith("/") ? "" : "/"}${rawTargetUrl}`
 
-  const handleDownload = async (e?: React.MouseEvent) => {
-    const cleanUrl = fullUrl.replace(/^https?:\/\//, "")
-    const chromeUrl = `googlechrome://navigate?url=${encodeURIComponent(fullUrl)}`
-    const intentUrl = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`
-
-    if (Capacitor.isNativePlatform()) {
-      let opened = false
-      try {
-        if (Browser && typeof Browser.open === "function") {
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Plugin Timeout")), 600)
-          )
-          await Promise.race([Browser.open({ url: fullUrl }), timeoutPromise])
-          opened = true
-        }
-      } catch (err) {
-        console.warn("Native Browser.open failed or timed out:", err)
-      }
-
-      if (!opened) {
-        // Multi-trigger sequence for old APK binaries
-        try {
-          window.location.href = chromeUrl
-        } catch {}
-
-        setTimeout(() => {
-          try {
-            window.location.href = intentUrl
-          } catch {}
-        }, 200)
-
-        setTimeout(() => {
-          window.open(fullUrl, "_system") || window.open(fullUrl, "_blank")
-        }, 500)
-      }
-    } else {
-      window.location.href = fullUrl
-    }
-  }
-
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullUrl)
     setCopied(true)
@@ -154,13 +112,15 @@ export function UpdateChecker() {
         </div>
 
         <div className="mt-5 flex flex-col items-center gap-3">
-          <Button
-            onClick={handleDownload}
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2 text-sm"
+          <a
+            href={fullUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-500/25 active:scale-95 transition-all gap-2 text-sm inline-flex items-center justify-center cursor-pointer"
           >
             <Download className="h-4 w-4 stroke-[2.5]" />
-            Unduh & Install APK
-          </Button>
+            Buka Browser & Unduh APK
+          </a>
 
           <div className="w-full flex items-center gap-2">
             <Button
