@@ -5,6 +5,7 @@ import './globals.css'
 import { MobileNav } from '@/components/mobile-nav'
 import { OfflineIndicator } from '@/components/offline-indicator'
 import { DebtReminder } from '@/components/debt-reminder'
+import { UpdateChecker } from '@/components/update-checker'
 import { Toaster } from '@/components/ui/sonner'
 import { AndroidBackHandler } from '@/components/android-back-handler'
 import { ThemeProvider } from '@/lib/theme-context'
@@ -80,6 +81,7 @@ export default function RootLayout({
             <OfflineIndicator />
             <AndroidBackHandler />
             <DebtReminder />
+            <UpdateChecker />
             {children}
             <MobileNav />
             <Toaster />
